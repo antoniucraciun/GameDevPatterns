@@ -85,6 +85,42 @@ export const recipes: Recipe[] = [
     patterns: ['save-system', 'memento', 'inventory', 'data-driven-design', 'scene-management'],
   },
   {
+    slug: 'roguelike-dungeon-run',
+    name: 'Roguelike Dungeon Run',
+    summary: 'A complete, playable level from one seed: layout, caves, navigation, enemies and loot, reproducible every time.',
+    patterns: ['bsp-dungeon', 'cellular-automata', 'seeded-randomness', 'navigation-mesh', 'spawner', 'weighted-random'],
+  },
+  {
+    slug: 'turn-based-tactics',
+    name: 'Turn-Based Tactics Combat',
+    summary: 'Grid combat with fixed turn rules, undoable moves, movement ranges and AI that picks safe, useful tiles.',
+    patterns: ['template-method', 'command', 'a-star', 'influence-map', 'state', 'memento'],
+  },
+  {
+    slug: 'boss-fight',
+    name: 'Boss Fight',
+    summary: 'A multi-phase boss with telegraphed attacks, readable feedback and fair, instant retries.',
+    patterns: ['hierarchical-state-machine', 'behavior-tree', 'juice', 'checkpoint', 'health-component', 'event-bus'],
+  },
+  {
+    slug: 'open-world-streaming',
+    name: 'Open-World Streaming',
+    summary: 'A large world streamed around the player in cells, within a memory budget and without hitches.',
+    patterns: ['scene-management', 'asset-reference', 'level-of-detail', 'culling', 'spatial-partition', 'time-slicing'],
+  },
+  {
+    slug: 'rollback-fighting-game',
+    name: 'Rollback Fighting Game',
+    summary: 'Frame-perfect online fighting where input buffering and hit stop still work correctly through rollbacks.',
+    patterns: ['rollback-netcode', 'determinism', 'fixed-timestep', 'input-buffer', 'hit-stop', 'command'],
+  },
+  {
+    slug: 'settings-menu',
+    name: 'Settings & Accessibility Menu',
+    summary: 'Audio, language, controls and accessibility options that apply live, persist safely and can be reverted.',
+    patterns: ['screen-stack', 'data-binding', 'input-abstraction', 'save-system', 'localization-tables', 'feature-flags'],
+  },
+  {
     slug: 'tower-defence-targeting',
     name: 'Tower Defence Targeting',
     summary: 'Towers with swappable targeting rules, cheap range queries and pooled projectiles that cope with targets dying mid-flight.',
