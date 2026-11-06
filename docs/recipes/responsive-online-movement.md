@@ -232,6 +232,6 @@ public class NetPlayer : MonoBehaviour
 ## Variations
 
 - **Lag compensation for shooting:** the server rewinds other players' hitboxes to what the shooter saw (render time) when validating hits.
-- **Delta-compressed snapshots:** send only what changed since the last snapshot the client acknowledged.
+- **[Delta-compressed snapshots](../patterns/snapshot-delta-compression):** send only what changed since the last snapshot the client acknowledged.
 - **Interest management:** send each client only the players near it.
 - **Rollback for everything:** fighting games predict *remote* inputs too, and resimulate the whole world when the real ones arrive. That needs a fully deterministic simulation. See [Determinism](../patterns/determinism).

@@ -6,7 +6,7 @@
 
 ## Problem
 
-With an authoritative server, the client sends "move forward" and waits for the server's updated position. At 100 ms round-trip time, every key press feels a tenth of a second late. Movement feels like steering through syrup, and it gets worse as latency grows. The server must stay authoritative, or clients could cheat by reporting any position they like.
+With an [authoritative server](./authoritative-server), the client sends "move forward" and waits for the server's updated position. At 100 ms round-trip time, every key press feels a tenth of a second late. Movement feels like steering through syrup, and it gets worse as latency grows. The server must stay authoritative, or clients could cheat by reporting any position they like.
 
 ## Solution
 

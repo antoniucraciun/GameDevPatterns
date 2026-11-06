@@ -124,4 +124,4 @@ Netcode for GameObjects' `NetworkTransform` and most networking libraries interp
 - [Fixed Timestep](./fixed-timestep) — the same "render between two states" idea, applied locally.
 - [Double Buffer](./double-buffer) — previous and current state, generalised here to a buffer of many.
 - [Interest Management](./interest-management) — send only the entities each client needs.
-- Snapshot & Delta Compression — reduces the cost of each update.
+- [Snapshot & Delta Compression](./snapshot-delta-compression) — reduces the cost of each update.

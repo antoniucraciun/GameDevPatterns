@@ -129,4 +129,4 @@ The `stillRelevant` set is allocated per call for clarity. Reuse one per client 
 - [Spatial Partition](./spatial-partition) — the grid behind relevancy queries.
 - [Entity Interpolation](./entity-interpolation) — how relevant entities are shown smoothly.
 - [Object Pool](./object-pool) — clients spawn and despawn entities constantly as relevancy changes.
-- Snapshot & Delta Compression — reduces the cost of each relevant entity's updates.
+- [Snapshot & Delta Compression](./snapshot-delta-compression) — reduces the cost of each relevant entity's updates.

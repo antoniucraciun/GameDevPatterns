@@ -65,4 +65,4 @@ Set **Interpolate** on the Rigidbody so rendering blends between physics steps a
 
 - [Game Loop](./game-loop) — the outer loop that drives the accumulator.
 - [Double Buffer](./double-buffer) — keeps the previous and current state for interpolation.
-- Rollback Netcode and Deterministic Lockstep both depend on fixed steps.
+- [Rollback Netcode](./rollback-netcode) and [Deterministic Lockstep](./deterministic-lockstep) both depend on fixed steps.
