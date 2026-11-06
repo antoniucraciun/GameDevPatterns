@@ -119,4 +119,4 @@ A daily challenge becomes `new World(Rng.Derive(0xC0FFEE, year, dayOfYear))`, th
 - [Weighted Random & Loot Tables](./weighted-random) — consumes these streams.
 - [Replay System](./replay-system) — stores seeds and generator state.
 - [Noise-Based Generation](./noise-generation) — seeded offsets make generated worlds reproducible.
-- Wave Function Collapse and BSP Dungeon Generation — other procedural techniques that rely on this.
+- [Wave Function Collapse](./wave-function-collapse) and [BSP Dungeon Generation](./bsp-dungeon) — other procedural techniques that rely on this.

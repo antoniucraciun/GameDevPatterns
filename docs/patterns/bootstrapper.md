@@ -118,7 +118,7 @@ public class LevelStart : MonoBehaviour
 ## Pitfalls
 
 - **Hidden dependencies on boot.** Code that reads services in `Awake` can run before boot finishes, because boot steps are asynchronous. Await `WaitUntilReady`, or start gameplay from the bootstrapper's `Ready` event.
-- **Resources folder abuse.** One prefab in `Resources` is fine. Putting all content there bloats builds and startup. Use Addressables for content.
+- **Resources folder abuse.** One prefab in `Resources` is fine. Putting all content there bloats builds and startup. Use Addressables for content (see [Asset References & Addressing](./asset-reference)).
 - **Domain reload disabled.** With *Enter Play Mode Options*, statics survive between sessions. Reset them (`IsReady`, event subscribers) in a `SubsystemRegistration` method, or boot can see stale state.
 - **Boot doing too much.** Loading every asset at boot makes the first screen slow. Boot only what is needed globally, and let levels load their own content.
 - **Failure handling.** If sign-in fails, should the game run offline, retry, or stop? Decide per step, and show the player something useful rather than hanging on a black screen.

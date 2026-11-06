@@ -96,4 +96,4 @@ The GPU does this at the largest scale. The front buffer is displayed while the 
 - [Game Loop](./game-loop) and [Update Method](./update-method) — double buffering removes update-order dependencies between objects.
 - [Fixed Timestep](./fixed-timestep) — keeps previous and current states for interpolation.
 - [Determinism](./determinism) — order-independent updates are much easier to make deterministic.
-- Cellular Automata — the classic use case.
+- [Cellular Automata](./cellular-automata) — the classic use case.

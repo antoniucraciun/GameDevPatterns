@@ -187,4 +187,4 @@ A conversation might look like this:
 - [Data-Driven Design](./data-driven-design) — conversations as data that writers edit.
 - [Interaction System](./interaction-system) — talking to an NPC starts a conversation.
 - [MVC / MVP / MVVM](./mvp-mvvm) — the runner is the presenter, and the dialogue box is a passive view.
-- Localization Tables — where the text behind each key lives.
+- [Localization Tables](./localization-tables) — where the text behind each key lives.

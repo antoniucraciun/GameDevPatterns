@@ -79,4 +79,4 @@ public class Gun : MonoBehaviour
 ## Related
 
 - [Flyweight](./flyweight) — shares immutable data. A pool reuses mutable instances.
-- Arena Allocator — the same idea applied to raw memory.
+- [Arena Allocator](./arena-allocator) — the same idea applied to raw memory.

@@ -143,4 +143,4 @@ Scene names as strings are fragile, because renaming a scene breaks them silentl
 - [Game State Manager](./game-state-manager) — *Loading* and *Playing* states call the scene loader.
 - [Save System](./save-system) — saves level state before unloading, and restores it after loading.
 - [Spatial Partition](./spatial-partition) — streaming is spatial partitioning at the level of whole scenes.
-- Asset References & Addressing — loading scenes and assets by key.
+- [Asset References & Addressing](./asset-reference) — loading scenes and assets by key.

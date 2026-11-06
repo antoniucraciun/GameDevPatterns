@@ -127,6 +127,6 @@ public class WorldGenerator
 ## Related
 
 - [Seeded Randomness](./seeded-randomness) — reproducible offsets and per-feature seeds.
-- Cellular Automata, Wave Function Collapse and BSP Dungeon Generation — other procedural techniques, often combined with noise.
+- [Cellular Automata](./cellular-automata), [Wave Function Collapse](./wave-function-collapse) and [BSP Dungeon Generation](./bsp-dungeon) — other procedural techniques, often combined with noise.
 - [Data-Driven Design](./data-driven-design) — expose noise settings and biome thresholds as tunable data.
 - [Spatial Partition](./spatial-partition) — chunking and querying generated worlds.

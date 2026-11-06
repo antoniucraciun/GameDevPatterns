@@ -147,4 +147,4 @@ The importer updates existing assets rather than recreating them, so references 
 - [Flyweight](./flyweight) — shared, read-only definitions.
 - [ScriptableObject Architecture](./scriptable-object-architecture) — assets as the medium for data.
 - [Weighted Random & Loot Tables](./weighted-random), [Spawner / Wave System](./spawner) and [Ability System](./ability-system) — data-driven systems built on this idea.
-- Localization Tables — the same approach applied to text.
+- [Localization Tables](./localization-tables) — the same approach applied to text.
