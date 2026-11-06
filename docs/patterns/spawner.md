@@ -201,4 +201,4 @@ This assumes `Enemy` exposes `event Action<Enemy> Died`, raised once when it die
 - [Object Pool](./object-pool) — reuse enemies between waves.
 - [Observer](./observer) — death events drive the alive count.
 - [Seeded Randomness](./seeded-randomness) — reproducible wave mixes for daily challenges and replays.
-- AI Director — a meta-system that adjusts spawning to the player's stress level.
+- [AI Director](./director-ai) — a meta-system that adjusts spawning to the player's stress level.

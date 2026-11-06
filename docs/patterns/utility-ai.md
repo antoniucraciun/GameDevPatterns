@@ -142,5 +142,5 @@ In a debug view, show every action's score per decision. Utility AI is only tuna
 - [Behavior Tree](./behavior-tree) — fixed priorities. Utility can choose *which subtree* to run.
 - [Blackboard](./blackboard) and [Perception System](./perception-system) — where inputs come from.
 - [Strategy](./strategy) — each chosen action is often a strategy object that does the work.
-- Goal-Oriented Action Planning — plans *sequences* of actions, where utility scores single choices.
-- AI Director — utility-style scoring applied to pacing a whole game.
+- [Goal-Oriented Action Planning](./goap) — plans *sequences* of actions, where utility scores single choices.
+- [AI Director](./director-ai) — utility-style scoring applied to pacing a whole game.

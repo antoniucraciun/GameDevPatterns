@@ -156,5 +156,5 @@ Two small additions to the pattern code make the layers fit. `Blackboard` gets `
 
 - **[Utility AI](../patterns/utility-ai) instead of fixed priorities:** score chase, search and flee with response curves (health, distance, ammo), reading the same blackboard.
 - **Cover:** an action that queries nearby cover points, scores them against the last known position, and writes `ChosenCover` to the blackboard.
-- **Director-controlled aggression:** an AI Director limits how many guards may attack at once, by handing out attack tokens through the squad blackboard.
-- **[Flocking](../patterns/flocking) enemies:** for swarms, replace path corners with alignment and cohesion, plus a shared flow field toward the player.
+- **Director-controlled aggression:** an [AI Director](../patterns/director-ai) limits how many guards may attack at once, by handing out attack tokens through the squad blackboard.
+- **[Flocking](../patterns/flocking) enemies:** for swarms, replace path corners with alignment and cohesion, plus a shared [flow field](../patterns/flow-field) toward the player.

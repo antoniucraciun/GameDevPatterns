@@ -138,7 +138,7 @@ For 3D worlds, Unity's **AI Navigation** package (NavMesh) runs A* over navmesh 
 - **Inadmissible heuristics.** Overestimating (for example, Euclidean distance multiplied by 2) finds paths faster but not the shortest ones. Sometimes that is a useful trade-off ("weighted A*"), but make it a deliberate one.
 - **Heuristics that do not match the costs.** If the cheapest terrain costs 0.5, a heuristic that assumes 1 per tile overestimates. Scale `h` by the minimum tile cost.
 - **Allocation per search.** New dictionaries and lists per call create garbage. Reuse arrays, with stamps instead of clearing, as above.
-- **Too many searches per frame.** Fifty units requesting paths in one frame cause a spike. Queue requests and spread them over frames ([Time Slicing](./time-slicing)), share paths for groups, or use a flow field.
+- **Too many searches per frame.** Fifty units requesting paths in one frame cause a spike. Queue requests and spread them over frames ([Time Slicing](./time-slicing)), share paths for groups, or use a [flow field](./flow-field).
 - **Zig-zag grid paths.** Raw grid paths look robotic. Smooth them by removing waypoints that are in direct line of sight of each other, and follow them with [Steering Behaviors](./steering-behaviors).
 - **Unreachable goals.** A* explores the whole reachable area before giving up. Check connectivity first (precomputed region IDs), or cap the number of expanded nodes.
 
@@ -146,6 +146,6 @@ For 3D worlds, Unity's **AI Navigation** package (NavMesh) runs A* over navmesh 
 
 - [Steering Behaviors](./steering-behaviors) — follow the path smoothly, and avoid other agents locally.
 - [Spatial Partition](./spatial-partition) — grids and hierarchies that A* searches over.
-- Navigation Mesh — A* over polygons instead of cells, for 3D worlds.
-- Flow Field — one search shared by thousands of units heading to the same goal.
+- [Navigation Mesh](./navigation-mesh) — A* over polygons instead of cells, for 3D worlds.
+- [Flow Field](./flow-field) — one search shared by thousands of units heading to the same goal.
 - [Enemy AI](../recipes/enemy-ai) — pathfinding inside a complete AI.

@@ -158,6 +158,6 @@ public class SteeringAgent : MonoBehaviour
 ## Related
 
 - [Flocking](./flocking) — Separation + Alignment + Cohesion: steering applied to groups.
-- [A* Pathfinding](./a-star), Navigation Mesh and Flow Field — global routes that steering follows locally.
+- [A* Pathfinding](./a-star), [Navigation Mesh](./navigation-mesh) and [Flow Field](./flow-field) — global routes that steering follows locally.
 - [Spatial Partition](./spatial-partition) — fast neighbour queries for separation.
 - [Behavior Tree](./behavior-tree) — decides *which* steering behaviours are active and toward what.

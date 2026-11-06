@@ -159,4 +159,4 @@ One `Flock.Update` drives every boid, rather than one `Update` per boid, and all
 - [Steering Behaviors](./steering-behaviors) — the force model flocking is built on.
 - [Spatial Partition](./spatial-partition) — fast neighbour queries.
 - [Data Locality](./data-locality) and [Entity Component System](./entity-component-system) — scaling to tens of thousands of agents.
-- Flow Field — shared navigation for large groups heading somewhere specific.
+- [Flow Field](./flow-field) — shared navigation for large groups heading somewhere specific.

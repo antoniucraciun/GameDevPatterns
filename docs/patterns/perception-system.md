@@ -158,4 +158,4 @@ public class Perception : MonoBehaviour
 - [Behavior Tree](./behavior-tree) — reads that knowledge to decide what to do.
 - [Event Bus](./event-bus) and [Observer](./observer) — sounds as events.
 - [Spatial Partition](./spatial-partition) — finding nearby targets cheaply.
-- Influence Map and AI Director — higher-level awareness for groups and pacing.
+- [Influence Map](./influence-map) and [AI Director](./director-ai) — higher-level awareness for groups and pacing.

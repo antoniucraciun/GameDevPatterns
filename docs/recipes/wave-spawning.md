@@ -243,6 +243,6 @@ public class WaveSpawning : MonoBehaviour
 ## Variations
 
 - **Threat budgets:** instead of fixed counts, each wave has a budget that it spends on enemies with different costs, which gives more variety at the same difficulty.
-- **Adaptive pacing:** an AI Director scales the next wave's budget, or the break time, using the player's health and recent performance.
+- **Adaptive pacing:** an [AI Director](../patterns/director-ai) scales the next wave's budget, or the break time, using the player's health and recent performance.
 - **Endless mode:** generate wave definitions at runtime from a difficulty curve rather than authoring them.
 - **Elites:** a small weighted chance to apply a status effect such as "Elite" (+50% health, a glowing outline) on spawn, using [Status Effects](../patterns/status-effects).
