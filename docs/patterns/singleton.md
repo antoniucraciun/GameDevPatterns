@@ -98,4 +98,4 @@ A safer middle ground: keep the single instance, but hide the concrete class beh
 - [Service Locator](./service-locator) — global access to an interface instead of a concrete class.
 - [Dependency Injection](./dependency-injection) — no global access at all. Dependencies are passed in.
 - [ScriptableObject Architecture](./scriptable-object-architecture) — shared assets as an alternative to manager singletons.
-- Bootstrapper — creates services in a known order.
+- [Bootstrapper](./bootstrapper) — creates services in a known order.

@@ -168,4 +168,4 @@ This uses Unity 6's `Awaitable`, and awaiting `AsyncOperation` directly (2023.1+
 - [Screen Stack](./screen-stack) — handles menus *inside* states, such as settings within pause.
 - [Event Bus](./event-bus) and [Observer](./observer) — how other systems react to state changes.
 - [Pushdown Automaton](./pushdown-automaton) — lets *Paused* sit on top of *Playing* without exiting it.
-- Scene / Level Management and Bootstrapper — closely related structure.
+- [Scene / Level Management](./scene-management) and [Bootstrapper](./bootstrapper) — closely related structure.

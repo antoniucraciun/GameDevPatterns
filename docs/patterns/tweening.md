@@ -159,4 +159,4 @@ In production, a tweening library such as **DOTween**, **PrimeTween** or **LitMo
 - [Screen Shake (Trauma)](./screen-shake) and [Hit Stop](./hit-stop) — other feedback tools that work with tweens.
 - [Time Scale](./time-scale) — scaled versus unscaled tweens.
 - [Update Method](./update-method) — one runner updating many tweens.
-- Camera Follow & Smoothing and Feedback Layering (Juice) — where tweens and damping get used most.
+- [Camera Follow & Smoothing](./camera-smoothing) and [Feedback Layering (Juice)](./juice) — where tweens and damping get used most.

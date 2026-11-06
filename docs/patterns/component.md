@@ -60,10 +60,10 @@ A crate is `Health + DropLootOnDeath + DestroyOnDeath`. An enemy reuses the same
 - **Hidden coupling between components.** Calling `GetComponent<Concrete>()` everywhere recreates the coupling you were escaping. Depend on interfaces such as `IDamageable`, or use events.
 - **Too fine-grained.** Thirty one-line components on an object are hard to follow. A component should be a meaningful capability.
 - **Initialisation order.** Do not read sibling state in `Awake` if the sibling initialises in its own `Awake`. Cache references in `Awake` and read values in `Start`.
-- **Per-object overhead.** With tens of thousands of objects, consider an Entity Component System instead.
+- **Per-object overhead.** With tens of thousands of objects, consider an [Entity Component System](./entity-component-system) instead.
 
 ## Related
 
 - [Update Method](./update-method) — components usually update themselves.
 - [Observer](./observer) — the cleanest way for components to cooperate.
-- Entity Component System — the data-oriented evolution of this idea.
+- [Entity Component System](./entity-component-system) — the data-oriented evolution of this idea.

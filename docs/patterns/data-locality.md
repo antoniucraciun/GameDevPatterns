@@ -117,4 +117,4 @@ In Unity, the next steps are `NativeArray<T>` with the Job System and Burst, whi
 - [Object Pool](./object-pool) — the dense, preallocated array is a pool.
 - [Flyweight](./flyweight) — moving shared data out of each element keeps elements small.
 - [Spatial Partition](./spatial-partition) — grids built as flat arrays stay cache-friendly.
-- Entity Component System and Job System — the large-scale applications of this pattern.
+- [Entity Component System](./entity-component-system) and Job System — the large-scale applications of this pattern.

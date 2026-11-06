@@ -72,4 +72,22 @@ export const recipes: Recipe[] = [
     summary: 'Designer-authored enemy waves with weighted variety and no spawn hitches.',
     patterns: ['spawner', 'weighted-random', 'object-pool', 'observer'],
   },
+  {
+    slug: 'juicy-combat-hits',
+    name: 'Juicy Combat Hits',
+    summary: 'Melee hits that feel heavy and readable, consistent across weapons, even when many land at once.',
+    patterns: ['juice', 'hit-stop', 'screen-shake', 'tweening', 'event-queue', 'camera-smoothing'],
+  },
+  {
+    slug: 'save-and-load',
+    name: 'Save & Load',
+    summary: 'Save slots that restore the right level, world state and inventory, and survive game updates.',
+    patterns: ['save-system', 'memento', 'inventory', 'data-driven-design', 'scene-management'],
+  },
+  {
+    slug: 'tower-defence-targeting',
+    name: 'Tower Defence Targeting',
+    summary: 'Towers with swappable targeting rules, cheap range queries and pooled projectiles that cope with targets dying mid-flight.',
+    patterns: ['strategy', 'spatial-partition', 'object-pool', 'type-object', 'observer'],
+  },
 ]

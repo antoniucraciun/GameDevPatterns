@@ -172,4 +172,4 @@ Objects created at runtime (dropped items, spawned enemies) have no editor-assig
 - [Memento](./memento) — each saveable produces a memento of itself.
 - [Data-Driven Design](./data-driven-design) — items and other content are saved as data IDs, not objects.
 - [Inventory](./inventory) — a typical saveable with nested data.
-- Checkpoint / Respawn and Bootstrapper — when and from where saving and loading happen.
+- [Bootstrapper](./bootstrapper) and Checkpoint / Respawn — when and from where saving and loading happen.

@@ -108,4 +108,4 @@ public class LocalHitStop : MonoBehaviour
 - [Time Scale](./time-scale) — the mechanism behind global hit stop.
 - [Screen Shake (Trauma)](./screen-shake) — usually triggered on the same hit.
 - [Input Buffer](./input-buffer) — keeps presses made during the freeze.
-- Feedback Layering (Juice) — hit stop is one layer among many.
+- [Feedback Layering (Juice)](./juice) — hit stop is one layer among many.

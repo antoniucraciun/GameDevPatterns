@@ -93,4 +93,4 @@ Cinemachine offers the same idea as **Impulse** sources and listeners, with per-
 - [Hit Stop](./hit-stop) — usually triggered together with shake.
 - [Time Scale](./time-scale) — why shake uses unscaled time.
 - [Tweening & Easing](./tweening) — the other half of smooth camera motion.
-- Camera Follow & Smoothing and Feedback Layering (Juice) — the rest of the camera and feedback toolkit.
+- [Camera Follow & Smoothing](./camera-smoothing) and [Feedback Layering (Juice)](./juice) — the rest of the camera and feedback toolkit.
