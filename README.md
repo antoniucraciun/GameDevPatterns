@@ -4,6 +4,9 @@ A catalog of programming patterns for game development, with Unity C# examples, 
 
 **https://antoniucraciun.github.io/GameDevPatterns/**
 
+> [!WARNING]
+> **Keep it simple.** Patterns solve specific problems. Reaching for one where plain code would do (an event-channel architecture for one button, a behavior tree for a patrolling enemy) adds complexity without benefit. Start simple and add a pattern only when the problem is real. See [Keep It Simple](https://antoniucraciun.github.io/GameDevPatterns/keep-it-simple).
+
 ## Local development
 
 Requires Node.js 18+.

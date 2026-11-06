@@ -35,6 +35,14 @@ A recipe is a feature built by combining several patterns, such as a platformer 
 
 2. **Write it.** Copy `templates/recipe.md` to `docs/recipes/my-recipe.md` and fill it in. Link written patterns as `../patterns/<slug>`, and name planned ones in plain text.
 
+3. **Link a sample (optional).** Runnable Unity samples live in a separate repo, [GameDevPatterns-Samples](https://github.com/antoniucraciun/GameDevPatterns-Samples), with one folder and scene per recipe. Add the recipe's folder, and a playable build if there is one, to its entry:
+
+   ```ts
+   { slug: 'my-recipe', /* … */ sample: 'Assets/Recipes/MyRecipe', demo: 'https://…/my-recipe/' },
+   ```
+
+   The recipe page and its card on the recipes page then show **See it in action** links. Folder links point at `samplesRepo.ref` in `recipes.ts`; set it to a release tag of the samples repo so links stay stable.
+
 Every pattern a recipe uses automatically shows a **Used in recipes** link back to it at the bottom of its page.
 
 ## Page conventions

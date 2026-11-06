@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rendered at the bottom of every doc page:
 // - on a pattern page: the recipes that use this pattern
-// - on a recipe page:  the patterns this recipe combines
+// - on a recipe page:  its Unity sample / playable demo, and the patterns it combines
 import { computed } from 'vue'
 import { useData, withBase } from 'vitepress'
 import { data } from '../../patterns/catalog.data'
@@ -30,9 +30,22 @@ const links = computed(() => {
 })
 
 const title = computed(() => (current.value?.kind === 'patterns' ? 'Used in recipes' : 'Patterns in this recipe'))
+
+const sample = computed(() => {
+  const c = current.value
+  const r = c?.kind === 'recipes' ? recipeBySlug.get(c.slug) : undefined
+  return r && (r.sampleUrl || r.demo) ? { code: r.sampleUrl, demo: r.demo ?? null } : null
+})
 </script>
 
 <template>
+  <aside v-if="sample" class="relations sample">
+    <h2>See it in action</h2>
+    <div class="actions">
+      <a v-if="sample.demo" :href="sample.demo" class="action action-primary" target="_blank" rel="noopener">▶ Play the demo</a>
+      <a v-if="sample.code" :href="sample.code" class="action" target="_blank" rel="noopener">Open the Unity sample</a>
+    </div>
+  </aside>
   <aside v-if="links.length" class="relations">
     <h2>{{ title }}</h2>
     <ul>
@@ -55,4 +68,17 @@ ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; ga
 .chip:hover { background: var(--vp-c-brand-2); color: var(--vp-c-white); }
 .chip-planned { background: var(--vp-c-default-soft); color: var(--vp-c-text-2); }
 .chip-planned:hover { background: var(--vp-c-default-soft); color: var(--vp-c-text-2); }
+.sample + .relations { margin-top: 24px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.action {
+  display: inline-block; font-size: 14px; font-weight: 500; padding: 6px 16px; border-radius: 18px;
+  border: 1px solid var(--vp-c-brand-1); color: var(--vp-c-brand-1); text-decoration: none;
+}
+.action:hover { background: var(--vp-c-brand-soft); }
+.action-primary {
+  background: var(--vp-button-brand-bg); color: var(--vp-button-brand-text); border-color: var(--vp-button-brand-border);
+}
+.action-primary:hover {
+  background: var(--vp-button-brand-hover-bg); color: var(--vp-button-brand-hover-text); border-color: var(--vp-button-brand-hover-border);
+}
 </style>

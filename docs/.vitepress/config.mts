@@ -24,6 +24,7 @@ const sidebar = [
   {
     text: 'Overview',
     items: [
+      { text: 'Keep it simple', link: '/keep-it-simple' },
       { text: 'Pattern catalog', link: '/patterns/' },
       { text: 'All recipes', link: '/recipes/' },
       { text: 'Contributing', link: '/contributing' },

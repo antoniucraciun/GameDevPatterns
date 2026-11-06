@@ -28,6 +28,10 @@ const groups = data.recipeGroups
           <template v-else>{{ r.name }} <span class="badge">planned</span></template>
         </h3>
         <p class="summary">{{ r.summary }}</p>
+        <p v-if="r.demo || r.sampleUrl" class="sample-links">
+          <a v-if="r.demo" :href="r.demo" target="_blank" rel="noopener">▶ Play</a>
+          <a v-if="r.sampleUrl" :href="r.sampleUrl" target="_blank" rel="noopener">Unity sample</a>
+        </p>
         <ul class="chips" aria-label="Patterns used">
           <li v-for="slug in r.patterns" :key="slug">
             <a v-if="patternBySlug.get(slug)?.written" :href="withBase(`/patterns/${slug}`)" class="chip">
@@ -62,6 +66,8 @@ const groups = data.recipeGroups
 .recipe h3 { margin: 0 0 6px; font-size: 17px; border: 0; padding: 0; }
 .recipe h3 a { text-decoration: none; }
 .summary { margin: 0 0 12px; color: var(--vp-c-text-2); font-size: 14px; line-height: 1.5; }
+.sample-links { display: flex; gap: 12px; margin: -4px 0 12px; font-size: 13px; font-weight: 500; }
+.sample-links a { text-decoration: none; }
 .chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chips li { margin: 0; }
 .chip {

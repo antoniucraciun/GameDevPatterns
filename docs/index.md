@@ -12,6 +12,9 @@ hero:
     - theme: alt
       text: See patterns combined
       link: /recipes/
+    - theme: alt
+      text: Read first — Keep it simple
+      link: /keep-it-simple
 
 features:
   - title: Game Loop & Timing
@@ -33,3 +36,7 @@ features:
     details: Client-side prediction, reconciliation, interpolation, lockstep and rollback.
     link: /patterns/#networking
 ---
+
+::: warning Keep it simple
+Patterns solve specific problems. Using one where plain code would do adds complexity without benefit. Start simple and add a pattern only when the problem is real. [Read the guidance →](./keep-it-simple)
+:::

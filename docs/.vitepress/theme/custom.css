@@ -22,3 +22,6 @@
   --vp-c-brand-2: #8f77ff;
   --vp-c-brand-3: #7c5cff;
 }
+
+/* Home page: give the keep-it-simple callout below the feature cards some room. */
+.VPHome .vp-doc .custom-block { margin-top: 48px; }
