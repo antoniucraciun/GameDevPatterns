@@ -133,4 +133,4 @@ When a strategy needs no parameters and no inspector support, a plain interface 
 - [State](./state) — similar structure, but states switch *themselves*. Strategies are chosen from outside.
 - [Type Object](./type-object) — a type asset can reference strategy assets to vary behaviour per kind.
 - [ScriptableObject Architecture](./scriptable-object-architecture) — strategies as assets.
-- Template Method — varies steps of one algorithm through inheritance, rather than swapping the whole algorithm.
+- [Template Method](./template-method) — varies steps of one algorithm through inheritance, rather than swapping the whole algorithm.

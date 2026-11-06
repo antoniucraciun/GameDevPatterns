@@ -81,6 +81,6 @@ Unity uses this pattern internally. Transform world matrices are recomputed only
 
 ## Related
 
-- Stat & Modifier System — the classic consumer of this pattern.
+- [Stat & Modifier System](./stat-modifier-system) — the classic consumer of this pattern.
 - [Memoization / Caching](./memoization) — caches by input values rather than with an invalidation flag.
 - [Observer](./observer) — can be used to mark dependants dirty.

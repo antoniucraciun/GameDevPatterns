@@ -119,5 +119,5 @@ Unity's Transform hierarchy, UI layout groups, [behavior trees](./behavior-tree)
 - [Behavior Tree](./behavior-tree) — sequences and selectors are composites of nodes.
 - [Decorator](./decorator) — wraps one object with the same interface. A composite wraps many.
 - [Command](./command) — commands issued to a composite fan out to its leaves.
-- Visitor — performs operations over a composite structure without changing its classes.
+- [Visitor](./visitor) — performs operations over a composite structure without changing its classes.
 - [Dirty Flag](./dirty-flag) — caches expensive aggregates.

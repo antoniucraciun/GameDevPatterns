@@ -139,4 +139,4 @@ public class AchievementSystem : MonoBehaviour
 - [Observer](./observer) — direct subscription to a known subject. Prefer it when the reference is natural.
 - [Event Queue](./event-queue) — deferred delivery. Events are processed later, at a defined point in the frame.
 - [ScriptableObject Architecture](./scriptable-object-architecture) — event channels as assets, wired in the inspector instead of by type.
-- Mediator — a central object that coordinates participants, rather than just relaying messages.
+- [Mediator](./mediator) — a central object that coordinates participants, rather than just relaying messages.

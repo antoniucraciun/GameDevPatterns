@@ -16,7 +16,7 @@ Give the base class a **toolbox of protected operations**, the **sandbox**, and 
 - Subclasses implement `Activate()` by **composing** those calls. They do not touch audio, physics or effects systems directly.
 - All coupling to engine systems lives in the **one** base class. Change how effects spawn there, and every power changes with it.
 
-It is the opposite of Template Method: instead of the base class calling the subclass's steps in a fixed order, the subclass freely calls the base class's tools.
+It is the opposite of [Template Method](./template-method): instead of the base class calling the subclass's steps in a fixed order, the subclass freely calls the base class's tools.
 
 ## Example (Unity C#)
 
@@ -128,6 +128,6 @@ public class SkyLaunch : Power
 ## Related
 
 - [Ability System](./ability-system) — the data-driven alternative: abilities as lists of effects instead of subclasses.
-- Template Method — the inverse: the base class defines the steps, and subclasses fill them in.
+- [Template Method](./template-method) — the inverse: the base class defines the steps, and subclasses fill them in.
 - [Facade](./facade) — sandbox operations often call facades.
 - [Component](./component) — composition instead of inheritance, when subclass trees get awkward.

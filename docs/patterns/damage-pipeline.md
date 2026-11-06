@@ -221,4 +221,4 @@ Attacker-side stages (crit, damage bonuses) can live in a second pipeline on the
 - [Stat & Modifier System](./stat-modifier-system) — armour, resistances and damage bonuses are stats.
 - [Status Effects](./status-effects) — buffs and debuffs add and remove stages, and reactions apply effects.
 - [Gameplay Tags](./tags) — immunities and conditions expressed as tags.
-- Chain of Responsibility — the classic pattern behind passing a request along ordered handlers.
+- [Chain of Responsibility](./chain-of-responsibility) — the classic pattern behind passing a request along ordered handlers.

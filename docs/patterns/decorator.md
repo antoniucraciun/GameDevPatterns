@@ -129,4 +129,4 @@ Order matters, and that is a feature: `DoubleShot(DamageBoost(gun))` and `Damage
 - [Composite](./composite) — also wraps objects behind one interface, but holds many children instead of one.
 - [Strategy](./strategy) — swaps the whole behaviour. A decorator adds to it.
 - [Adapter](./adapter) — wraps to change an interface. A decorator keeps the interface.
-- Chain of Responsibility — a related chain of handlers that may stop the request.
+- [Chain of Responsibility](./chain-of-responsibility) — a related chain of handlers that may stop the request.
