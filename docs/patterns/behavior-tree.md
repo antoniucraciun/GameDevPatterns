@@ -128,5 +128,6 @@ This minimal tree re-evaluates from the root every tick, so higher-priority bran
 - [State](./state) — simpler, and better for a few well-defined modes.
 - [Blackboard](./blackboard) — the shared memory that nodes read and write.
 - [Perception System](./perception-system) — supplies what the tree's conditions check.
+- [Composite](./composite) and [Decorator](./decorator) — the general patterns behind composite and decorator nodes.
 - [Steering Behaviors](./steering-behaviors) — how movement actions actually move the agent.
 - [Utility AI](./utility-ai), [GOAP](./goap) and [HTN Planning](./htn-planning) — alternatives that score actions or plan them instead of following authored priorities.

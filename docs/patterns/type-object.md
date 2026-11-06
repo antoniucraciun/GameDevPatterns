@@ -104,6 +104,6 @@ Behaviour can be data too. Give `EnemyType` a reference to a behaviour asset (a 
 ## Related
 
 - [Flyweight](./flyweight) — type objects are typically shared flyweights.
-- Prototype — create kinds by cloning configured examples, as Unity prefab variants do.
+- [Prototype](./prototype) — create kinds by cloning configured examples, as Unity prefab variants do.
 - [Ability System](./ability-system) and [Status Effects](./status-effects) — both define their kinds with this pattern.
 - [Weighted Random & Loot Tables](./weighted-random) — referenced by types for drops.

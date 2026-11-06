@@ -138,5 +138,5 @@ In larger projects, a DI container such as **VContainer** or **Zenject/Extenject
 
 - [Service Locator](./service-locator) — dependencies are looked up instead of passed in. Simpler, but hidden.
 - [Singleton](./singleton) — what DI typically replaces.
-- Factory — creates runtime objects with their dependencies.
+- [Factory](./factory) — creates runtime objects with their dependencies.
 - [Bootstrapper](./bootstrapper) — the scene or entry point that hosts the composition root.
