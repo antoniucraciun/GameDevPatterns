@@ -238,7 +238,7 @@ Compared with the [Ability System](../patterns/ability-system) page: `AbilityEff
 - **Effects that hard-code stats.** `TakeDamage(20)` ignores gear and buffs. Route all numbers through one formula that reads stats, so balance changes happen in one place.
 - **Snapshotting versus live stats.** Should a 5 s poison use the caster's spell power *when cast* or *each tick*? Decide per effect, and if you snapshot, store the value in the active effect.
 - **Queued commands that outlive their meaning.** A request queued before a stun should not fire four seconds later. Give requests a short expiry, and re-validate when they are dequeued, as above.
-- **Tag string typos.** `"Chilled"` versus `"Chiled"` silently breaks Shatter. Use a tag asset or a hierarchical gameplay-tag type with an inspector picker instead of free strings.
+- **Tag string typos.** `"Chilled"` versus `"Chiled"` silently breaks Shatter. Use asset-based [Gameplay Tags](../patterns/tags) with an inspector picker instead of free strings.
 - **Recursive effects.** An `AreaEffect` containing an effect that triggers another area can cascade. Cap nesting depth, and keep `AreaEffect`'s hit buffer separate from any nested area's.
 - **Networked play.** The server must validate `CastRequest`s, while clients predict the cast animation and cooldown. Commands make this natural: send the request, not the result.
 

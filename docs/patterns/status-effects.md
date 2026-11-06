@@ -193,4 +193,4 @@ public class StatusEffectContainer : MonoBehaviour
 - [Type Object](./type-object) — effect definitions are kinds defined as data.
 - [Ability System](./ability-system) — abilities apply effects to targets.
 - [Observer](./observer) — `Changed` drives the buff bar and VFX.
-- Gameplay Tags — hierarchical tags such as `Debuff.Poison` make queries like "remove all debuffs" simple.
+- [Gameplay Tags](./tags) — hierarchical tags such as `Debuff.Poison` make queries like "remove all debuffs" simple.

@@ -66,4 +66,5 @@ A crate is `Health + DropLootOnDeath + DestroyOnDeath`. An enemy reuses the same
 
 - [Update Method](./update-method) — components usually update themselves.
 - [Observer](./observer) — the cleanest way for components to cooperate.
+- [Health / Damageable Interface](./health-component) — the `Health` component above, developed fully.
 - [Entity Component System](./entity-component-system) — the data-oriented evolution of this idea.
