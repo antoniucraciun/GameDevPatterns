@@ -108,7 +108,7 @@ public class Guard : MonoBehaviour
 }
 ```
 
-This minimal tree re-evaluates from the root every tick, so higher-priority branches can always interrupt lower ones (a "reactive" tree). Production implementations also track the running node, offer decorators, and read shared data from a Blackboard.
+This minimal tree re-evaluates from the root every tick, so higher-priority branches can always interrupt lower ones (a "reactive" tree). Production implementations also track the running node, offer decorators, and read shared data from a [Blackboard](./blackboard).
 
 ## When to use
 
@@ -126,5 +126,7 @@ This minimal tree re-evaluates from the root every tick, so higher-priority bran
 ## Related
 
 - [State](./state) — simpler, and better for a few well-defined modes.
-- Blackboard — the shared memory that nodes read and write.
+- [Blackboard](./blackboard) — the shared memory that nodes read and write.
+- [Perception System](./perception-system) — supplies what the tree's conditions check.
+- [Steering Behaviors](./steering-behaviors) — how movement actions actually move the agent.
 - Utility AI and GOAP — alternatives that score actions or plan them instead of following authored priorities.
