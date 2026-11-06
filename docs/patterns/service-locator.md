@@ -6,7 +6,7 @@
 
 ## Problem
 
-Audio, analytics, save data and input are needed from all over the codebase. Passing them through every constructor is tedious. Making each one a singleton ties every caller to one concrete class, so you cannot swap in a silent audio service for tests or a different analytics backend per platform.
+Audio, analytics, save data and input are needed from all over the codebase. Passing them through every constructor is tedious. Making each one a [singleton](./singleton) ties every caller to one concrete class, so you cannot swap in a silent audio service for tests or a different analytics backend per platform.
 
 ## Solution
 
@@ -58,10 +58,10 @@ Services.Get<IAudioService>().Play("explosion", transform.position);
 
 - **Hidden dependencies.** A class's needs are no longer visible in its constructor. Keep lookups at the edges (in `Awake`) and cache them, rather than calling `Get` throughout the logic.
 - **Order of registration.** Something may ask for a service before it is registered. Use a bootstrap scene, or fall back to a null object.
-- **It is still global state.** If most of your code needs the locator, Dependency Injection is usually the better tool.
+- **It is still global state.** If most of your code needs the locator, [Dependency Injection](./dependency-injection) is usually the better tool.
 
 ## Related
 
-- Singleton — the simpler, more tightly coupled alternative.
-- Dependency Injection — makes dependencies explicit instead of looked up.
+- [Singleton](./singleton) — the simpler, more tightly coupled alternative.
+- [Dependency Injection](./dependency-injection) — makes dependencies explicit instead of looked up.
 - [Component](./component) — services are often provided by components on a persistent object.

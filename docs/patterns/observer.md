@@ -62,6 +62,7 @@ Use `UnityEvent` when designers need to wire up responses in the Inspector, and 
 
 ## Related
 
-- Event Queue and Event Bus — decouple in time, or through a central channel.
+- [Event Bus](./event-bus) — decouples through a central channel, when listeners have no reference to the subject.
+- Event Queue — decouples in time: events are processed later.
 - [Command](./command) — the counterpart: a request to do something, rather than a notice that something was done.
 - [Component](./component) — components often talk to each other through events.
