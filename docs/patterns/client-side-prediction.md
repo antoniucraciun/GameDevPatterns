@@ -105,4 +105,6 @@ Unity's Netcode for Entities provides prediction and reconciliation out of the b
 
 - [Command](./command) — each input is a command, recorded so it can be replayed.
 - [Fixed Timestep](./fixed-timestep) — prediction needs constant, numbered steps.
-- Server Reconciliation, Entity Interpolation and Lag Compensation — the other half of the latency-hiding toolkit.
+- [Server Reconciliation](./server-reconciliation) — the correction half of prediction, covered in depth.
+- [Entity Interpolation](./entity-interpolation) — how *other* players are shown smoothly.
+- Lag Compensation — the server-side counterpart for hit detection.

@@ -72,4 +72,4 @@ public class ForestRenderer : MonoBehaviour
 ## Related
 
 - [Object Pool](./object-pool) — reuses instances. A flyweight shares data between them.
-- Type Object — uses shared definitions to create new *kinds* of things as data.
+- [Type Object](./type-object) — uses shared definitions to create new *kinds* of things as data.

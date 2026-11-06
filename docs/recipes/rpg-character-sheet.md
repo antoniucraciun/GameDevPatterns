@@ -244,7 +244,7 @@ public class StatRow : MonoBehaviour
 
 ## Variations
 
-- **Buffs with duration:** a status-effect system adds modifiers with the buff as source and removes them on expiry.
+- **Buffs with duration:** a [status effect](../patterns/status-effects) system adds modifiers with the buff as source and removes them on expiry.
 - **Comparison tooltips:** clone the modifier lists, apply the hovered item, and show the difference without touching the real stats.
 - **Clamped stats:** apply caps (for example, resistance ≤ 75%) to the final value only, and show the uncapped value in the tooltip.
 - **Networked stats:** replicate base values and modifier sources, and recalculate on each client with the same code.
