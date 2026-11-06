@@ -121,6 +121,48 @@ export const recipes: Recipe[] = [
     patterns: ['screen-stack', 'data-binding', 'input-abstraction', 'save-system', 'localization-tables', 'feature-flags'],
   },
   {
+    slug: 'moddable-spells',
+    name: 'Moddable Spells',
+    summary: 'Players and modders add spells as files: formulas, sandboxed scripts and icons, loaded and validated at runtime.',
+    patterns: ['bytecode', 'interpreter', 'ability-system', 'data-driven-design', 'asset-reference'],
+  },
+  {
+    slug: 'living-town-npcs',
+    name: 'Living Town NPCs',
+    summary: 'Villagers with daily routines and needs who plan their day, walk the town, and cost almost nothing when far away.',
+    patterns: ['utility-ai', 'htn-planning', 'navigation-mesh', 'timer-scheduler', 'level-of-detail'],
+  },
+  {
+    slug: 'rts-unit-control',
+    name: 'RTS Unit Control',
+    summary: 'Box selection, control groups, queued orders and hundreds of units moving together to one click.',
+    patterns: ['composite', 'command', 'flow-field', 'chain-of-responsibility', 'spatial-partition'],
+  },
+  {
+    slug: 'thousand-enemies',
+    name: '1,000 Enemies at 60 FPS',
+    summary: 'A horde of a thousand enemies simulated in parallel, culled, and drawn in a handful of draw calls with no garbage.',
+    patterns: ['flyweight', 'object-pool', 'job-system', 'culling', 'batching', 'arena-allocator'],
+  },
+  {
+    slug: 'crafting-system',
+    name: 'Crafting System',
+    summary: 'Data-driven recipes, safe all-or-nothing crafting, quality rolls, and a crafting screen that shows what is missing.',
+    patterns: ['inventory', 'builder', 'data-driven-design', 'quest-system', 'mvp-mvvm'],
+  },
+  {
+    slug: 'live-ops-event',
+    name: 'Live-Ops Seasonal Event',
+    summary: 'A time-limited event switched on remotely, with downloaded content, translated text and event quests, and no app update.',
+    patterns: ['feature-flags', 'asset-reference', 'localization-tables', 'bootstrapper', 'quest-system'],
+  },
+  {
+    slug: 'tutorial-system',
+    name: 'Tutorial System',
+    summary: 'Step-by-step onboarding driven by what the player actually does, showing the right button for their device.',
+    patterns: ['event-bus', 'quest-system', 'trigger-volume', 'screen-stack', 'input-abstraction'],
+  },
+  {
     slug: 'tower-defence-targeting',
     name: 'Tower Defence Targeting',
     summary: 'Towers with swappable targeting rules, cheap range queries and pooled projectiles that cope with targets dying mid-flight.',
