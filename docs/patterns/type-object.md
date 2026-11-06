@@ -96,7 +96,7 @@ Behaviour can be data too. Give `EnemyType` a reference to a behaviour asset (a 
 
 ## Pitfalls
 
-- **Behaviour that really differs.** If a kind needs genuinely unique logic, numbers are not enough. Combine Type Object with composable behaviour (strategy objects, ability lists) rather than adding `if (type.isTroll)` flags.
+- **Behaviour that really differs.** If a kind needs genuinely unique logic, numbers are not enough. Combine Type Object with composable behaviour ([strategy](./strategy) objects, ability lists) rather than adding `if (type.isTroll)` flags.
 - **"Unset" sentinels.** Using `0` to mean "inherit" makes "0 damage" impossible to express. Use explicit override toggles, or nullable fields with a custom inspector, when that matters.
 - **Deep inheritance chains.** "Where does this value come from?" gets hard to answer after three levels. Keep chains shallow, and consider an inspector that shows resolved values.
 - **Mutating types at runtime.** Changing `type.maxHealth` affects every enemy of that kind, and edits the asset in the editor. Per-instance changes belong on the instance.

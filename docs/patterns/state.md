@@ -76,13 +76,14 @@ Create state instances once and reuse them, so transitions do not allocate.
 
 ## Pitfalls
 
-- **State explosion.** Many states that share most of their transitions call for a Hierarchical State Machine.
-- **Needing to resume a previous state**, for example "pause, then return to what I was doing", calls for a Pushdown Automaton.
+- **State explosion.** Many states that share most of their transitions call for a [Hierarchical State Machine](./hierarchical-state-machine).
+- **Needing to resume a previous state**, for example "pause, then return to what I was doing", calls for a [Pushdown Automaton](./pushdown-automaton).
 - **Parallel concerns in one machine.** Movement and weapon state are independent. Use two machines, not a cross-product of states.
 - **Transitions scattered everywhere.** Keep transition logic inside states, or in one transition table, but not both.
 
 ## Related
 
-- Hierarchical State Machine and Pushdown Automaton — the extended forms.
+- [Hierarchical State Machine](./hierarchical-state-machine) and [Pushdown Automaton](./pushdown-automaton) — the extended forms.
+- [Strategy](./strategy) — similar structure, but chosen from outside rather than switching itself.
 - [Behavior Tree](./behavior-tree) — an alternative for AI that scales better with many behaviours.
 - [Command](./command) — states often produce or consume commands.

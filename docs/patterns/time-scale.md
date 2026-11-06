@@ -131,5 +131,5 @@ public class LocalTime : MonoBehaviour
 
 - [Game Loop](./game-loop) and [Fixed Timestep](./fixed-timestep) — what the scale actually controls.
 - [Game State Manager](./game-state-manager) — the *Paused* state pushes a time-scale request.
-- Hit Stop — a very short time-scale request on impact.
+- [Hit Stop](./hit-stop) — a very short time-scale request on impact.
 - [Status Effects](./status-effects) — freeze and haste effects drive local time scales.

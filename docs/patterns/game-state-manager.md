@@ -155,7 +155,7 @@ This uses Unity 6's `Awaitable`, and awaiting `AsyncOperation` directly (2023.1+
 
 ## Pitfalls
 
-- **Pausing with a whole state.** Replacing *Playing* with *Paused* runs *Playing*'s `Exit`, which may unload the level. Either keep exits light (disable input, nothing destructive), as here, or use a stack (Pushdown Automaton) so *Paused* sits on top of *Playing* without exiting it.
+- **Pausing with a whole state.** Replacing *Playing* with *Paused* runs *Playing*'s `Exit`, which may unload the level. Either keep exits light (disable input, nothing destructive), as here, or use a stack ([Pushdown Automaton](./pushdown-automaton)) so *Paused* sits on top of *Playing* without exiting it.
 - **Interleaved transitions.** Without a guard, two quick clicks start two loads, and the game ends up with two levels or none. The pending slot prevents interleaving, but a double click still queues the same transition twice, so also disable buttons while `IsTransitioning`.
 - **Logic leaking back out.** Once the manager exists, every "show game over panel" must go through it. A second path to game over brings the scattered flow back.
 - **States that know about everything.** States should orchestrate (load scene, enable input, raise event), not implement gameplay. Let other systems react to `Changed`.
@@ -167,4 +167,5 @@ This uses Unity 6's `Awaitable`, and awaiting `AsyncOperation` directly (2023.1+
 - [Time Scale](./time-scale) — *Paused* pushes a time-scale request instead of setting the global value.
 - [Screen Stack](./screen-stack) — handles menus *inside* states, such as settings within pause.
 - [Event Bus](./event-bus) and [Observer](./observer) — how other systems react to state changes.
-- Pushdown Automaton, Scene / Level Management and Bootstrapper — closely related structure.
+- [Pushdown Automaton](./pushdown-automaton) — lets *Paused* sit on top of *Playing* without exiting it.
+- Scene / Level Management and Bootstrapper — closely related structure.

@@ -58,11 +58,11 @@ Use `UnityEvent` when designers need to wire up responses in the Inspector, and 
 - **Hard-to-follow control flow.** "Who reacts to this?" requires a search. Keep event names explicit and the number of hops low.
 - **Re-entrancy.** An observer that triggers the same event, or unsubscribes during notification, can cause surprises. Keep handlers small.
 - **Order of observers is not guaranteed.** Do not rely on it.
-- **Synchronous by default.** A slow handler stalls the caller. Use an Event Queue for deferred delivery.
+- **Synchronous by default.** A slow handler stalls the caller. Use an [Event Queue](./event-queue) for deferred delivery.
 
 ## Related
 
 - [Event Bus](./event-bus) — decouples through a central channel, when listeners have no reference to the subject.
-- Event Queue — decouples in time: events are processed later.
+- [Event Queue](./event-queue) — decouples in time: events are processed later.
 - [Command](./command) — the counterpart: a request to do something, rather than a notice that something was done.
 - [Component](./component) — components often talk to each other through events.

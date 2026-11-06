@@ -131,12 +131,12 @@ public class AchievementSystem : MonoBehaviour
 - **Invisible control flow.** "What happens when an enemy dies?" now needs a search for `EventBus<EnemyKilled>`. Keep event types few and well named, and consider a debug window that lists subscribers.
 - **Everything becomes an event.** Request/response ("give me the player's gold") does not belong on a bus. Use it for *notifications* of things that happened.
 - **Forgotten unsubscriptions.** Static buses hold handlers forever, so destroyed objects keep receiving events and throw. Pair `Subscribe` and `Unsubscribe` in `OnEnable`/`OnDisable`.
-- **Re-entrancy and ordering.** A handler that publishes another event runs it immediately, nested. Do not depend on the order of subscribers. If ordering matters, use an Event Queue and process events at a defined point in the frame.
+- **Re-entrancy and ordering.** A handler that publishes another event runs it immediately, nested. Do not depend on the order of subscribers. If ordering matters, use an [Event Queue](./event-queue) and process events at a defined point in the frame.
 - **Global by nature.** A static bus is shared by everything, including tests. Reset it between tests, or inject an instance-based bus with [Dependency Injection](./dependency-injection).
 
 ## Related
 
 - [Observer](./observer) — direct subscription to a known subject. Prefer it when the reference is natural.
-- Event Queue — deferred delivery. Events are processed later, at a defined point in the frame.
+- [Event Queue](./event-queue) — deferred delivery. Events are processed later, at a defined point in the frame.
 - [ScriptableObject Architecture](./scriptable-object-architecture) — event channels as assets, wired in the inspector instead of by type.
 - Mediator — a central object that coordinates participants, rather than just relaying messages.
