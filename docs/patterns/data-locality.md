@@ -98,7 +98,7 @@ public class ParticleSystemSoA
 }
 ```
 
-In Unity, the next steps are `NativeArray<T>` with the Job System and Burst, which vectorises loops like this automatically. Unity's ECS (Entities) stores components in contiguous chunks by design, so this pattern is built in.
+In Unity, the next steps are `NativeArray<T>` with the [Job System](./job-system) and Burst, which vectorises loops like this automatically. Unity's ECS (Entities) stores components in contiguous chunks by design, so this pattern is built in.
 
 ## When to use
 
@@ -117,4 +117,4 @@ In Unity, the next steps are `NativeArray<T>` with the Job System and Burst, whi
 - [Object Pool](./object-pool) — the dense, preallocated array is a pool.
 - [Flyweight](./flyweight) — moving shared data out of each element keeps elements small.
 - [Spatial Partition](./spatial-partition) — grids built as flat arrays stay cache-friendly.
-- [Entity Component System](./entity-component-system) and Job System — the large-scale applications of this pattern.
+- [Entity Component System](./entity-component-system) and [Job System](./job-system) — the large-scale applications of this pattern.

@@ -117,4 +117,4 @@ Projectiles placed in a **subscene** are baked into entities. Tens of thousands 
 - [Data Locality](./data-locality) — why ECS memory layout is fast.
 - [Update Method](./update-method) — what systems replace.
 - [Bullet-Hell Projectiles](../recipes/bullet-hell-projectiles) — the same goals reached by hand, without ECS.
-- Job System — the parallel execution ECS systems build on.
+- [Job System](./job-system) — the parallel execution ECS systems build on.

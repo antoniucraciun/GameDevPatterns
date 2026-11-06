@@ -70,4 +70,4 @@ public class TickManager : MonoBehaviour
 
 - [Game Loop](./game-loop) — what calls the update methods.
 - [Component](./component) — update methods usually live on components.
-- Time Slicing — when each update is too expensive to run every frame.
+- [Time Slicing](./time-slicing) — when each update is too expensive to run every frame.
