@@ -110,7 +110,7 @@ The view layer (MonoBehaviours, animation, VFX, audio) reads the simulation stat
 ## When to use
 
 - Input-based replays and ghosts, lockstep networking (RTS, fighting games), rollback netcode.
-- Reproducing bugs from recorded sessions, and automated regression tests that compare checksums.
+- Reproducing bugs from recorded sessions, and [automated regression tests](./automated-playtesting) that compare checksums.
 - Not every game needs it. Snapshot-based replays and server-authoritative netcode work without it.
 
 ## Pitfalls

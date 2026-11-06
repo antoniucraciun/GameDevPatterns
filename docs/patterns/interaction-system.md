@@ -167,4 +167,4 @@ public class Door : MonoBehaviour, IInteractable
 - [Gameplay Tags](./tags) — gate interaction on character state.
 - [Inventory](./inventory) — keys and pickups.
 - [Dialogue System](./dialogue-system) — what talking to an NPC starts.
-- Trigger Volume — automatic interactions without a button press.
+- [Trigger Volume](./trigger-volume) — automatic interactions without a button press.

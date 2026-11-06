@@ -142,4 +142,4 @@ With several cameras, one-frame lines are drawn by the first camera and then rem
 - [Debug Console & Cheats](./debug-console) — toggles for debug views.
 - [Perception System](./perception-system), [Steering Behaviors](./steering-behaviors) and [A* Pathfinding](./a-star) — typical things to visualise.
 - [Spatial Partition](./spatial-partition) — drawing the grid makes cell-size problems obvious.
-- Immediate-Mode GUI — the same immediate-mode idea applied to UI.
+- [Immediate-Mode GUI](./immediate-mode-gui) — the same immediate-mode idea applied to UI.
