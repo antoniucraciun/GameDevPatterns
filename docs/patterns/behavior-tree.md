@@ -121,7 +121,7 @@ This minimal tree re-evaluates from the root every tick, so higher-priority bran
 - **Interrupted actions need cleanup.** When a higher-priority branch takes over, the running action must stop its animation, release reservations and so on. Add an `Abort` or `OnExit` hook.
 - **Expensive conditions evaluated every tick.** Cache perception results, or tick the tree at a lower rate than the frame rate.
 - **Using a tree as a state machine.** If the logic is really "mode A, then mode B", a [State](./state) machine is clearer.
-- **Opaque at runtime.** Build a debug view that highlights the active path.
+- **Opaque at runtime.** Build a debug view that highlights the active path (see [Debug Draw](./debug-draw)).
 
 ## Related
 

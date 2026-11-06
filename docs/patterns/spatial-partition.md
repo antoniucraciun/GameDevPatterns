@@ -78,5 +78,5 @@ For colliders, the physics engine already maintains a partition. `Physics.Overla
 
 ## Related
 
-- Flocking, Interest Management and Culling are the main consumers.
+- [Interest Management](./interest-management), Flocking and Culling are the main consumers.
 - [Data Locality](./data-locality) — store cell contents contiguously for cache-friendly queries.

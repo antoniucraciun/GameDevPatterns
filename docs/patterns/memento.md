@@ -104,4 +104,4 @@ The generic version needs no per-class code, but captures *every* serialised fie
 
 - [Command](./command) — the other way to implement undo. Commands can use mementos internally.
 - [Replay System](./replay-system) — snapshot replays are a sequence of mementos.
-- Save System — persistent mementos written to disk, with versioning.
+- [Save System](./save-system) — persistent mementos written to disk, with versioning.

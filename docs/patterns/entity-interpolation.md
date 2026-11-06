@@ -112,7 +112,7 @@ Netcode for GameObjects' `NetworkTransform` and most networking libraries interp
 
 ## Pitfalls
 
-- **Remote players are in the past.** At 100 ms of delay plus latency, you see others where they were well over 100 ms ago. Shooters fix this for hit detection with Lag Compensation on the server.
+- **Remote players are in the past.** At 100 ms of delay plus latency, you see others where they were well over 100 ms ago. Shooters fix this for hit detection with [Lag Compensation](./lag-compensation) on the server.
 - **Wrong delay.** Too short, and every jittery packet causes a stall or extrapolation. Too long, and the game feels laggy. Adapt the delay to measured jitter, or make it at least 2× the snapshot interval.
 - **Teleports get smoothed.** A respawn or teleport interpolates across the map. Mark snapshots with a "teleported" flag, and snap instead of interpolating across it.
 - **Extrapolation overshoots.** Guessing forward when packets stop makes entities run through walls, then snap back. Keep extrapolation short and capped.
@@ -123,4 +123,5 @@ Netcode for GameObjects' `NetworkTransform` and most networking libraries interp
 - [Client-Side Prediction](./client-side-prediction) and [Server Reconciliation](./server-reconciliation) — for the *local* player, who runs ahead instead of behind.
 - [Fixed Timestep](./fixed-timestep) — the same "render between two states" idea, applied locally.
 - [Double Buffer](./double-buffer) — previous and current state, generalised here to a buffer of many.
-- Snapshot & Delta Compression and Interest Management — reduce what needs to be sent.
+- [Interest Management](./interest-management) — send only the entities each client needs.
+- Snapshot & Delta Compression — reduces the cost of each update.

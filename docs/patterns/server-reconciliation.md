@@ -133,4 +133,4 @@ public class ReconcilingPlayer : MonoBehaviour
 - [Entity Interpolation](./entity-interpolation) — how *other* players are shown, without prediction.
 - [Command](./command) — inputs as numbered, replayable data.
 - [Fixed Timestep](./fixed-timestep) — client and server must step at the same rate.
-- Lag Compensation — the server-side counterpart for hit detection.
+- [Lag Compensation](./lag-compensation) — the server-side counterpart for hit detection.
