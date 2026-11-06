@@ -2,16 +2,23 @@ import { defineConfig } from 'vitepress'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { categories, patterns } from './catalog'
-import { recipes } from './recipes'
+import { recipeGroups, recipes } from './recipes'
 
 const docsDir = fileURLToPath(new URL('../', import.meta.url))
 const hasPage = (section: string, slug: string) => existsSync(`${docsDir}${section}/${slug}.md`)
 
-// Sidebar: Overview, one collapsible group per pattern category, then Recipes last.
+// Sidebar: Overview, one collapsible group per pattern category, then Recipes last
+// (with one nested, collapsible group per recipe group).
 // Only written pages are listed; planned ones live on the index pages.
-const recipeItems = recipes
-  .filter((r) => hasPage('recipes', r.slug))
-  .map((r) => ({ text: r.name, link: `/recipes/${r.slug}` }))
+const recipeItems = recipeGroups
+  .map((g) => ({
+    text: g.title,
+    collapsed: true,
+    items: recipes
+      .filter((r) => r.group === g.id && hasPage('recipes', r.slug))
+      .map((r) => ({ text: r.name, link: `/recipes/${r.slug}` })),
+  }))
+  .filter((g) => g.items.length > 0)
 
 const sidebar = [
   {

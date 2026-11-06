@@ -4,31 +4,55 @@ import { data } from '../../patterns/catalog.data'
 
 const patternBySlug = new Map(data.patterns.map((p) => [p.slug, p]))
 const written = data.recipes.filter((r) => r.written).length
+
+const groups = data.recipeGroups
+  .map((g) => ({ ...g, recipes: data.recipes.filter((r) => r.group === g.id) }))
+  .filter((g) => g.recipes.length > 0)
 </script>
 
 <template>
-  <p class="count">{{ written }} / {{ data.recipes.length }} written</p>
-  <div class="recipes">
-    <article v-for="r in data.recipes" :key="r.slug" class="recipe" :class="{ planned: !r.written }">
-      <h3>
-        <a v-if="r.written" :href="withBase(`/recipes/${r.slug}`)">{{ r.name }}</a>
-        <template v-else>{{ r.name }} <span class="badge">planned</span></template>
-      </h3>
-      <p class="summary">{{ r.summary }}</p>
-      <ul class="chips" aria-label="Patterns used">
-        <li v-for="slug in r.patterns" :key="slug">
-          <a v-if="patternBySlug.get(slug)?.written" :href="withBase(`/patterns/${slug}`)" class="chip">
-            {{ patternBySlug.get(slug)?.name }}
-          </a>
-          <span v-else class="chip chip-planned">{{ patternBySlug.get(slug)?.name }}</span>
-        </li>
-      </ul>
-    </article>
+  <div class="header">
+    <nav class="jump" aria-label="Recipe groups">
+      <a v-for="g in groups" :key="g.id" :href="`#${g.id}`">{{ g.title }} <span>{{ g.recipes.length }}</span></a>
+    </nav>
+    <p class="count">{{ written }} / {{ data.recipes.length }} written</p>
   </div>
+
+  <section v-for="g in groups" :key="g.id" class="recipe-group">
+    <h2 :id="g.id">{{ g.title }}</h2>
+    <p class="desc">{{ g.description }}</p>
+    <div class="recipes">
+      <article v-for="r in g.recipes" :key="r.slug" class="recipe" :class="{ planned: !r.written }">
+        <h3>
+          <a v-if="r.written" :href="withBase(`/recipes/${r.slug}`)">{{ r.name }}</a>
+          <template v-else>{{ r.name }} <span class="badge">planned</span></template>
+        </h3>
+        <p class="summary">{{ r.summary }}</p>
+        <ul class="chips" aria-label="Patterns used">
+          <li v-for="slug in r.patterns" :key="slug">
+            <a v-if="patternBySlug.get(slug)?.written" :href="withBase(`/patterns/${slug}`)" class="chip">
+              {{ patternBySlug.get(slug)?.name }}
+            </a>
+            <span v-else class="chip chip-planned">{{ patternBySlug.get(slug)?.name }}</span>
+          </li>
+        </ul>
+      </article>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-.count { font-size: 13px; color: var(--vp-c-text-2); }
+.header { margin: 16px 0 8px; }
+.jump { display: flex; flex-wrap: wrap; gap: 8px; }
+.jump a {
+  font-size: 13px; font-weight: 500; padding: 4px 12px; border-radius: 14px; text-decoration: none;
+  border: 1px solid var(--vp-c-divider); color: var(--vp-c-text-1); background: var(--vp-c-bg-soft);
+}
+.jump a:hover { border-color: var(--vp-c-brand-1); color: var(--vp-c-brand-1); }
+.jump a span { color: var(--vp-c-text-3); margin-left: 4px; }
+.count { font-size: 13px; color: var(--vp-c-text-2); margin-top: 12px; }
+.recipe-group h2 { scroll-margin-top: calc(var(--vp-nav-height) + 16px); }
+.desc { color: var(--vp-c-text-2); margin-top: -8px; }
 .recipes { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin-top: 16px; }
 .recipe {
   border: 1px solid var(--vp-c-divider); border-radius: 12px; padding: 16px 20px;

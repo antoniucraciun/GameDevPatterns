@@ -25,13 +25,13 @@ The site is built with [VitePress](https://vitepress.dev) and deployed to GitHub
 
 A recipe is a feature built by combining several patterns, such as a platformer controller or an undo system.
 
-1. **List it.** Add an entry to `docs/.vitepress/recipes.ts`, with the slugs of the patterns it uses:
+1. **List it.** Add an entry to `docs/.vitepress/recipes.ts`, with its group and the slugs of the patterns it uses:
 
    ```ts
-   { slug: 'my-recipe', name: 'My Recipe', summary: 'One-line goal.', patterns: ['command', 'observer'] },
+   { slug: 'my-recipe', name: 'My Recipe', group: 'systems', summary: 'One-line goal.', patterns: ['command', 'observer'] },
    ```
 
-   It now appears on the [recipes page](/recipes/) as *planned*. The build fails if a pattern slug does not exist in `catalog.ts`.
+   `group` is one of the ids in `recipeGroups` at the top of the same file (`combat`, `ai`, `networking`, `performance`, `systems`, `content`). Add a new group there if none fits. The recipe now appears in its group on the [recipes page](/recipes/) as *planned*. The build fails if a pattern slug does not exist in `catalog.ts`, or if the group is unknown.
 
 2. **Write it.** Copy `templates/recipe.md` to `docs/recipes/my-recipe.md` and fill it in. Link written patterns as `../patterns/<slug>`, and name planned ones in plain text.
 
