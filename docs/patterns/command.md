@@ -72,4 +72,4 @@ For gameplay actions you can pass the actor at execution time instead (`Execute(
 
 - [Observer](./observer) — notifies listeners that something happened. A command *makes* it happen.
 - Replay System and Server Reconciliation are built on command logs.
-- Memento — an alternative way to support undo, by saving snapshots.
+- [Memento](./memento) — an alternative way to support undo, by saving snapshots.

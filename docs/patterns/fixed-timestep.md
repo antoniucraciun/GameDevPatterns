@@ -59,10 +59,10 @@ Set **Interpolate** on the Rigidbody so rendering blends between physics steps a
 - **One-frame inputs lost or doubled.** `GetKeyDown` checked in `FixedUpdate` can miss a press (zero steps this frame) or fire twice (two steps). Latch inputs in `Update` and consume them in the fixed step.
 - **Spiral of death.** Clamp frame time (Unity's *Maximum Allowed Timestep*) so a hitch does not demand hundreds of catch-up steps.
 - **Visible stutter without interpolation** when the display rate is not a multiple of the step rate.
-- A fixed step alone does not make floating-point math deterministic across platforms. That needs the separate Determinism pattern.
+- A fixed step alone does not make floating-point math deterministic across platforms. See [Determinism](./determinism).
 
 ## Related
 
 - [Game Loop](./game-loop) — the outer loop that drives the accumulator.
-- Double Buffer — keeps the previous and current state for interpolation.
+- [Double Buffer](./double-buffer) — keeps the previous and current state for interpolation.
 - Rollback Netcode and Deterministic Lockstep both depend on fixed steps.

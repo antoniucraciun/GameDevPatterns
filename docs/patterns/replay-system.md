@@ -130,4 +130,4 @@ Serialise `Replay` with `JsonUtility`, or a compact binary format, and attach it
 - [Command](./command) — inputs as data are what makes recording possible.
 - [Fixed Timestep](./fixed-timestep) — replays index inputs by step number, not by time.
 - [Client-Side Prediction](./client-side-prediction) — replays inputs over a corrected state, using the same machinery.
-- Determinism and Seeded Randomness — the foundations input replays depend on.
+- [Determinism](./determinism) and [Seeded Randomness](./seeded-randomness) — the foundations input replays depend on.

@@ -16,7 +16,7 @@ An in-game level editor, like those in puzzle and builder games:
 | Pattern | Its job in this recipe |
 | --- | --- |
 | [Command](../patterns/command) | Every edit is an object with `Execute` and `Undo`. A history of commands is the undo stack. |
-| Memento | For edits too complex to reverse by hand, the command snapshots the object's state before and after, and restores the snapshot to undo. |
+| [Memento](../patterns/memento) | For edits too complex to reverse by hand, the command snapshots the object's state before and after, and restores the snapshot to undo. |
 | [Observer](../patterns/observer) | The history raises `Changed`, so buttons, the unsaved-changes marker and autosave react without the history knowing about them. |
 
 ## How they fit together

@@ -115,5 +115,5 @@ The example passes an explicit `System.Random` instead of using `UnityEngine.Ran
 ## Related
 
 - [Flyweight](./flyweight) — loot entries reference shared item definitions.
-- Seeded Randomness — reproducible RNG streams.
+- [Seeded Randomness](./seeded-randomness) — reproducible RNG streams.
 - [Stat & Modifier System](./stat-modifier-system) — "+X% drop chance" bonuses are modifiers on weights.

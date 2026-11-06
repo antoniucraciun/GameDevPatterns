@@ -91,4 +91,4 @@ while (running)
 
 - [Update Method](./update-method) — how individual objects plug into the loop.
 - [Fixed Timestep](./fixed-timestep) — the most robust timing strategy.
-- Double Buffer — avoids reading half-updated state within one tick.
+- [Double Buffer](./double-buffer) — avoids reading half-updated state within one tick.

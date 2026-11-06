@@ -19,7 +19,7 @@ A GameObject per bullet does not reach this scale. Instantiating, updating and r
 | --- | --- |
 | [Object Pool](../patterns/object-pool) | One preallocated array of bullet slots, never resized. Spawning claims a slot and despawning frees it, with no allocation. |
 | [Flyweight](../patterns/flyweight) | Mesh, material, radius, damage and lifetime live once per `BulletType` asset. Each bullet stores only a type index. |
-| Data Locality | Live bullets are packed contiguously in an array of small structs, so the update loop streams through memory without cache misses. |
+| [Data Locality](../patterns/data-locality) | Live bullets are packed contiguously in an array of small structs, so the update loop streams through memory without cache misses. |
 | [Spatial Partition](../patterns/spatial-partition) | A uniform grid of targets, rebuilt each frame, means each bullet tests only the targets in nearby cells. |
 
 ## How they fit together
