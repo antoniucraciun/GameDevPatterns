@@ -97,6 +97,11 @@ Plurals, genders and number formatting are where hand-made systems fall short, w
 - Any game that may ever be translated. Retrofitting localisation is far more expensive than starting with keys.
 - Even single-language games benefit: all text in one place for proofreading, consistent terminology, and no text in prefabs.
 
+## When not to use
+
+- Game jams and throwaway prototypes.
+- Games with no text, or only a title and a few icons.
+
 ## Pitfalls
 
 - **Concatenation.** `"You found " + n + " coins"` cannot be translated correctly. Every sentence must be one string with placeholders.

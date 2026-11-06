@@ -161,6 +161,11 @@ Unity -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults re
 - Games with levels, where content changes can break progression.
 - Projects with deterministic simulation, where replays give complete regression tests for free.
 
+## When not to use
+
+- Game jams and very early prototypes, when everything changes daily.
+- Testing whether the game is fun. Bots find breakages and regressions, not boredom.
+
 ## Pitfalls
 
 - **Flaky tests.** Tests depending on frame timing, unseeded randomness or physics differences fail randomly, and people start ignoring them. Seed randomness, use generous timeouts, and keep inputs on a fixed step where possible.

@@ -121,6 +121,12 @@ When a strategy needs no parameters and no inspector support, a plain interface 
 - Behaviour that designers or players should choose, or that changes at runtime.
 - Replacing a growing `switch` on a "mode" enum.
 
+## When not to use
+
+- A choice that never changes and has only two options. An `if` is clearer.
+- Options that differ only in numbers. Use data, such as a [Type Object](./type-object).
+- Single-method strategies in C#. A delegate or `Func<>` is often enough without a class hierarchy.
+
 ## Pitfalls
 
 - **Strategies that need too much context.** If a strategy needs ten parameters from the context, the interface is wrong. Pass a small context object, or reconsider the split.

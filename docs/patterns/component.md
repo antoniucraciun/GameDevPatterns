@@ -55,6 +55,12 @@ A crate is `Health + DropLootOnDeath + DestroyOnDeath`. An enemy reuses the same
 - Entities that mix and match capabilities.
 - Teams where designers assemble objects in the editor from existing parts.
 
+## When not to use
+
+- Tiny games or prototypes with a handful of entity types. A plain class per type can be easier to read than many small components.
+- Splitting an object into components that always appear together and talk to each other constantly. Keep them as one class until you genuinely need to mix them separately.
+- Very large numbers of similar objects where performance matters. Use [Entity Component System](./entity-component-system).
+
 ## Pitfalls
 
 - **Hidden coupling between components.** Calling `GetComponent<Concrete>()` everywhere recreates the coupling you were escaping. Depend on interfaces such as `IDamageable`, or use events.

@@ -69,6 +69,12 @@ public class Gun : MonoBehaviour
 - Objects created and destroyed frequently: projectiles, particles, hit effects, damage numbers, audio sources, enemies in waves.
 - Platforms where GC spikes are noticeable, such as mobile, VR and consoles.
 
+## When not to use
+
+- Objects created once per level load or rarely, such as level geometry, the player or managers. Pooling them only adds reset bugs.
+- Small, plain C# objects. Modern .NET allocates them cheaply; pool only when the Profiler shows GC spikes.
+- Objects with complex state that is hard to reset. A stale field from a previous use causes subtle bugs; measure before pooling.
+
 ## Pitfalls
 
 - **Stale state.** A reused enemy still has last life's status effects, or a trail renderer still shows its old path. Reset everything in `Get` or `Launch`, including `TrailRenderer.Clear()` and Rigidbody velocities.

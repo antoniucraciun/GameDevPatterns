@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { categories, patterns } from '../.vitepress/catalog'
 import { recipeGroups, recipes, samplesRepo } from '../.vitepress/recipes'
@@ -21,6 +21,13 @@ export { data }
 export default {
   watch: ['./*.md', '../recipes/*.md', '../.vitepress/catalog.ts', '../.vitepress/recipes.ts'],
   load(): CatalogData {
+    // Every written pattern page must say when *not* to use it (see contributing.md).
+    const missing = patterns
+      .filter((p) => existsSync(`${patternsDir}${p.slug}.md`))
+      .filter((p) => !/^## When not to use\s*$/m.test(readFileSync(`${patternsDir}${p.slug}.md`, 'utf8')))
+      .map((p) => p.slug)
+    if (missing.length) throw new Error(`Pattern page(s) missing a "## When not to use" section: ${missing.join(', ')}`)
+
     const known = new Set(patterns.map((p) => p.slug))
     const groups = new Set(recipeGroups.map((g) => g.id))
     for (const r of recipes) {

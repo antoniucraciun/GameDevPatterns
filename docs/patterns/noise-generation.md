@@ -116,6 +116,12 @@ public class WorldGenerator
 - Natural variation in placed content: tree density, grass colour, rock scale, enemy density.
 - Organic animation: camera wobble, flickering lights, wind (see [Screen Shake](./screen-shake)).
 
+## When not to use
+
+- Content that must be designed exactly, such as story levels. Noise gives organic randomness, not structure.
+- Layouts with clear rooms or connections. Use [BSP](./bsp-dungeon), [Wave Function Collapse](./wave-function-collapse) or hand-made pieces.
+- Gameplay-critical randomness, such as loot. Use [Weighted Random](./weighted-random) with tuned odds.
+
 ## Pitfalls
 
 - **Sampling at integer coordinates.** Perlin noise returns the same value at every integer lattice point, so `PerlinNoise(x, y)` on integer tile coordinates gives a perfectly flat map. Always divide by a scale.

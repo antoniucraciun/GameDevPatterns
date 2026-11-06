@@ -129,6 +129,12 @@ Scene names as strings are fragile, because renaming a scene breaks them silentl
 - Large worlds that cannot fit in memory at once.
 - Teams where several people edit the same level, split into layer scenes.
 
+## When not to use
+
+- Single-scene games such as puzzle or arcade games. Resetting objects in place is faster and simpler than reloading.
+- Splitting into many additive scenes before you need to. Each split adds cross-scene references that Unity can't serialize.
+- Very large open worlds. Plain scene loading isn't enough; see [Open-World Streaming](../recipes/open-world-streaming).
+
 ## Pitfalls
 
 - **Cross-scene references.** An object in the level cannot hold an inspector reference to an object in the Core scene. Use the [Service Locator](./service-locator), events, or [ScriptableObject Architecture](./scriptable-object-architecture) to connect scenes.

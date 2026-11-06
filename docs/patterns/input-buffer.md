@@ -62,6 +62,12 @@ For fighting or action games, generalise this to a queue of recent `(action, tim
 - Any action gated by a state that ends at an unpredictable moment: landing, recovering from an attack, leaving a stun, finishing a reload.
 - Combo systems and fighting games.
 
+## When not to use
+
+- Turn-based or menu-driven games. There is no timing window to forgive.
+- Actions that must not happen late, such as a dodge or a block in a game about precise timing. Buffering them can feel like the game acted on its own; keep windows very short.
+- Simple games without states that block input.
+
 ## Pitfalls
 
 - **A window that is too long** makes actions fire when the player has changed their mind. Keep it short and tune it per action.

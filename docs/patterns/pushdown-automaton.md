@@ -119,6 +119,12 @@ The same structure drives game flow (*Playing* → push *Paused* → push *Setti
 - Interruptions that should return to the previous state: stuns, knockdowns, cutscenes, dialogues, ladders, vehicles, menus.
 - Nested modes where "back" means "where I was", not a fixed state.
 
+## When not to use
+
+- Transitions that never need to return. A plain [State](./state) machine is simpler.
+- Deep or unbounded stacks, such as a stun during a stun during a cutscene. Cap the stack or the player can get stuck in old states.
+- Menus only. If states are UI screens, a [Screen Stack](./screen-stack) is the same idea with UI-specific features.
+
 ## Pitfalls
 
 - **Pushing what should be switched.** If *Walk → Run → Walk → Run* is done with pushes, the stack grows forever. Use `Switch` for peer transitions, and `Push` only for interruptions.

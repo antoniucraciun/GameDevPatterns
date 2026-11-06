@@ -73,6 +73,12 @@ Unity uses this pattern internally. Transform world matrices are recomputed only
 - A derived value is expensive to compute, its inputs change less often than it is read, or many changes happen between reads.
 - Hierarchies such as transforms, UI layout and navigation meshes, where a change in one node invalidates its descendants.
 
+## When not to use
+
+- Values that are cheap to compute. Recomputing every time is simpler and never stale.
+- Values that change every frame anyway. The flag is always set, so it saves nothing.
+- When many places change the inputs. Forgetting to set the flag in one of them leaves stale data that is hard to track down.
+
 ## Pitfalls
 
 - **Forgetting to set the flag** on one of the input paths gives you stale results that are hard to track down. Route every mutation through one place.

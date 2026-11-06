@@ -177,6 +177,12 @@ This version rescans the grid to find the next cell, which is O(n²) overall and
 - Tile-based maps, dungeons, towns, pixel-art backgrounds, 3D building modules: anything built from pieces with connection rules.
 - When designers should control style through example maps or tile sockets, rather than generator code.
 
+## When not to use
+
+- Large maps that must be generated fast. WFC can be slow and may need backtracking or restarts.
+- Layouts that need global structure, such as a path from start to exit. WFC only enforces local rules; add constraints or another generator.
+- Small tile sets with simple rules. Simpler generators do the job.
+
 ## Pitfalls
 
 - **Contradictions.** Restrictive tilesets often fail mid-generation. Restart with a new seed (cheap for small grids), add backtracking, or add "connector" tiles that make the rules less tight.

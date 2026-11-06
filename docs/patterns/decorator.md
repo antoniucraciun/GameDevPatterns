@@ -116,6 +116,12 @@ Order matters, and that is a feature: `DoubleShot(DamageBoost(gun))` and `Damage
 - Cross-cutting concerns around services: logging, caching, retries, timing, permission checks.
 - When subclassing for every combination is impossible.
 
+## When not to use
+
+- A fixed, small set of variations. Separate classes or a [Strategy](./strategy) are easier to follow.
+- Stat bonuses that just add or multiply numbers. A [Stat Modifier System](./stat-modifier-system) is simpler and easier to show in the UI.
+- When the order of wrappers matters and is hard to reason about. Long decorator chains are hard to debug; use an explicit pipeline such as [Chain of Responsibility](./chain-of-responsibility).
+
 ## Pitfalls
 
 - **Removing a layer from the middle.** Decorators form a chain, so removing "Explosive" when its pickup expires means rebuilding the chain. Keep the list of active mods, and rebuild the wrapped weapon from it when the list changes.

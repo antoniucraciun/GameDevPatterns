@@ -156,6 +156,12 @@ public class JumpingState : HState
 - State machines where groups of states share transitions: character controllers, enemy AI (*Combat* containing *Melee*, *Ranged* and *TakingCover*), UI flows.
 - When a flat machine's transition count is clearly growing faster than its state count.
 
+## When not to use
+
+- Flat machines with a few states and little shared behaviour. The hierarchy adds indirection without saving anything.
+- AI that chooses between many possible actions. A [Behavior Tree](./behavior-tree) or [Utility AI](./utility-ai) handles priorities more naturally.
+- Interruptions that should return to wherever you were. Use a [Pushdown Automaton](./pushdown-automaton).
+
 ## Pitfalls
 
 - **Parents that always handle.** If a super-state returns `true` without checking anything, its children's later checks never matter. Decide deliberately which level owns which decision.

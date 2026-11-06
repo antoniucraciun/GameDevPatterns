@@ -112,6 +112,12 @@ public class MoveOrderHandler : IPointerHandler          // last resort: right-c
 - Requests that one of several handlers should claim: interaction targets, help or tooltip providers, cheat commands, "who handles this collision?".
 - Processing pipelines where each step may modify or stop the request: damage, chat filters, network message processing.
 
+## When not to use
+
+- When exactly one known handler always processes the request. Call it directly.
+- Pipelines where every step always runs. That is a list of processors, not a chain, and it is easier to read as a simple loop.
+- Long chains where it is hard to tell why a request was handled or dropped. Log the chain or use an explicit lookup.
+
 ## Pitfalls
 
 - **Unhandled requests.** If nothing in the chain handles a request, it vanishes silently. Add a final catch-all handler, or log unhandled requests in development.

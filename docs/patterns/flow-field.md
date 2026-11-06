@@ -133,6 +133,12 @@ Rebuild the field when the goal moves to a different cell, a few times per secon
 - Horde and swarm games: thousands of enemies converging on the player.
 - Crowd simulation: evacuations, stadiums, cities, where many agents share a few destinations.
 
+## When not to use
+
+- Few agents, or agents with different destinations. Separate [A*](./a-star) paths are cheaper.
+- Very large maps at high resolution. A field per destination costs memory and time; use coarse fields or hierarchical paths.
+- When agents need exact paths, such as along roads. A flow field gives directions, not routes.
+
 ## Pitfalls
 
 - **One field per goal.** Fifty different destinations need fifty fields. Group units by destination, cache fields per goal, and fall back to individual A* for lone units.

@@ -127,6 +127,12 @@ Draw the maps as a coloured overlay with [Debug Draw](./debug-draw) while tuning
 - Squad AI: retreat points, cover selection, avoiding kill zones, finding where the player was recently seen.
 - Ambient or crowd behaviour: NPCs avoiding dangerous districts, animals avoiding hunters.
 
+## When not to use
+
+- AI with simple tactical needs, such as "move toward the player". Distance checks or raycasts are enough.
+- Fast, fine-grained queries. The grid resolution limits accuracy; use [Spatial Partition](./spatial-partition) queries instead.
+- Small arenas with few units. The map adds update cost and tuning work without much information.
+
 ## Pitfalls
 
 - **Ignoring walls.** Linear falloff spreads threat through walls, so "safe" spots may be right behind a wall from an enemy who has to walk around. Propagate influence with a flood fill that respects obstacles, or factor in line of sight.

@@ -121,6 +121,12 @@ public static class CaveGenerator
 - Simulations that are themselves cellular: fire spread, liquid flow, plant growth, Game-of-Life-like mechanics.
 - As a post-process on other generators, to roughen geometric layouts into natural ones.
 
+## When not to use
+
+- Levels with rooms, corridors or a clear structure. Use [BSP](./bsp-dungeon) or hand-made pieces.
+- Large simulations updated every frame. Use the [Job System](./job-system) or update only active regions.
+- When connectivity matters. Caves can come out disconnected; add a flood fill or corridor pass.
+
 ## Pitfalls
 
 - **Disconnected caves.** Smoothing produces separate pockets. Keep the largest region, or connect regions by carving tunnels between their nearest cells, as in the post-process step.

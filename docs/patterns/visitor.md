@@ -102,6 +102,12 @@ Modern C# offers a lightweight alternative, **pattern matching**: `switch (e) { 
 - A stable set of types with a growing set of operations: level elements, ability effects, AST nodes of a scripting language ([Interpreter](./interpreter)), save-data nodes, editor tools.
 - When operations should live in their own classes (validation, export, statistics), not inside the data types.
 
+## When not to use
+
+- Type sets that change often. Every new type breaks every visitor; use virtual methods on the types instead.
+- One or two operations. A virtual method or a C# `switch` on the type is shorter.
+- Modern C# code where pattern matching (`switch` with type patterns) covers the same need with less ceremony.
+
 ## Pitfalls
 
 - **Frequently changing types.** Every new element type touches every visitor. If types change often and operations rarely, put the methods on the types instead.

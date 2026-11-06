@@ -155,6 +155,11 @@ For saving, convert each slot to `{ definitionId, count, durability }` and look 
 - RPGs, survival and crafting games, looter shooters, shops, chests, equipment screens and hotbars.
 - Anywhere items move between several containers with different rules.
 
+## When not to use
+
+- A fixed set of items with no containers, such as keys or ammo counts. A few fields or a dictionary of counts is enough.
+- A single equipped weapon. A reference to it is enough.
+
 ## Pitfalls
 
 - **Merging items with per-instance data.** Stacking two swords with different durability loses data. Only stack items without instance data, or compare it in `CanMergeWith`.

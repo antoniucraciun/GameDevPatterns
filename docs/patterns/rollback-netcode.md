@@ -130,6 +130,12 @@ Fighting-game rollback is commonly built with **GGPO** or its descendants. In Un
 - Fighting games, platform fighters, and other 1v1 or small-group games with tight timing.
 - Any peer-to-peer game where input delay is unacceptable and the simulation is small and deterministic.
 
+## When not to use
+
+- Large simulations with many objects. Re-simulating several frames each tick becomes too expensive.
+- Games with many players. Mispredictions multiply, and rollbacks become visible.
+- Non-deterministic simulations. Rollback needs [Determinism](./determinism) or full state saving every frame.
+
 ## Pitfalls
 
 - **Non-determinism.** If resimulating does not reproduce exactly what the other side computed, the games diverge. Same rules as [Deterministic Lockstep](./deterministic-lockstep): fixed-point math, no engine physics, no unordered iteration, checksums.

@@ -107,6 +107,12 @@ A door that blocks paths while closed carves the navmesh with a `NavMeshObstacle
 - 3D (and many 2D) games with continuous, irregular walkable space: action, RPG, RTS, open world, shooters.
 - Many agents needing fast pathfinding on large maps.
 
+## When not to use
+
+- Grid- or tile-based games. A* on the grid is simpler and matches the game rules.
+- Flying or swimming agents in open 3D space. NavMeshes are surfaces; use steering or a 3D grid.
+- Levels that change shape constantly. Frequent rebakes are expensive; use dynamic obstacles or local avoidance.
+
 ## Pitfalls
 
 - **Destinations off the mesh.** `SetDestination` on a point inside a wall silently picks the nearest reachable point, or fails. Snap with `SamplePosition`, and check `path.status`.

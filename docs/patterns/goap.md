@@ -124,6 +124,12 @@ Execution: each `GoapAction` has a matching behaviour (move to the ammo, play th
 - Agents with many actions that combine in different orders depending on the situation: tactical shooters, survival and life-sim NPCs, crafting-capable workers.
 - Emergent behaviour: designers add actions, and the AI finds new ways to use them.
 
+## When not to use
+
+- AI whose behaviour designers need to predict and script exactly. Planning makes it emergent and harder to control; use a [Behavior Tree](./behavior-tree) or [HTN](./htn-planning).
+- Agents with only a handful of actions. There is little to plan; a [State](./state) machine is enough.
+- Large numbers of agents re-planning often. Planning is expensive; cache plans or use a cheaper decision method.
+
 ## Pitfalls
 
 - **Cost tuning is behaviour design.** Plans are only as good as their costs. Make costs depend on context (distance to the ammo, danger), not just constants.

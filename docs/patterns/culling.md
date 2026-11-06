@@ -89,6 +89,12 @@ public class AmbientCreatureCulling : MonoBehaviour
 - Many gameplay objects that do expensive work only when the player can see or hear them: ambient life, particles, sound emitters, cosmetic physics.
 - Mobile and VR, where every draw call and every millisecond counts.
 
+## When not to use
+
+- When Unity's built-in frustum and occlusion culling already covers it. Don't reimplement camera culling for renderers.
+- Objects whose state must keep updating while unseen, such as networked or simulation-critical objects. Simplify them with [Level of Detail](./level-of-detail) instead of disabling them.
+- Small levels where most things are always visible. Culling checks then cost more than they save.
+
 ## Pitfalls
 
 - **Culling things that matter off-screen.** An enemy that stops moving when you turn around, or a timer that pauses when not visible, breaks gameplay. Cull *presentation* (animation, particles, audio) freely, and gameplay logic only when its effect is truly invisible, or replace it with a cheaper simulation (see [Level of Detail](./level-of-detail)).

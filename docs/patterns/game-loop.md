@@ -81,6 +81,11 @@ while (running)
 
 - Always. Every real-time game has one. The real question is whether you write it yourself or use the engine's, and which timing variant you choose.
 
+## When not to use
+
+- Writing your own loop inside Unity, Godot or Unreal. The engine already runs one: hook into it with [Update Method](./update-method), [Fixed Timestep](./fixed-timestep) and the engine's script execution order.
+- Turn-based or menu-driven games with no continuous simulation. An event-driven app that waits for input is simpler and saves battery.
+
 ## Pitfalls
 
 - **Spiral of death:** if an update takes longer than the time it simulates, the loop falls further behind every frame. Clamp the elapsed time to a maximum.

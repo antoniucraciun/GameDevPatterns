@@ -133,6 +133,12 @@ For 3D worlds, Unity's **AI Navigation** package (NavMesh) runs A* over navmesh 
 - Point-to-point routes for a few to a few hundred agents: RTS units, enemies, NPCs, tactics games.
 - Any graph search with costs: road networks, dialogue state spaces, puzzle solving.
 
+## When not to use
+
+- Thousands of agents heading to the same goal. One [Flow Field](./flow-field) serves them all.
+- Unity projects with continuous 3D levels. The built-in [Navigation Mesh](./navigation-mesh) already runs A* on a better graph.
+- Open spaces with no obstacles. A straight line with [Steering](./steering-behaviors) is enough.
+
 ## Pitfalls
 
 - **Inadmissible heuristics.** Overestimating (for example, Euclidean distance multiplied by 2) finds paths faster but not the shortest ones. Sometimes that is a useful trade-off ("weighted A*"), but make it a deliberate one.

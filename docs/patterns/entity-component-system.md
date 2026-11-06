@@ -103,6 +103,12 @@ Projectiles placed in a **subscene** are baked into entities. Tens of thousands 
 - Simulation where performance and multi-core scaling matter more than the convenience of GameObjects.
 - Deterministic or networked simulations. Netcode for Entities and Unity Physics are built on it.
 
+## When not to use
+
+- Games with a few hundred interesting objects. GameObjects and [Component](./component) are simpler, better supported by tools and fast enough.
+- Gameplay that is mostly unique, hand-authored objects (a puzzle game, a narrative adventure) rather than many similar ones.
+- Teams new to data-oriented design on a deadline. Try [Data Locality](./data-locality) or the [Job System](./job-system) on the hot path first.
+
 ## Pitfalls
 
 - **Different mental model.** No inheritance, no methods on data, no references between objects (entities refer to each other by `Entity` IDs). The learning curve is real.

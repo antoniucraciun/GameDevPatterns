@@ -95,6 +95,12 @@ public class LocalHitStop : MonoBehaviour
 - Melee combat, fighting games, action games, anything where hits need weight.
 - Breaking objects, landing heavy jumps, parries and perfect blocks.
 
+## When not to use
+
+- Games with constant, frequent hits, such as bullet hells or hordes. Constant freezes break the flow; save it for heavy hits.
+- Online multiplayer. Freezing the simulation desyncs players; freeze only the presentation.
+- Games where precise timing matters more than impact, such as rhythm games.
+
 ## Pitfalls
 
 - **Overuse.** Hit stop on every bullet in a fast shooter makes the game stutter. Reserve it for meaningful hits, and keep rapid-fire stops short or local.

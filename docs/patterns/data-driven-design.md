@@ -133,6 +133,12 @@ The importer updates existing assets rather than recreating them, so references 
 - Content that grows in volume: hundreds of items, levels or abilities.
 - Live games that adjust balance without a client update.
 
+## When not to use
+
+- Values only a programmer will ever change. A constant in code is easier to find and refactor.
+- Logic that doesn't fit in data. Forcing it into data creates a weak programming language; use code or a proper [Interpreter](./interpreter).
+- Prototypes, where requirements are still moving. Pull values out into data once the design settles.
+
 ## Pitfalls
 
 - **Logic hiding in data.** Flags like `isSpecialBossThatDoesTheThing` turn data into a bad programming language. When data needs real logic, add a code hook, such as a [Strategy](./strategy) reference or an effect list.

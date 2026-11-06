@@ -74,6 +74,12 @@ Create state instances once and reuse them, so transitions do not allocate.
 - An entity has distinct modes with different behaviour and clear rules for moving between them: player movement, enemy AI, doors, weapons.
 - Top-level game flow: boot, menu, playing, paused, game over.
 
+## When not to use
+
+- Objects with two or three modes and simple rules. An enum and a `switch` is clearer than a class per state.
+- When the number of states and transitions explodes. Shared transitions belong in a [Hierarchical State Machine](./hierarchical-state-machine), and AI that picks from many options suits a [Behavior Tree](./behavior-tree), [Utility AI](./utility-ai) or [GOAP](./goap).
+- Several independent modes at once, such as moving and reloading. Use one state machine per concern, not one machine with every combination.
+
 ## Pitfalls
 
 - **State explosion.** Many states that share most of their transitions call for a [Hierarchical State Machine](./hierarchical-state-machine).

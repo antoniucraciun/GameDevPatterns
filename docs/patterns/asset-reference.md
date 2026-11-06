@@ -95,6 +95,12 @@ Instances created with `Instantiate` from a loaded prefab do not hold their own 
 - Live games that download new content without app-store updates.
 - Replacing `Resources.Load`, which is slow at startup and has no memory control.
 
+## When not to use
+
+- Small games that fit in memory. Direct references are simpler and load with the scene.
+- Assets that are always needed, such as the player or the HUD. Loading them on demand adds delay and failure cases.
+- Before you need downloadable or optional content. Addressables add build and loading complexity.
+
 ## Pitfalls
 
 - **Leaks from missing `Release`.** Every successful load needs exactly one release. Track handles in one owner per lifetime (level, screen), and release in `OnDestroy`.

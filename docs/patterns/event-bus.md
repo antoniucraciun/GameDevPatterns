@@ -126,6 +126,12 @@ public class AchievementSystem : MonoBehaviour
 - Events raised by short-lived objects (enemies, projectiles, pickups) that long-lived systems care about.
 - Decoupling features, so one can be removed without breaking the others.
 
+## When not to use
+
+- Systems that already have a natural reference to each other. A direct call or [Observer](./observer) is easier to trace.
+- Request-response interactions ("give me the player's health"). The bus is for announcements, not queries.
+- Small projects. A global bus hides the flow of control, and finding every listener of an event becomes a search.
+
 ## Pitfalls
 
 - **Invisible control flow.** "What happens when an enemy dies?" now needs a search for `EventBus<EnemyKilled>`. Keep event types few and well named, and consider a debug window that lists subscribers.

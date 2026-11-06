@@ -159,6 +159,11 @@ Scanning assemblies with reflection is slow-ish (tens of milliseconds) and happe
 - Mobile and console builds, where editor tools are unavailable.
 - Reproducing bugs: jump to a level, spawn an enemy, set a stat, toggle debug views.
 
+## When not to use
+
+- Shipping to players without stripping or locking it. Cheats left in can break competitive or economy games.
+- Game jams and very small projects. Inspector buttons and keyboard shortcuts are faster to add.
+
 ## Pitfalls
 
 - **Cheats shipping to players.** Wrap commands and the console in `#if UNITY_EDITOR || DEVELOPMENT_BUILD`, and verify a release build actually excludes them.

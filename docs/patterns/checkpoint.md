@@ -142,6 +142,12 @@ Death triggers respawn: `health.Died += _ => CheckpointSystem.Instance.Respawn()
 - Platformers, action-adventures, shooters, any game where dying should cost some progress, but not all.
 - Levels with puzzles, bosses or one-way state that must be consistent after a retry.
 
+## When not to use
+
+- Short levels or arcade games where restarting the level is fast and fair.
+- Games with free saving. The [Save System](./save-system) covers it.
+- Roguelikes, where permanent death is the design.
+
 ## Pitfalls
 
 - **Undecided reset policy.** Bugs come from objects nobody thought about: a collapsed bridge that should have been restored, or a collected key that was wrongly removed. Make the policy part of every interactive object's design.

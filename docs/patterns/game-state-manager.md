@@ -153,6 +153,12 @@ This uses Unity 6's `Awaitable`, and awaiting `AsyncOperation` directly (2023.1+
 - Every game beyond a prototype. The top-level flow always exists, and the only question is whether it is explicit.
 - Games with loading screens, multiple modes (campaign, arena, editor) or online sessions with lobby and match states.
 
+## When not to use
+
+- Game jams and prototypes with one scene and no menus. A `bool isGameOver` is enough.
+- Character or enemy behaviour. Use [State](./state) on the object; the game state manager is for top-level flow only.
+- When the flow is a simple stack of screens. A [Screen Stack](./screen-stack) may be all you need.
+
 ## Pitfalls
 
 - **Pausing with a whole state.** Replacing *Playing* with *Paused* runs *Playing*'s `Exit`, which may unload the level. Either keep exits light (disable input, nothing destructive), as here, or use a stack ([Pushdown Automaton](./pushdown-automaton)) so *Paused* sits on top of *Playing* without exiting it.

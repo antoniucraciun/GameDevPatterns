@@ -138,6 +138,12 @@ public class HealthBar : MonoBehaviour              // lives in a different scen
 - Teams where designers wire behaviour in the editor.
 - Configuration data: game settings, difficulty curves, item and enemy definitions. This is the [Flyweight](./flyweight) use of ScriptableObjects, and the least controversial one.
 
+## When not to use
+
+- One-off links between two objects in the same scene or prefab. A direct serialized reference is easier to follow and debug than an event channel asset.
+- Small teams of programmers. The editor wiring mainly helps designers, and it hides the flow of control from the code.
+- Runtime state that must be saved, reset or networked. ScriptableObject state persists across Play sessions in the editor and isn't part of your save data unless you add it.
+
 ## Pitfalls
 
 - **Runtime changes persisting in the editor.** Changing a *serialised* field of a ScriptableObject in play mode changes the asset, and it stays changed after you stop. Keep runtime values `[NonSerialized]` and reset them in `OnEnable`, as above.

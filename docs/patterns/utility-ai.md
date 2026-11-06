@@ -129,6 +129,12 @@ In a debug view, show every action's score per decision. Utility AI is only tuna
 - Combat AI choosing between abilities, targets and positions, where the best choice depends on many factors.
 - Behaviour that should feel organic and context-sensitive rather than scripted.
 
+## When not to use
+
+- Behaviour with clear, fixed priorities ("always flee below 20% health"). A [Behavior Tree](./behavior-tree) states that directly.
+- Small decision sets. Tuning response curves for three options is more work than writing three `if` statements.
+- When designers need to know exactly why the AI did something. Utility scores are hard to reason about without good debug tools.
+
 ## Pitfalls
 
 - **Opaque decisions.** "Why did it do that?" is hard to answer from numbers. Build a score inspector early.

@@ -113,6 +113,12 @@ Callers depend on `IEnemyFactory`, so tests can pass a fake factory that records
 - Objects are chosen by ID from data, the network or the console.
 - Families of objects must be swapped together (platforms, themes, difficulty sets).
 
+## When not to use
+
+- Creation that is just `new` or `Instantiate` with no extra steps. A factory class adds a layer with nothing in it.
+- A single place that creates the object. Keep the creation code there until a second caller appears.
+- When the "factory" would be a giant `switch` on a type ID that grows with every new kind. Use [Type Object](./type-object) or a registry instead.
+
 ## Pitfalls
 
 - **Factories for trivial objects.** A factory that wraps a single `new Vector3(...)` is ceremony. Introduce one when creation has real steps.

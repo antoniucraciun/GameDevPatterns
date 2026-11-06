@@ -106,6 +106,11 @@ A daily challenge becomes `new World(Rng.Derive(0xC0FFEE, year, dayOfYear))`, th
 - Anything that must replay exactly: input replays, lockstep and rollback networking, regression tests.
 - Debugging. Logging the seed of a failed run makes it reproducible.
 
+## When not to use
+
+- Randomness that should differ every run and never needs replaying, such as cosmetic particles.
+- Security-sensitive randomness, such as loot that can be sold. Generate it on the server; clients can read a seed.
+
 ## Pitfalls
 
 - **Copying generator state by accident.** If the generator were a `struct`, passing it by value would fork the stream, and two systems would get identical numbers. That is why `Rng` is a class here.

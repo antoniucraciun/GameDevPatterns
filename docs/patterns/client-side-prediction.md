@@ -94,6 +94,12 @@ Unity's Netcode for Entities provides prediction and reconciliation out of the b
 - Anything the local player directly controls where latency is felt: movement, aiming, firing effects, ability activation.
 - Server-authoritative games where clients are not trusted.
 
+## When not to use
+
+- Things the player doesn't control directly, such as other players or NPCs. Use [Entity Interpolation](./entity-interpolation).
+- Slow-paced or turn-based games, where waiting for the server is barely noticeable.
+- Outcomes that are hard to undo if the prediction is wrong, such as deaths, loot or purchases. Wait for the server and play an anticipation effect.
+
 ## Pitfalls
 
 - **Non-deterministic simulation.** Different code paths, `Time.deltaTime` instead of a fixed step, or physics that is not replayable all cause constant corrections and rubber-banding. Keep predicted logic in pure functions driven by a [Fixed Timestep](./fixed-timestep).

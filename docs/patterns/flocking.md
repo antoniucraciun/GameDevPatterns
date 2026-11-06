@@ -146,6 +146,12 @@ One `Flock.Update` drives every boid, rather than one `Update` per boid, and all
 - Swarming enemies, drones and particle-like gameplay objects.
 - Ambient life that should look organic at low authoring cost.
 
+## When not to use
+
+- A few agents. Hand-animated or scripted movement looks better and is easier to control.
+- Units that must obey exact orders, formations or tight spacing. Use formation slots plus [Steering](./steering-behaviors).
+- Very large crowds without a [Spatial Partition](./spatial-partition). Naive neighbour checks are O(n²).
+
 ## Pitfalls
 
 - **Weights are everything.** Too much cohesion gives a tight ball, too much separation gives a scattered cloud, and too much alignment gives a rigid formation. Expose weights and tune them live.

@@ -140,6 +140,12 @@ public class Feedback : ScriptableObject
 - UI interactions: buttons, rewards, level-ups, purchases.
 - When different weapons, enemies or abilities should feel distinct but consistent.
 
+## When not to use
+
+- Before the core mechanic is fun. Feedback can't fix a game that doesn't work.
+- Routine actions that repeat constantly, such as menu navigation. Too much feedback makes everything noisy; scale the feedback to the event's importance.
+- Without accessibility options. Flashes and shake need settings to reduce them.
+
 ## Pitfalls
 
 - **Noise instead of signal.** If everything shakes, flashes and booms, nothing stands out, and important events get lost. Budget intensity: frequent events stay subtle, rare events go big.

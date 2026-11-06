@@ -118,6 +118,12 @@ Each player sends exactly one command per turn, "none" included, so `HasAllInput
 - Fighting games and other games with small player counts and perfectly deterministic simulations (often combined with [Rollback Netcode](./rollback-netcode)).
 - Replays come for free: a match is its starting state plus the input log.
 
+## When not to use
+
+- Games with a lot of physics or third-party code you can't make deterministic. One mismatch desyncs the match.
+- Games where players join mid-match or have unreliable connections. Everyone waits for the slowest player; use server-authoritative state sync.
+- Small player counts with fast action. [Rollback Netcode](./rollback-netcode) hides latency better.
+
 ## Pitfalls
 
 - **Desyncs.** Any non-determinism (floats across CPUs, unordered dictionaries, `UnityEngine.Random`, physics engines, frame-rate-dependent code) makes the simulations drift apart, often only after minutes. Fixed-point math, seeded RNG, ordered iteration and checksums are mandatory. See [Determinism](./determinism).

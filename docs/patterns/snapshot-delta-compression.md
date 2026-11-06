@@ -142,6 +142,12 @@ A full player update shrinks from about 60 bytes to about 9 when moving, and 1 b
 - Server-authoritative games replicating many entities to many clients: shooters, battle royales, MMOs, sports games.
 - Any bandwidth-constrained networking, especially mobile and console platforms with upload limits.
 
+## When not to use
+
+- Netcode libraries that already do it, such as Netcode for GameObjects or Mirror. Configure them instead of rolling your own.
+- Low player counts with little state. Full snapshots fit in the bandwidth.
+- Lockstep games. They send inputs, not state.
+
 ## Pitfalls
 
 - **Delta against unacknowledged state.** Encoding against "the last thing I sent" breaks as soon as one packet is lost, because the client never had it. Always encode against an *acknowledged* baseline.

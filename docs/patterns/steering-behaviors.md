@@ -146,6 +146,12 @@ public class SteeringAgent : MonoBehaviour
 - The "last metre" of movement on top of pathfinding: follow path waypoints with *Arrive*, while *Separation* keeps agents from overlapping.
 - Many simple agents where full pathfinding per agent is too expensive.
 
+## When not to use
+
+- Agents that must follow precise paths, such as tower-defence creeps on a lane. Follow the path directly.
+- Navigation through complex level layouts on its own. Steering is local; pair it with [A*](./a-star), a [Navigation Mesh](./navigation-mesh) or a [Flow Field](./flow-field).
+- Grid- or tile-based movement. Steering forces fight the grid; move tile by tile instead.
+
 ## Pitfalls
 
 - **Weighted sums cancel out.** Separation pushing left and seek pulling right can sum to nearly zero, and the agent stalls or jitters. Use priorities (avoidance first), or limit how much force each behaviour may use.

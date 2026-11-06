@@ -128,6 +128,12 @@ Designer wiring, no code:
 - Level scripting: music and ambience zones, cutscene triggers, checkpoints, traps, kill planes, tutorial hints, area-entered quest objectives.
 - Pressure pads, doors and lifts that react to presence.
 
+## When not to use
+
+- Checks that need precise geometry or line of sight. Use raycasts or a [Perception System](./perception-system).
+- Many moving objects all checking each other through triggers. A [Spatial Partition](./spatial-partition) query is cheaper.
+- Logic that should run on a condition, not a location, such as "after the third key". Use events or a [Quest System](./quest-system).
+
 ## Pitfalls
 
 - **No Rigidbody, no events.** Unity sends trigger messages only if at least one of the two objects has a Rigidbody (kinematic is fine). Static trigger + CharacterController works, static trigger + static collider does not.

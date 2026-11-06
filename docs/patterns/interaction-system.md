@@ -151,6 +151,11 @@ public class Door : MonoBehaviour, IInteractable
 - First- and third-person games, adventure games, RPGs, immersive sims: anything with "press to use".
 - Whenever several kinds of objects respond to the same button.
 
+## When not to use
+
+- One or two interactable kinds. Direct trigger checks are clearer.
+- Games with no "use" input, such as shooters where you only touch pickups. Collisions are enough.
+
 ## Pitfalls
 
 - **Several objects activating at once.** Interacting in each interactable's own trigger means overlapping triggers all fire. Only the interactor reads input, and only the focused target acts.

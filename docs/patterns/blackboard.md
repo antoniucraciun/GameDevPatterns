@@ -129,6 +129,12 @@ Squad sharing: give every guard `new Blackboard(parent: squadBlackboard)`. When 
 - Sharing knowledge between agents (squads, factions) or between AI and a director system.
 - Designer tools where nodes are wired to keys in an editor.
 
+## When not to use
+
+- A single agent whose AI reads a few of its own fields. Plain fields on the agent class are typed, faster and easier to find.
+- As a global dumping ground for any data. Untyped string keys hide dependencies; keep the blackboard small and documented.
+- Sharing data that already has a clear owner, such as the player's health. Read it from that owner.
+
 ## Pitfalls
 
 - **A dumping ground.** Without discipline, the blackboard becomes a bag of global variables. Define keys in one place, and give each key a clear owner that writes it.

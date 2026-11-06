@@ -54,6 +54,12 @@ Set **Interpolate** on the Rigidbody so rendering blends between physics steps a
 - Physics, character controllers, anything integrated over time.
 - Deterministic simulations: replays, lockstep, rollback.
 
+## When not to use
+
+- Purely visual or UI animation: tweens, camera smoothing, UI fades. Run them per frame with `Time.deltaTime`, or they stutter at frame rates that don't match the step.
+- Reading input. Sample it every frame and hand it to the fixed step, or presses that land between steps get lost.
+- Simple non-physics games where frame-rate independence via `deltaTime` is enough and determinism doesn't matter.
+
 ## Pitfalls
 
 - **One-frame inputs lost or doubled.** `GetKeyDown` checked in `FixedUpdate` can miss a press (zero steps this frame) or fire twice (two steps). Latch inputs in `Update` and consume them in the fixed step.

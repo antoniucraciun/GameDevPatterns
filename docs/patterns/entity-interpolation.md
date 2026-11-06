@@ -110,6 +110,12 @@ Netcode for GameObjects' `NetworkTransform` and most networking libraries interp
 - Every entity the local player does *not* control: other players, server-driven NPCs, projectiles fired by others.
 - Any time state arrives at a lower or less regular rate than you render.
 
+## When not to use
+
+- The locally controlled player. Interpolating your own character adds input lag; use [Client-Side Prediction](./client-side-prediction).
+- Objects that must react instantly, such as an object the local player just hit. Show a predicted local effect first.
+- Turn-based games with discrete moves. Animate the move instead.
+
 ## Pitfalls
 
 - **Remote players are in the past.** At 100 ms of delay plus latency, you see others where they were well over 100 ms ago. Shooters fix this for hit detection with [Lag Compensation](./lag-compensation) on the server.

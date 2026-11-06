@@ -105,6 +105,12 @@ In Unity, the next steps are `NativeArray<T>` with the [Job System](./job-system
 - Hot loops over many similar items: particles, bullets, crowds, boids, pathfinding nodes, animation bones.
 - When the profiler shows a loop dominated by memory access rather than computation.
 
+## When not to use
+
+- Code that isn't a hot path in the Profiler. Restructuring data for cache efficiency makes code harder to read.
+- Objects with very different data and behaviour. Packing them into parallel arrays fights the design.
+- When the bottleneck is GPU, I/O or the algorithm itself. Better memory layout won't help.
+
 ## Pitfalls
 
 - **Premature optimisation.** For a few hundred items, the difference is rarely measurable. Profile first. Data-oriented code is harder to read and change.

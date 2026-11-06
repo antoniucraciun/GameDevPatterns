@@ -96,6 +96,12 @@ Rejected requests are normal, because latency makes honest clients occasionally 
 - Any competitive multiplayer game, and any game with an economy, progression or leaderboards that cheating would spoil.
 - Games with many players, where peer-to-peer trust and bandwidth do not scale.
 
+## When not to use
+
+- Co-op games among friends with nothing to gain from cheating. Host-authoritative or peer-to-peer is cheaper to build and run.
+- Games where server costs outweigh the benefit, such as small indie co-op titles. Dedicated servers cost money for as long as the game is live.
+- Fighting games and other small-player-count games with tight timing. [Rollback Netcode](./rollback-netcode) usually feels better.
+
 ## Pitfalls
 
 - **Trusting client state "just for this one thing".** Client-reported positions, hit results, timestamps or inventory are the classic exploits. Treat every client message as a request that can be a lie.

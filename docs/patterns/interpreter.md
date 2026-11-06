@@ -162,6 +162,12 @@ Conditions use the same machinery: `gold > 49` evaluates to 1 or 0. Add `and`, `
 - Conditions in data: dialogue choices, quest requirements, achievement triggers, AI considerations.
 - Small domain-specific languages: cheat-console arguments, level scripting, mod support.
 
+## When not to use
+
+- Logic only programmers change. Write it in C#.
+- Large scripting needs. A hand-rolled interpreter grows into a language; use an existing one (Lua, Ink, Yarn) instead.
+- Hot loops evaluated thousands of times per frame. Tree-walking is slow; compile to [Bytecode](./bytecode) or C# delegates.
+
 ## Pitfalls
 
 - **Parsing every evaluation.** Parse once at load (or on validation) and cache the tree. Parsing in a hot path is slow and allocates.

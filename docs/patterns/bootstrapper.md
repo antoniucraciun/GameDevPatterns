@@ -115,6 +115,11 @@ public class LevelStart : MonoBehaviour
 - Games that call platform SDKs, online services or cloud saves, which must initialise in a specific order.
 - Teams that want to press Play in any scene and have it just work.
 
+## When not to use
+
+- Small games with one or two global services. `[RuntimeInitializeOnLoadMethod]` or one object in the first scene is enough.
+- Moving all initialisation into the bootstrapper, including per-level objects. Keep it for services that live for the whole app; levels set themselves up.
+
 ## Pitfalls
 
 - **Hidden dependencies on boot.** Code that reads services in `Awake` can run before boot finishes, because boot steps are asynchronous. Await `WaitUntilReady`, or start gameplay from the bootstrapper's `Ready` event.

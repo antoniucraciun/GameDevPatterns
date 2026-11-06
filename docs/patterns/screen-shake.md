@@ -80,6 +80,12 @@ Cinemachine offers the same idea as **Impulse** sources and listeners, with per-
 - Explosions, heavy landings, powerful hits, recoil, earthquakes, large creatures stomping.
 - Any game where impacts should be felt, not just seen.
 
+## When not to use
+
+- Constant small events. Shake loses meaning when it never stops.
+- VR. Camera shake causes motion sickness; shake controllers or objects instead.
+- Without an option to reduce or disable it. Players with motion sensitivity need one.
+
 ## Pitfalls
 
 - **Motion sickness.** Strong or constant shake makes some players ill. Always provide a setting to reduce or disable it (`userScale`), and default to moderate values.

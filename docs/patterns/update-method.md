@@ -59,6 +59,12 @@ public class TickManager : MonoBehaviour
 - Many independent objects that each need a little work every frame.
 - Behaviour that is easy to express as "advance by one step".
 
+## When not to use
+
+- Objects that sit idle most of the time: doors, pickups, spawners waiting for a trigger. React to events with [Observer](./observer) or schedule work with a [Timer](./timer-scheduler) instead of checking every frame.
+- Thousands of identical objects. One manager looping over a plain array is faster than thousands of `Update` calls; see [Data Locality](./data-locality).
+- Work that only needs to happen every few frames or seconds. Use [Time Slicing](./time-slicing) or a timer.
+
 ## Pitfalls
 
 - **Update order is undefined between objects.** If A reads B's position, A may see this frame's value or last frame's. Use `LateUpdate`, explicit system ordering or a [Double Buffer](./double-buffer).

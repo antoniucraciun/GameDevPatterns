@@ -93,6 +93,12 @@ The generic version needs no per-class code, but captures *every* serialised fie
 - Checkpoints, "restart room", rewinding a turn.
 - Saving and restoring speculative state, such as AI look-ahead or previewing a move before committing it.
 
+## When not to use
+
+- Large state that changes in small steps. Full snapshots waste memory; use [Command](./command) with undo.
+- Saving games. Snapshots of runtime objects are fragile across versions; use a [Save System](./save-system) with explicit, versioned data.
+- State that includes references to engine objects you can't copy, such as GameObjects, textures or sockets.
+
 ## Pitfalls
 
 - **Memory.** Snapshotting large objects often is expensive. Snapshot only what changes, use incremental (delta) mementos, or cap the history length.

@@ -84,6 +84,12 @@ A safer middle ground: keep the single instance, but hide the concrete class beh
 - Truly unique, application-lifetime services with little mutable state.
 - Prototypes and small games, as long as you know what you are trading away.
 
+## When not to use
+
+- Anything with gameplay state that changes per level or per match: the player, the current level, the score. Pass it in, or use [Scene Management](./scene-management) to own it.
+- Code you want to unit test, or services with more than one implementation. Use [Dependency Injection](./dependency-injection) or a [Service Locator](./service-locator).
+- As the default way to share things. Most "managers" only need to exist once because only one is created, not because a second would be an error.
+
 ## Pitfalls
 
 - **Hidden dependencies.** A class that calls `AudioManager.Instance` deep inside a method depends on it, but nothing in its constructor or inspector says so.

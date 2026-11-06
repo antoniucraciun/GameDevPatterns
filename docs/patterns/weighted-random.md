@@ -105,6 +105,11 @@ The example passes an explicit `System.Random` instead of using `UnityEngine.Ran
 - Loot drops, enemy spawn selection, random events, procedural content choices, critical hits and proc chances.
 - Whenever designers need to tune probabilities without touching code.
 
+## When not to use
+
+- Choices where players expect fairness over a session, such as card draws. Use a shuffled bag or pity timers.
+- A few equally likely options. `Random.Range` is enough.
+
 ## Pitfalls
 
 - **Rolling once per branch** (`if (Random.value < a) … else if (Random.value < b)`) silently changes the probabilities. Roll once and compare against cumulative weights.

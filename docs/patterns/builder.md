@@ -110,6 +110,12 @@ public class WeaponBuilder
 - When the same assembly logic is needed in several places.
 - Test setups: `new PlayerBuilder().WithHealth(1).WithItem(potion).Build()` keeps tests short and focused.
 
+## When not to use
+
+- Objects with only a few required fields. A constructor or object initializer is clearer.
+- Unity components configured in the editor. Prefabs and the Inspector are already the builder.
+- One-off construction in a single place. A builder pays off when assembly rules are reused or easy to get wrong.
+
 ## Pitfalls
 
 - **Builders for simple objects.** Two required fields belong in a constructor. Builders pay off with many options and validation rules.

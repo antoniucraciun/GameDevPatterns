@@ -116,6 +116,12 @@ This minimal tree re-evaluates from the root every tick, so higher-priority bran
 - Designers need to author or tweak AI, usually through a visual editor.
 - Behaviours should be reused across different agent types.
 
+## When not to use
+
+- Simple AI with a few modes, such as an enemy that patrols, chases and attacks. A [State](./state) machine or an enum `switch` is easier to write and debug.
+- Agents that weigh many competing needs. Priority order in a tree gets awkward; [Utility AI](./utility-ai) scores options directly.
+- Building your own tree editor and runtime before you have AI that needs it. Start with code; adopt an existing tool when designers need to author behaviour.
+
 ## Pitfalls
 
 - **Interrupted actions need cleanup.** When a higher-priority branch takes over, the running action must stop its animation, release reservations and so on. Add an `Abort` or `OnExit` hook.

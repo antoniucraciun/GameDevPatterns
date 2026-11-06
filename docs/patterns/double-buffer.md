@@ -84,6 +84,12 @@ The GPU does this at the largest scale. The front buffer is displayed while the 
 - Producer/consumer handoff between threads, such as a simulation thread writing state that the render thread reads.
 - Interpolated rendering: keeping the previous and current simulation state, as in [Fixed Timestep](./fixed-timestep).
 
+## When not to use
+
+- State that is only written by one system before anyone reads it. Ordering the updates is enough; the second buffer just doubles the memory.
+- Small, rarely-changing state shared between threads. A lock or an immutable snapshot is simpler.
+- Updates where each cell or object depends only on itself. There is nothing to read stale, so there is nothing to protect.
+
 ## Pitfalls
 
 - **Writing to `current` during the tick** silently brings the bug back. Make the read and write paths obvious, or enforce them with read-only views.

@@ -107,6 +107,12 @@ Unity's Transform hierarchy, UI layout groups, [behavior trees](./behavior-tree)
 - Part–whole hierarchies where clients should not care about the difference: unit groups, UI containers, scene graphs, effect lists, AI task trees, inventory bags inside bags.
 - Operations that naturally aggregate (count, total weight, bounds) or broadcast (move all, enable all).
 
+## When not to use
+
+- Flat collections where nothing nests. A `List<T>` and a loop is enough.
+- When leaves and groups need very different operations. Forcing them behind one interface leads to methods that do nothing or throw.
+- Unity's Transform hierarchy already composes objects. Don't build a parallel tree for things the scene graph handles.
+
 ## Pitfalls
 
 - **Cycles.** A group added to itself, directly or indirectly, recurses forever. Check ancestry when adding.

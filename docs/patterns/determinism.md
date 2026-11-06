@@ -113,6 +113,11 @@ The view layer (MonoBehaviours, animation, VFX, audio) reads the simulation stat
 - Reproducing bugs from recorded sessions, and [automated regression tests](./automated-playtesting) that compare checksums.
 - Not every game needs it. Snapshot-based replays and server-authoritative netcode work without it.
 
+## When not to use
+
+- Games without lockstep, rollback or input replays. Server-authoritative netcode and snapshot replays work without it.
+- Projects that rely on engine physics or floating-point maths across different hardware. Making them deterministic is hard; use state sync instead.
+
 ## Pitfalls
 
 - **"Deterministic on my machine."** Same-build, same-machine determinism is much easier than cross-platform determinism. Decide which one you need before designing the math.

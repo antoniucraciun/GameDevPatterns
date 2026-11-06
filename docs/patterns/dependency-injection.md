@@ -126,6 +126,12 @@ In larger projects, a DI container such as **VContainer** or **Zenject/Extenject
 - Services with more than one implementation: platform-specific saves, offline versus online analytics, fakes in tests.
 - Teams and long-lived projects, where explicit dependencies keep the code understandable.
 
+## When not to use
+
+- Prototypes, game jams and small projects. Serialized fields and `GetComponent` are dependency injection already, done by the editor.
+- Adopting a DI framework (Zenject, VContainer) on a team that doesn't know it. Plain constructor injection gives most of the benefit with no framework to learn.
+- Wiring scene objects that designers set up. Inspector references are clearer to them than a container's bindings.
+
 ## Pitfalls
 
 - **Wiring sprawl.** Hand-written composition roots grow with the project. Split them per scene or feature, or adopt a container.

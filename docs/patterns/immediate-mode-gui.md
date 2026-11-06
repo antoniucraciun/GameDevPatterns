@@ -121,6 +121,11 @@ public class LevelStatsWindow : EditorWindow
 
 For **player-facing UI**, use a retained system (UI Toolkit or uGUI). It supports styling, animation, accessibility, localisation and efficient rendering, which IMGUI does poorly.
 
+## When not to use
+
+- Player-facing UI. Use UI Toolkit or uGUI, which handle styling, animation, accessibility, localisation and efficient rendering.
+- Complex editor tools with lots of state. UI Toolkit is better suited to large editor interfaces.
+
 ## Pitfalls
 
 - **Performance.** `OnGUI` can run several times per frame (once per event) and allocates. Keep IMGUI out of shipping builds, as above with `#if`, and out of performance captures.

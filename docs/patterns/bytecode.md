@@ -123,6 +123,12 @@ byte[] spell = asm.Build();                       // store in an asset, send ove
 - Hot behaviour on IL2CPP platforms, where you cannot load new compiled code.
 - Faster execution than tree-walking [interpreters](./interpreter), when many scripts run per frame.
 
+## When not to use
+
+- Logic that designers can express as data or simple formulas. Use [Data-Driven Design](./data-driven-design) or a small [Interpreter](./interpreter).
+- When an existing embedded language fits, such as Lua or Ink. Building and maintaining your own VM and compiler is a large project.
+- Behaviour only programmers write. Plain C# is faster to write, debug and profile.
+
 ## Pitfalls
 
 - **Writing bytecode by hand.** Nobody should author raw instructions. Provide a compiler from a readable format, or a visual editor, plus a disassembler for debugging.

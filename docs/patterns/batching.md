@@ -104,6 +104,12 @@ To see whether rendering batching is working, check the **Frame Debugger** (Wind
 - Many queries of the same kind per frame: line-of-sight checks, ground checks, sensors.
 - Any I/O or network operation with per-call overhead.
 
+## When not to use
+
+- A few objects. Draw calls and per-call overhead don't matter yet.
+- Objects with many unique materials or meshes. They can't batch; fix the content first.
+- When the SRP Batcher or GPU instancing already does it automatically. Check the Frame Debugger before batching by hand.
+
 ## Pitfalls
 
 - **Breaking batches unknowingly.** Accessing `renderer.material` instead of `sharedMaterial` creates a unique material and breaks instancing and batching for that object. Use `MaterialPropertyBlock` or instanced properties for per-object variation.

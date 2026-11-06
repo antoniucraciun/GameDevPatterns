@@ -207,6 +207,12 @@ Attacker-side stages (crit, damage bonuses) can live in a second pipeline on the
 - RPGs, ARPGs, MOBAs, roguelikes and any game with resistances, armour, shields or on-hit effects.
 - When combat numbers must be explainable to players (tooltips, combat logs) or to designers (balance).
 
+## When not to use
+
+- Games where damage is a fixed amount with no armour, resistances or on-hit effects. `health -= damage` is fine.
+- Arcade games with one-hit kills.
+- Building many stages before the design calls for them. Add a stage when a rule needs it.
+
 ## Pitfalls
 
 - **Ambiguous ordering.** "Armour before or after crit?" changes the numbers a lot. Choose the order once, document it next to the stage orders, and test it.

@@ -108,6 +108,12 @@ public static class TerrainTables
 - Shortening startup time, by moving creation from boot to first use.
 - Combined with warm-up for things that are needed, but whose first-use cost must not hit gameplay.
 
+## When not to use
+
+- Objects needed during gameplay where a first-use hitch would be noticeable. Create them during loading, or warm them up.
+- Cheap objects. Lazy creation adds checks and makes the order of creation harder to predict.
+- Multithreaded code without care. Lazy creation from two threads can create two instances; use `Lazy<T>` or create the object up front.
+
 ## Pitfalls
 
 - **Hitch at the worst moment.** The first explosion of the game also creates the explosion pool, loads its textures and compiles its shader, freezing the frame the player cares about most. Warm up things that are likely needed during loading, and keep pure laziness for things that are truly optional.

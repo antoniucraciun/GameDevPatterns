@@ -144,6 +144,12 @@ public class Perception : MonoBehaviour
 - Any game with more than a handful of enemies that should notice, lose and search for the player believably.
 - When AI reactions must be tunable (vision cones, hearing ranges, reaction times) by designers.
 
+## When not to use
+
+- Enemies that always know where the player is, as in many arcade or horde games. Read the player's position directly.
+- A single sense with a simple rule, such as "within 10 metres". One distance check is enough.
+- When the game design doesn't reward stealth or being noticed. The extra tuning won't be visible.
+
 ## Pitfalls
 
 - **Perfect information.** Reading the player's position directly instead of the *remembered* one makes AI omniscient. Decision-making should only see what perception wrote.

@@ -23,6 +23,10 @@ The idea in a few sentences. Add a diagram or a short list of participants if it
 - Situation where it pays off.
 - Another situation.
 
+## When not to use
+
+- Situation where the pattern costs more than it saves, and the simpler code or [better-fitting pattern](./other-pattern) to use instead.
+
 ## Pitfalls
 
 - Common way it goes wrong, and what to do instead.

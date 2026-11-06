@@ -101,6 +101,12 @@ The remote values come from whatever config service you use. Fetch them during [
 - Live games: kill switches for risky systems, timed events, gradual rollouts, A/B tests.
 - QA: testing combinations of features without special builds.
 
+## When not to use
+
+- Small teams shipping a single-player game with no live updates. Branches and build defines are simpler.
+- Permanent configuration. Settings and difficulty options belong in data, not flags, and flags that never get removed become technical debt.
+- Security checks. Clients can flip flags, so never use them to protect paid or server-authoritative features.
+
 ## Pitfalls
 
 - **Flag debt.** Release toggles that are never removed leave dead branches and untested combinations. Give each flag an owner and a removal date, and delete it once the feature has shipped.

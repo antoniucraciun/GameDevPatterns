@@ -118,6 +118,11 @@ Serialise `Replay` with `JsonUtility`, or a compact binary format, and attach it
 - Player-facing replays, ghosts in racing games and time-trial games, kill-cams.
 - Regression tests: replay a recorded session after each change and assert the final state.
 
+## When not to use
+
+- Games where replays aren't a feature and bugs are easy to reproduce.
+- Non-deterministic games, if you plan to record only inputs. Record snapshots, or make the game [deterministic](./determinism) first.
+
 ## Pitfalls
 
 - **Hidden non-determinism breaks input replays.** Common causes are `Time.deltaTime`, unseeded or shared `Random`, iterating a `Dictionary` or `HashSet` (order is not guaranteed), physics engines that are not deterministic, floating-point differences across platforms, and reading wall-clock time. Add periodic state checksums to the replay, so a desync is caught at the exact step it happens.

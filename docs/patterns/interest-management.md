@@ -116,6 +116,12 @@ The `stillRelevant` set is allocated per call for clarity. Reuse one per client 
 - Any multiplayer game with large worlds or many networked objects: battle royales, MMOs, open-world co-op, large RTS matches.
 - Competitive games, to stop clients receiving information they should not have (enemies behind walls far away).
 
+## When not to use
+
+- Small arenas where every player can see everything. Filtering adds cost without savings.
+- Small player counts with few networked objects.
+- Competitive games that rely on it alone for anti-cheat. Clients still see what they're near; pair it with server-side checks.
+
 ## Pitfalls
 
 - **Pop-in.** Entities appearing suddenly at the radius edge looks bad. Make the radius larger than the visible distance, or fade in, and use hysteresis to stop flicker.

@@ -86,6 +86,12 @@ public class CharacterLoadout
 - Variations created at runtime that you then need many copies of: buffed enemies, player-customised units, procedurally assembled objects.
 - Templates and presets: starting loadouts, character presets, level chunks.
 
+## When not to use
+
+- Unity prefabs and prefab variants already cover most uses. Don't build a separate cloning system on top unless you clone runtime-modified objects.
+- Objects with references to scene objects or external resources. Shallow copies share them and deep copies are hard to get right; use a [Factory](./factory) or [Builder](./builder) that sets them up explicitly.
+- Simple objects with no setup. `new` or `Instantiate` is clearer.
+
 ## Pitfalls
 
 - **Shallow copies.** Cloned objects that share a list with the prototype change each other. Write explicit deep-copy methods for data that contains collections or references.

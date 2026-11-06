@@ -56,7 +56,8 @@ Every pattern page uses the same sections, in this order:
 | Solution | The idea, its participants, and how they interact. |
 | Example (Unity C#) | Short, compilable code focused on the pattern. |
 | When to use | Situations where it pays off. |
-| Pitfalls | How it goes wrong, and what to do instead. |
+| When not to use | Situations where it costs more than it saves, each naming the simpler code or better-fitting pattern to use instead. See [Keep It Simple](./keep-it-simple). |
+| Pitfalls | How it goes wrong when you do use it, and what to do instead. |
 | Related | Links to neighbouring patterns, with one line on how they relate. |
 
 Keep examples small and engine-idiomatic. If a pattern is engine-agnostic, say so and keep the Unity-specific parts minimal.

@@ -171,6 +171,12 @@ Testing the presenter needs no scene. Pass a `FakeInventoryView` that records wh
 - When the same data appears in several views (HUD and pause menu), or the same screen needs several layouts (mouse and gamepad, portrait and landscape).
 - When UI logic should be unit tested.
 
+## When not to use
+
+- Simple HUD elements that show one value. A small script updating a label is enough.
+- Debug and tool UI. Use [Immediate-Mode GUI](./immediate-mode-gui).
+- Prototypes, where screens change daily. Separate the layers once a screen stabilises.
+
 ## Pitfalls
 
 - **Ceremony for trivial UI.** A label showing the score does not need three classes. Use the split where there is logic to separate.

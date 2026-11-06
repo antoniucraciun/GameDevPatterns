@@ -128,6 +128,12 @@ struct NormaliseJob : IJob
 - Heavy computations that can run in the background while the main thread continues: procedural generation, navigation data, simulations.
 - Hot loops where Burst's speed matters even on one thread.
 
+## When not to use
+
+- Small workloads. Scheduling jobs has overhead; a plain loop over a few hundred items is often faster.
+- Code that needs managed objects, GameObjects or most Unity APIs. Jobs only take unmanaged data.
+- Before profiling. Jobs and Burst add complexity; use them on proven hot loops.
+
 ## Pitfalls
 
 - **Completing immediately.** `Schedule(...).Complete()` on the same line blocks the main thread until the job finishes. You get Burst's speed, but no parallelism with the main thread. Leave time between scheduling and completing.

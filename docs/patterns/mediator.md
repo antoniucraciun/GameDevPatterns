@@ -109,6 +109,11 @@ Other common mediators in games: a **combat encounter** that coordinates its ene
 - A group of objects with many interdependencies, whose rules belong to the *group*: puzzle rooms, encounters, UI screens, minigames.
 - When you want individual parts to be reusable in different configurations.
 
+## When not to use
+
+- Two or three objects with a simple relationship. Direct references are easier to follow.
+- When the mediator would grow into a god object that knows every system in the game. Split it per group, or use an [Event Bus](./event-bus) for loose announcements.
+
 ## Pitfalls
 
 - **The mediator becomes a god object.** All logic moves into one class that grows forever. Keep one mediator per group (room, screen, encounter), not one for the whole game.

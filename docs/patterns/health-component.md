@@ -130,6 +130,11 @@ Everything else reacts to events: the health bar listens to `Damaged` and `Heale
 - Every game where more than one kind of thing can be damaged: players, enemies, props, vehicles, buildings.
 - When weapons, traps, explosions and status effects should all hurt things in the same way.
 
+## When not to use
+
+- Games where only the player can be damaged, and only in one way. A health field on the player is enough.
+- One-hit objects such as pickups or breakable crates. A simple `OnHit` call or destroy is clearer.
+
 ## Pitfalls
 
 - **Double death.** Two hits in the same frame both see `Current <= 0` and raise `Died` twice, unless the "already dead" check comes first, as above.

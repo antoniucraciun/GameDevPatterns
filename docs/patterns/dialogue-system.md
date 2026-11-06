@@ -172,6 +172,11 @@ A conversation might look like this:
 - RPGs, adventure games, visual novels, narrative games and any NPC conversation with choices or state.
 - Tutorials and in-game messages that depend on progress.
 
+## When not to use
+
+- A few lines of fixed text. Show them directly.
+- Large branching narratives. Use an existing tool (Ink, Yarn Spinner) instead of building your own editor and runtime.
+
 ## Pitfalls
 
 - **Text in code or literal strings.** Store localisation keys from day one. Retrofitting localisation into hundreds of literal lines is painful.

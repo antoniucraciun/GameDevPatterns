@@ -133,6 +133,12 @@ public class BspDungeon
 - Building interiors, space stations, office floors: any layout of non-overlapping rooms.
 - As a base layout that other techniques decorate ([Cellular Automata](./cellular-automata) to roughen walls, [Wave Function Collapse](./wave-function-collapse) for room interiors).
 
+## When not to use
+
+- Organic spaces such as caves or forests. Use [Cellular Automata](./cellular-automata) or [Noise](./noise-generation).
+- Open-world terrain.
+- Dungeons that need non-rectangular or hand-crafted rooms. Place authored room prefabs instead.
+
 ## Pitfalls
 
 - **Grid-like sameness.** Pure BSP gives a recognisable "boxes and corridors" look. Vary room shapes, skip some leaves (no room), merge neighbouring leaves, or add extra loops by connecting a few non-sibling rooms.

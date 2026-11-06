@@ -186,6 +186,12 @@ This assumes `Enemy` exposes `event Action<Enemy> Died`, raised once when it die
 - Horde, survival, tower defence and arena modes, roguelike rooms, and ambient spawning in open worlds.
 - Whenever designers need to tune pacing: counts, mixes, timing and breaks.
 
+## When not to use
+
+- Static levels where enemies are placed by hand. Put them in the scene.
+- A single respawn point for the player. Use [Checkpoint / Respawn](./checkpoint).
+- When enemy counts and timing never change. A wave system's tuning tools won't be used.
+
 ## Pitfalls
 
 - **Enemies that leave without dying.** Enemies that fall out of the world, despawn or get pooled without raising `Died` leave `Alive` stuck above zero, and the wave never ends. Raise the event on *every* removal path, and add a debug view of alive counts.

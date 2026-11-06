@@ -167,6 +167,12 @@ An "Ice Bolt" asset is now `manaCost 15, cooldown 2, effects: [DamageEffect 20, 
 - Abilities shared between players and AI, or between many character types.
 - Designers need to create and tune abilities without code.
 
+## When not to use
+
+- Games with a few fixed actions, such as jump and shoot. Code them directly.
+- Abilities that are all unique and code-heavy. A data-driven framework adds little; keep them as small classes.
+- Building a full framework before the design is known. Start with a few abilities in code and extract the system once patterns repeat.
+
 ## Pitfalls
 
 - **Instant effects only.** Real abilities have cast times, channels, projectiles that hit later, and animation events that decide *when* damage lands. Model activation as a small state machine (casting → executing → recovering), and let effects run on events such as "projectile hit" rather than immediately.

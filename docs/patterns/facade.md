@@ -124,6 +124,12 @@ Callers depend on `IAudio`, obtained through a [Service Locator](./service-locat
 - Third-party middleware you may replace later.
 - Onboarding: new team members learn five facade methods, not the whole subsystem.
 
+## When not to use
+
+- Subsystems that are already simple, or that callers use in many different ways. The facade either duplicates the API or becomes a bottleneck that blocks needed features.
+- Wrapping Unity's own APIs "just in case". `AudioSource` and `SceneManager` are stable; wrap them only when you need extra behaviour or a test seam.
+- As a way to hide a messy subsystem you should actually fix.
+
 ## Pitfalls
 
 - **The facade becomes a god object.** If every feature adds a method, the facade grows into the whole subsystem again. Keep it to common tasks, and split by area (music, SFX, voice).

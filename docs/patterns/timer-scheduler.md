@@ -139,6 +139,12 @@ public class Door : MonoBehaviour
 - Many objects with occasional timers, where per-object `Update` loops would be wasteful.
 - When pause behaviour must be consistent: gameplay timers pause, UI timers do not.
 
+## When not to use
+
+- One or two timers in a single script. A `float` counted down in `Update` is clearer than a scheduling system.
+- Precise, fixed-rate simulation. Use [Fixed Timestep](./fixed-timestep).
+- Delays tied to animation or sound. Use animation events or the audio clock, which won't drift from what the player sees and hears.
+
 ## Pitfalls
 
 - **Callbacks on destroyed objects.** Without owner checks or cancellation, `Close()` runs on a destroyed door and throws. Pass an owner, or cancel in `OnDestroy`.

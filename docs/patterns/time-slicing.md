@@ -95,6 +95,12 @@ Each agent receives the actual time since its last update, so timers and movemen
 - Many agents whose updates do not need to happen every frame.
 - Mobile and VR, where frame budgets are tight and hitches are very noticeable.
 
+## When not to use
+
+- Work that fits comfortably in the frame budget. Measure in the Profiler first; slicing adds state, latency and bugs.
+- Results that must be ready this frame, such as hit detection or player input.
+- Heavy work that can run in parallel. The [Job System](./job-system) or a background thread is usually better than spreading it across main-thread frames.
+
 ## Pitfalls
 
 - **One job bigger than the budget.** A single 40 ms job still causes a 40 ms frame. Split large tasks into incremental steps, or move them to worker threads with the [Job System](./job-system).

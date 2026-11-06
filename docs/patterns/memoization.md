@@ -109,6 +109,12 @@ public class XpTable
 - A pure computation that is expensive and called repeatedly with a limited set of inputs: pathfinding between fixed points, procedural content by coordinate, formula curves, string formatting of common values.
 - When profiling shows the same work repeated, not just expensive work.
 
+## When not to use
+
+- Cheap computations. The cache lookup can cost more than the work.
+- Inputs that are rarely repeated. The cache grows without ever being hit.
+- Results that depend on changing state. Invalidating the cache correctly is hard; recompute instead.
+
 ## Pitfalls
 
 - **Caching impure functions.** If the result depends on state that is not in the key, the cache returns wrong answers. Include it in the key, or invalidate on change, as the map version does.

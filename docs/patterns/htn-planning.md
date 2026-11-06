@@ -134,6 +134,12 @@ The agent executes the plan step by step, and replans when a step fails or the w
 - AI where designers want explicit control over strategies, plus look-ahead to avoid starting plans that cannot finish: tactical shooters, squad AI, NPC daily routines.
 - Large behaviour sets where GOAP's search would be too slow or too unpredictable.
 
+## When not to use
+
+- AI with only a few behaviours. A [Behavior Tree](./behavior-tree) or [State](./state) machine is simpler.
+- When you want the AI to discover novel solutions on its own. HTN follows designer-written methods; [GOAP](./goap) searches more freely.
+- Teams without time to build planner debugging tools. Plans that fail silently are hard to diagnose.
+
 ## Pitfalls
 
 - **Method order is the AI's personality.** The first applicable method wins. Order methods from most to least preferred, and remember that a too-general method placed early hides everything after it.

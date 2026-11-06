@@ -136,6 +136,12 @@ Real implementations rewind actual collider transforms (often several per player
 - Melee hit detection in online action games.
 - Any server check of "could the player see or reach this?", judged from the player's view of the world.
 
+## When not to use
+
+- Slow projectiles that the server simulates. Rewinding is for hitscan and very fast shots.
+- Games without an authoritative server.
+- When high-ping players already have too much advantage. Cap the rewind so low-ping players don't get shot behind cover.
+
 ## Pitfalls
 
 - **Unbounded rewind.** Trusting any client timestamp lets cheaters (or players on terrible connections) shoot far into the past. Clamp it.

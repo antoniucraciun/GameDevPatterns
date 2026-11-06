@@ -157,6 +157,12 @@ Objects created at runtime (dropped items, spawned enemies) have no editor-assig
 - Any game with persistence: progression, world state, settings, checkpoints.
 - Games that keep updating after release. Versioned saves are what keep old players' progress working.
 
+## When not to use
+
+- Arcade games that only store a high score. `PlayerPrefs` is enough.
+- Saving the whole scene with reflection or binary serialization of objects. It breaks between versions; save explicit, versioned data.
+- Short games with no persistence beyond settings.
+
 ## Pitfalls
 
 - **Saving references.** `JsonUtility` stores Unity object references as instance IDs that are meaningless in the next session. Save IDs and look the objects up on load.

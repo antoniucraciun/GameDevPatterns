@@ -110,6 +110,12 @@ public class AIDirector : MonoBehaviour
 - Open worlds that need ambient encounters at a sensible rate.
 - Difficulty that should adapt without an explicit difficulty setting.
 
+## When not to use
+
+- Hand-crafted levels where designers want every encounter placed exactly. A director fights authored pacing.
+- Competitive multiplayer. Adaptive difficulty feels unfair when players compete.
+- Short or linear games without enough repeat play for adaptation to be noticed.
+
 ## Pitfalls
 
 - **Rubber-banding players notice.** If the game always gets easier when you are losing and harder when you are winning, skilled play feels pointless. Keep the adjustments subtle, mostly in timing rather than in enemy strength.

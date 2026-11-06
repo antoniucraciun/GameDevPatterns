@@ -118,6 +118,12 @@ public class LocalTime : MonoBehaviour
 - Pause menus, slow motion, bullet time, fast-forward in strategy and simulation games, hit stop.
 - Any game where more than one system wants to change the speed of time.
 
+## When not to use
+
+- Pausing in a game with only one pause source. Setting `Time.timeScale = 0` directly is enough until a second system needs to change time.
+- Slowing a single object, enemy or projectile. Give it its own speed multiplier; a global time scale affects everything.
+- Multiplayer games, where you can't change time for one player. Pause or slow the local presentation instead.
+
 ## Pitfalls
 
 - **Overwriting instead of combining.** Any code that assigns `Time.timeScale` directly breaks the request system. Make `GameTime` the only writer, and search the codebase for stray assignments.

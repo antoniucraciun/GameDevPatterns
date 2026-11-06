@@ -115,6 +115,12 @@ For mesh LODs, add a **LOD Group** to the prefab and assign meshes per level. En
 - Many characters or objects at varied distances: open worlds, crowds, strategy games, racing games with many cars.
 - When the profiler shows rendering, animation or AI cost growing with object count, while most objects are far away.
 
+## When not to use
+
+- Small scenes where everything is close to the camera.
+- Before profiling. LOD meshes and simplified AI cost authoring time; add them where the Profiler shows a problem.
+- Objects whose silhouettes matter at all distances, such as key landmarks. Visible popping can be worse than the cost.
+
 ## Pitfalls
 
 - **Visible popping.** A sudden switch between meshes or behaviours is noticeable. Use cross-fade for meshes, choose transition distances where the change is too small to see, and use hysteresis.

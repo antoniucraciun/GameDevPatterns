@@ -52,6 +52,12 @@ Use `UnityEvent` when designers need to wire up responses in the Inspector, and 
 - Lower-level systems that need to inform higher-level ones without depending on them.
 - Replacing per-frame polling of state that rarely changes.
 
+## When not to use
+
+- One sender and one receiver that already know each other. A direct method call is clearer and easier to debug.
+- Events that fire many times per frame from many objects. The overhead and call order add up; process them in bulk or use an [Event Queue](./event-queue).
+- When the order of reactions matters. Observers run in subscription order, which is hard to control; call the systems explicitly.
+
 ## Pitfalls
 
 - **Forgetting to unsubscribe.** The subject keeps the observer alive (a memory leak), or calls into a destroyed object and throws `MissingReferenceException`. Pair `OnEnable` with `OnDisable`.

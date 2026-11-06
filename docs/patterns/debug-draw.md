@@ -129,6 +129,11 @@ With several cameras, one-frame lines are drawn by the first camera and then rem
 - Any spatial logic: AI perception, pathfinding, steering, spawn selection, physics queries, aiming, camera rigs.
 - QA builds on device, together with a [Debug Console](./debug-console) to toggle categories.
 
+## When not to use
+
+- Logic that isn't spatial. Use logs or a stats overlay.
+- Leaving draws on in production. Strip them out or put them behind a flag; they cost time and confuse players.
+
 ## Pitfalls
 
 - **Debug code in release builds.** String formatting and draw calls cost time even when nothing is shown. `[Conditional]` removes the calls and their arguments entirely. `#if` around implementations alone does not.

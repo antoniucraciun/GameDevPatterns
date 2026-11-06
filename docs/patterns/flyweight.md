@@ -63,6 +63,12 @@ public class ForestRenderer : MonoBehaviour
 - Many objects share most of their data: tiles, trees, bullets, items, particles.
 - Item and unit definitions in data-driven games (`ItemDefinition` versus `ItemInstance`).
 
+## When not to use
+
+- A few objects. Sharing data saves nothing worth the split.
+- Data that differs per instance. Forcing it into shared definitions leads to many near-duplicate definitions.
+- When shared definitions are edited at runtime. Every instance changes at once; copy the data first.
+
 ## Pitfalls
 
 - **Accidentally mutating shared data.** Changing `type.woodYield` at runtime changes it for every tree. In the editor, it also persists into the asset. Treat flyweights as read-only.

@@ -121,6 +121,12 @@ A queue also moves results from worker threads to the main thread. Use `System.C
 - Breaking re-entrant event chains, and passing work between threads.
 - Turn-based and simulation games, where actions resolve in order.
 
+## When not to use
+
+- Events that must be handled immediately, such as a hit that must stop the attack this frame. Use a direct call or [Observer](./observer).
+- Low-volume events with no ordering or threading needs. A queue adds latency and makes stack traces useless.
+- When the queue becomes the main way systems talk. Debugging who sent what, when, gets hard; keep it for batching and deferral.
+
 ## Pitfalls
 
 - **Latency.** Queued events are handled later, possibly next frame. That is fine for sound and UI, but wrong for anything the sender needs to know immediately, such as "did my attack kill it?".

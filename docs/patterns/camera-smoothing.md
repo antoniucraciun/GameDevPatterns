@@ -116,6 +116,12 @@ Put the [Screen Shake](./screen-shake) component on a child of this camera, or o
 - Every game with a moving camera.
 - Platformers (dead zones, vertical snapping, look-ahead), top-down games (look-ahead toward aim or movement), third-person games (damping, collision) and multiplayer games on one screen (framing several targets).
 
+## When not to use
+
+- First-person cameras. Smoothing the view causes nausea; keep it locked to the head.
+- When Cinemachine already provides it. Configure it instead of writing your own.
+- Competitive games where any camera lag hurts aiming.
+
 ## Pitfalls
 
 - **`Lerp` with a constant factor.** It depends on the frame rate and never fully arrives. Use `SmoothDamp` or exponential damping with `deltaTime`.

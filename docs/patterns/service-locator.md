@@ -54,6 +54,12 @@ Services.Get<IAudioService>().Play("explosion", transform.position);
 - A small number of truly cross-cutting services: audio, logging, analytics, platform APIs.
 - When you need to swap implementations per platform, per test or at runtime.
 
+## When not to use
+
+- Dependencies that only a few objects need. Pass them in via a serialized field, a constructor or [Dependency Injection](./dependency-injection) so the dependency is visible.
+- As a way to reach everything from everywhere. If most classes call the locator, it is a [Singleton](./singleton) with extra steps, and it hides what depends on what.
+- Small games with one implementation of each service and no tests that need fakes.
+
 ## Pitfalls
 
 - **Hidden dependencies.** A class's needs are no longer visible in its constructor. Keep lookups at the edges (in `Awake`) and cache them, rather than calling `Get` throughout the logic.

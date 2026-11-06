@@ -93,6 +93,12 @@ Adapters also help *inside* a project. Wrap a legacy system, or an asset-store p
 - Old or external code whose interface does not fit your architecture.
 - Running in the editor and in tests without real SDKs (null or fake adapters).
 
+## When not to use
+
+- Code you own that you could simply change to fit the interface.
+- One SDK on one platform that you have no plan to swap. Calling it directly is simpler; add the adapter when a second platform or a test need appears.
+- Adapting large, chatty APIs. A thin adapter over a huge surface leaks everywhere; use a [Facade](./facade) that exposes only what the game needs.
+
 ## Pitfalls
 
 - **Lowest common denominator.** If the interface only exposes what *every* platform supports, platform-specific features are lost. Add optional capabilities (`bool SupportsProgress`), or separate interfaces for extras.

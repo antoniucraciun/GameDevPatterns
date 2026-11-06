@@ -103,6 +103,12 @@ damage.RemoveAllFrom(curse);   // 47.25, regardless of when the curse was applie
 - RPGs, roguelikes, ARPGs and survival games: anywhere equipment, buffs, talents and auras affect numbers.
 - When the design needs to show players a breakdown of where a number comes from.
 
+## When not to use
+
+- Games where stats are only changed by levelling up. Plain numbers are simpler.
+- A few temporary bonuses. A field like `speedMultiplier` is enough.
+- When there's no plan to show players how a value is built up. The breakdown is half the reason for the system.
+
 ## Pitfalls
 
 - **Undocumented stacking rules.** Designers must know whether two +10% bonuses make +20% or +21%. Pick the rules, write them down, and show them in tooltips.

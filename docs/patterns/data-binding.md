@@ -146,6 +146,12 @@ Unity's **UI Toolkit** has built-in runtime data binding (`dataSource` and `SetB
 - Settings screens with two-way controls.
 - MVVM-style UI, where view models expose observables. See [MVC / MVP / MVVM](./mvp-mvvm).
 
+## When not to use
+
+- A few values that change every frame, such as a speedometer. Update the label directly.
+- Static text that never changes after the screen opens.
+- Hand-rolling a binding framework. UI Toolkit has runtime binding built in; use it if you're on UI Toolkit.
+
 ## Pitfalls
 
 - **Forgetting to dispose.** Bindings subscribe to data that usually outlives the UI. Without disposal, destroyed labels keep receiving updates and throw `MissingReferenceException`.

@@ -69,6 +69,12 @@ For colliders, the physics engine already maintains a partition. `Physics.Overla
 - Proximity queries: AI target selection, flocking neighbours, area-of-effect damage, interest management for networking.
 - Collision broad phase, culling and picking.
 
+## When not to use
+
+- A few dozen objects. A linear search is fast enough and has no bugs.
+- When Unity's physics queries (`Physics.OverlapSphere`, triggers) already do the job. They use their own broad phase.
+- Objects that move so fast or so far that updating the structure costs more than the queries save.
+
 ## Pitfalls
 
 - **Wrong cell size.** Cells that are too small make every query visit many cells. Cells that are too large return many false candidates.

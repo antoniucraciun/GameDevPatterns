@@ -114,6 +114,12 @@ The managed version resizes when it runs out of space, which allocates. Size it 
 - Hot paths where garbage collection pauses are visible: mobile, VR, consoles, high frame-rate games.
 - Inside Burst jobs, which use `Allocator.Temp` for scratch memory.
 
+## When not to use
+
+- Typical gameplay code in C#. The garbage collector and pooling are usually enough.
+- Data with mixed or unknown lifetimes. An arena frees everything at once, so a long-lived item leaks the whole arena.
+- Teams unfamiliar with unsafe or native memory. Use-after-free bugs are hard to find.
+
 ## Pitfalls
 
 - **Use after reset.** The classic arena bug: data from last frame read this frame looks valid, but has been overwritten. Never store arena data in fields. `Span<T>` helps, because the compiler rejects it.

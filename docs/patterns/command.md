@@ -62,6 +62,12 @@ For gameplay actions you can pass the actor at execution time instead (`Execute(
 - Decoupling input from the actor so players and AI share one code path.
 - Queued actions, such as RTS orders or turn-based moves.
 
+## When not to use
+
+- Actions you never need to undo, replay, queue or send over the network. Calling the method directly is simpler.
+- Undo for complex changes that are hard to reverse by hand. Snapshotting with [Memento](./memento) may be less error-prone.
+- Wrapping every method call in a command class. Use it at the boundary (player and AI actions, editor operations), not everywhere.
+
 ## Pitfalls
 
 - **Undo needs enough captured state.** "Deal 10 damage" cannot be undone if the target was clamped at 0 HP. Store what actually changed.

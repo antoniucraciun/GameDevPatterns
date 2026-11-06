@@ -179,6 +179,11 @@ public class StatusEffectContainer : MonoBehaviour
 - Any game with buffs, debuffs, damage-over-time, crowd control, auras or temporary power-ups.
 - When designers need to create effects without code, and players need to see what affects them.
 
+## When not to use
+
+- A single temporary effect, such as an invincibility timer after being hit. A timer field is enough.
+- Effects that only change numbers. A [Stat & Modifier System](./stat-modifier-system) entry with a duration may be all you need.
+
 ## Pitfalls
 
 - **Leftover modifiers.** Every path that ends an effect (expiry, cleanse, death, removal of the target) must remove its modifiers. Funnel all of them through one `Remove` method, and tag modifiers with the effect instance as source.

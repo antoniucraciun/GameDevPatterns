@@ -145,6 +145,12 @@ In production, a tweening library such as **DOTween**, **PrimeTween** or **LitMo
 - **Tweens:** UI transitions, pickups, doors, platforms, damage numbers, anything with a clear start and end.
 - **Damping:** cameras, smoothed UI values, aim assist, any value chasing a target that keeps changing.
 
+## When not to use
+
+- Movement driven by physics or gameplay rules. A tween fights the simulation.
+- Values whose target changes every frame. Use damping instead of restarting the tween.
+- Long, choreographed sequences. Use Timeline or an animation clip.
+
 ## Pitfalls
 
 - **`Lerp(a, b, 0.1f)` every frame** is frame-rate dependent and never quite arrives. Use exponential damping with `deltaTime`.

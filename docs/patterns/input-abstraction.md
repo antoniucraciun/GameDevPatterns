@@ -128,6 +128,11 @@ public class ChaseAiInput : ICharacterInput
 - Every game with more than one input device, rebindable controls or menus. In practice, every shipped game.
 - When AI, replays, networking or tests need to drive the same characters as the player.
 
+## When not to use
+
+- Game jams and prototypes with one device and fixed controls. Reading input directly is faster.
+- Duplicating what Unity's Input System already does. Its actions and bindings are an input abstraction; build on them instead of wrapping them again.
+
 ## Pitfalls
 
 - **Raw input leaking back.** A single `Keyboard.current.spaceKey` in gameplay code bypasses rebinding and context switching. Search for direct device access and route it through actions.

@@ -93,6 +93,11 @@ With the Input System package, bind Back to a UI "Cancel" action, so the keyboar
 - Any game with nested menus, settings, inventories, shops, popups or confirmation dialogs.
 - Console and gamepad games, where correct focus restoration matters a lot.
 
+## When not to use
+
+- Games with one or two screens and no nesting.
+- Overlays that should stay up independently of the stack, such as notifications or the HUD. Keep them on their own layer.
+
 ## Pitfalls
 
 - **Screens that open other screens directly** (`settings.SetActive(true)`) bypass the stack and break Back. All navigation goes through `Push` and `Pop`.

@@ -94,6 +94,12 @@ Behaviour can be data too. Give `EnemyType` a reference to a behaviour asset (a 
 - Designers need to add and tune kinds without programmers.
 - Kinds are loaded from external data (spreadsheets, mods, live-ops updates).
 
+## When not to use
+
+- A few kinds that differ in behaviour, not data. Use subclasses or [Strategy](./strategy).
+- Two or three kinds that never change. A serialized field on the prefab is enough.
+- Kinds that need truly unique logic for each type. Data can't express it, so you end up with a scripting system; consider [Subclass Sandbox](./subclass-sandbox) instead.
+
 ## Pitfalls
 
 - **Behaviour that really differs.** If a kind needs genuinely unique logic, numbers are not enough. Combine Type Object with composable behaviour ([strategy](./strategy) objects, ability lists) rather than adding `if (type.isTroll)` flags.

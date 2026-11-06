@@ -56,6 +56,11 @@ public class PlatformerController : MonoBehaviour
 - Any platformer or action game with ledges and jumps.
 - More generally, any timing check where the player's intent is clear but the frame-perfect state disagrees, such as wall jumps or grabbing ledges.
 
+## When not to use
+
+- Games without platforming or ledges.
+- Precision platformers where exact edges are part of the challenge. Keep it very short, if you use it at all.
+
 ## Pitfalls
 
 - **Double jumps.** Forgetting to invalidate the grace period after jumping lets the player jump again in mid-air.

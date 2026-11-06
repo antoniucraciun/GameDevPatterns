@@ -118,6 +118,12 @@ public class SkyLaunch : Power
 - When subclasses are written by people who should not need to know every engine system.
 - When the base class is the right place to enforce consistency: the same sound routing, pooling and damage rules for every power.
 
+## When not to use
+
+- A few subclasses with little shared behaviour. Plain inheritance or composition is simpler.
+- When the variations are mostly data. Use [Type Object](./type-object).
+- Deep hierarchies. If the sandbox base class keeps growing to serve every subclass, split it into [Components](./component) or [Strategies](./strategy).
+
 ## Pitfalls
 
 - **The sandbox grows without limit.** Every power wants one more tool, and the base class becomes huge. Group tools into helper objects (`Effects`, `Physics`, `Audio`) that the base class exposes, and add tools only when several subclasses need them.

@@ -119,6 +119,11 @@ public class ReconcilingPlayer : MonoBehaviour
 - Every server-authoritative game that uses client-side prediction. The two always go together.
 - Any predicted state, not just movement: ammo counts, ability cooldowns, stamina.
 
+## When not to use
+
+- Games without client-side prediction. There is nothing to reconcile.
+- Purely cosmetic state, such as particle effects or footstep sounds. Let small differences go.
+
 ## Pitfalls
 
 - **Simulation mismatch.** If client and server simulate differently (different code paths, variable `deltaTime`, physics that cannot be re-run), every update produces a correction. Share one pure simulation function, and see [Determinism](./determinism).

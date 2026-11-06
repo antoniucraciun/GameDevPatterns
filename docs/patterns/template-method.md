@@ -101,6 +101,12 @@ Unity's MonoBehaviour lifecycle works the same way: the engine owns the sequence
 - Several classes share the *structure* of an algorithm but differ in some steps: turns, level loading sequences, AI update loops, attack sequences (wind-up → strike → recover), save/load pipelines.
 - When the order of steps is a rule that must not be broken.
 
+## When not to use
+
+- When the steps vary more than the structure. Composition with [Strategy](./strategy) is more flexible than an inheritance contract.
+- Deep inheritance chains where subclasses override hooks of hooks. Flatten them or use a [Subclass Sandbox](./subclass-sandbox).
+- Algorithms with one implementation. Write it as a plain method; extract the template when a second variant appears.
+
 ## Pitfalls
 
 - **Deep inheritance.** Template methods encourage hierarchies. If variations multiply (melee AI, ranged AI, flying ranged AI…), move the varying steps into [Strategy](./strategy) objects instead of subclasses.

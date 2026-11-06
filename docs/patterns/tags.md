@@ -131,6 +131,12 @@ Matching walks up the parent chain for each held tag, which is fine for a few do
 - Status effects, abilities, AI conditions, damage types, factions and interaction rules: anywhere "does this thing have property X?" is asked across systems.
 - Data-driven designs, where designers express requirements and immunities without code.
 
+## When not to use
+
+- A few boolean properties. Bools or an enum are type-safe and easier to find.
+- Data that needs values, not just presence. A tag says *has fire resistance*, not *how much*; use stats.
+- Tags as strings typed by hand everywhere. Typos fail silently; use a registry or constants.
+
 ## Pitfalls
 
 - **Tags as a dumping ground.** Hundreds of tags with no structure are as bad as hundreds of booleans. Design the hierarchy, and review new tags.

@@ -173,6 +173,11 @@ Objectives here subscribe their own handlers, so one objective asset must not be
 - RPGs, adventure games, open worlds and any game with tasks, missions, achievements or tutorials.
 - When writers and designers should create quests without code.
 
+## When not to use
+
+- A linear game with a few objectives. A script per level or a simple list is easier.
+- Tracking a single goal, such as "reach the exit". A [Trigger Volume](./trigger-volume) is enough.
+
 ## Pitfalls
 
 - **Progress made before the quest starts.** Herbs collected before accepting "collect 10 herbs" do not count with pure event listening. Decide per objective: count from acceptance, or initialise from current state (count the herbs already in the inventory).

@@ -116,6 +116,12 @@ Coroutines and async methods are perfect for **sequences**: cutscenes, tutorials
 - Spreading work over frames (see [Time Slicing](./time-slicing)).
 - Waiting for asynchronous operations: scene loads, web requests, Addressables.
 
+## When not to use
+
+- Long-lived state machines that need to be inspected, saved or interrupted cleanly. Use [State](./state); a coroutine's state is hidden in its stack and can't be serialised.
+- Logic that must keep running when its GameObject is disabled. Coroutines stop silently.
+- Heavy background work. Coroutines run on the main thread, so they do not make work parallel; use `async`/`await` with threads or the [Job System](./job-system).
+
 ## Pitfalls
 
 - **Stopped by disabling.** Coroutines stop silently when their GameObject is deactivated, and do not resume when it is re-enabled. Run long-lived sequences on an object that stays active.
