@@ -1,0 +1,24 @@
+:root {
+  --vp-c-brand-1: #6a48f0;
+  --vp-c-brand-2: #5a38dd;
+  --vp-c-brand-3: #4b2bc4;
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #6a48f0 20%, #13a58c);
+}
+
+/*
+ * VitePress caps the layout at 1440px and centres it, so on wide screens the
+ * sidebar floats away from the left edge. Removing the cap pins the sidebar
+ * (and the nav title) to the left; the article itself keeps its readable width.
+ */
+@media (min-width: 1440px) {
+  :root {
+    --vp-layout-max-width: 100%;
+  }
+}
+
+.dark {
+  --vp-c-brand-1: #a28dff;
+  --vp-c-brand-2: #8f77ff;
+  --vp-c-brand-3: #7c5cff;
+}
