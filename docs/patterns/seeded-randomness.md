@@ -118,4 +118,5 @@ A daily challenge becomes `new World(Rng.Derive(0xC0FFEE, year, dayOfYear))`, th
 - [Determinism](./determinism) — seeded randomness is one of its requirements.
 - [Weighted Random & Loot Tables](./weighted-random) — consumes these streams.
 - [Replay System](./replay-system) — stores seeds and generator state.
-- Noise-Based Generation, Wave Function Collapse and BSP Dungeon Generation — the procedural techniques that rely on this.
+- [Noise-Based Generation](./noise-generation) — seeded offsets make generated worlds reproducible.
+- Wave Function Collapse and BSP Dungeon Generation — other procedural techniques that rely on this.

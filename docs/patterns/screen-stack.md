@@ -104,4 +104,4 @@ With the Input System package, bind Back to a UI "Cancel" action, so the keyboar
 
 - [Pushdown Automaton](./pushdown-automaton) — a screen stack is this pattern applied to UI.
 - [Command](./command) — UI buttons can issue commands instead of manipulating screens directly.
-- MVC / MVP / MVVM — how to structure the contents of each screen.
+- [MVC / MVP / MVVM](./mvp-mvvm) — how to structure the contents of each screen.

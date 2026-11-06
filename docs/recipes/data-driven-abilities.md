@@ -247,4 +247,4 @@ Compared with the [Ability System](../patterns/ability-system) page: `AbilityEff
 - **Projectiles:** a `SpawnProjectileEffect` whose projectile runs a second effect list on hit.
 - **Channelled abilities:** effects applied every tick while a key is held, ending on release, stun or mana exhaustion.
 - **Combo windows:** abilities that become available, or change, for a short time after another ability hits. This is a status effect on the *caster*, with a tag that the second ability requires.
-- **AI with Utility scoring:** AI picks the ability with the best score among those where `CanCast` succeeds, using the same assets as the player.
+- **AI with [Utility](../patterns/utility-ai) scoring:** AI picks the ability with the best score among those where `CanCast` succeeds, using the same assets as the player.

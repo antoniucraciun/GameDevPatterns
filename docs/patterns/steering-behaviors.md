@@ -150,7 +150,7 @@ public class SteeringAgent : MonoBehaviour
 
 - **Weighted sums cancel out.** Separation pushing left and seek pulling right can sum to nearly zero, and the agent stalls or jitters. Use priorities (avoidance first), or limit how much force each behaviour may use.
 - **Oscillation.** Agents that overshoot and correct back and forth need *Arrive* instead of *Seek* near targets, and a lower maximum force.
-- **Not a pathfinder.** Steering is local: an agent will happily steer into a U-shaped dead end. Combine it with A* or a NavMesh for global routes.
+- **Not a pathfinder.** Steering is local: an agent will happily steer into a U-shaped dead end. Combine it with [A*](./a-star) or a NavMesh for global routes.
 - **O(n²) neighbours.** Checking every agent against every other is fine for 50 agents and too slow for 2,000. Use a [Spatial Partition](./spatial-partition) for neighbour queries.
 - **Mixing with physics.** Setting `transform.position` on a Rigidbody fights the physics engine. Apply the force to the Rigidbody instead, or use kinematic movement consistently.
 - **Frame-rate dependence.** Large forces with variable `deltaTime` behave differently at 30 and 144 FPS. Run steering in a [Fixed Timestep](./fixed-timestep) for consistency.
@@ -158,6 +158,6 @@ public class SteeringAgent : MonoBehaviour
 ## Related
 
 - Flocking — Separation + Alignment + Cohesion: steering applied to groups.
-- A* Pathfinding, Navigation Mesh and Flow Field — global routes that steering follows locally.
+- [A* Pathfinding](./a-star), Navigation Mesh and Flow Field — global routes that steering follows locally.
 - [Spatial Partition](./spatial-partition) — fast neighbour queries for separation.
 - [Behavior Tree](./behavior-tree) — decides *which* steering behaviours are active and toward what.

@@ -141,4 +141,4 @@ Squad sharing: give every guard `new Blackboard(parent: squadBlackboard)`. When 
 - [Behavior Tree](./behavior-tree) — the most common consumer.
 - [Perception System](./perception-system) — the main writer.
 - [Observer](./observer) — change notifications for reactive trees.
-- Utility AI and Goal-Oriented Action Planning — also read their world state from a blackboard.
+- [Utility AI](./utility-ai) and Goal-Oriented Action Planning — also read their world state from a blackboard.

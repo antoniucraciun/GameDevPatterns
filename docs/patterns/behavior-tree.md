@@ -129,4 +129,4 @@ This minimal tree re-evaluates from the root every tick, so higher-priority bran
 - [Blackboard](./blackboard) — the shared memory that nodes read and write.
 - [Perception System](./perception-system) — supplies what the tree's conditions check.
 - [Steering Behaviors](./steering-behaviors) — how movement actions actually move the agent.
-- Utility AI and GOAP — alternatives that score actions or plan them instead of following authored priorities.
+- [Utility AI](./utility-ai) and Goal-Oriented Action Planning — alternatives that score actions or plan them instead of following authored priorities.
