@@ -26,6 +26,8 @@ The classic behaviours are tiny functions:
 
 Complex movement comes from **combining** them: a weighted sum (for example, arrive × 1 + separation × 1.5 + avoidance × 3), or priorities, where avoidance gets its share of the force budget first.
 
+<SteeringViz />
+
 ## Example (Unity C#)
 
 ```csharp

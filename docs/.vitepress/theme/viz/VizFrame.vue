@@ -15,6 +15,8 @@ const props = withDefaults(
     aspect?: number
     minHeight?: number
     maxHeight?: number
+    /** Optional exact canvas height for a given width; overrides aspect, minHeight and maxHeight. */
+    heightFor?: (width: number) => number
     /** CSS touch-action for the canvas. Use 'none' when dragging on it edits the scene. */
     touchAction?: string
     draw: (ctx: CanvasRenderingContext2D, w: number, h: number, c: VizColors) => void
@@ -67,7 +69,11 @@ function resize() {
   if (!el || !c) return
   dpr = window.devicePixelRatio || 1
   width = el.clientWidth
-  height = Math.round(Math.min(props.maxHeight, Math.max(props.minHeight, width * props.aspect)))
+  height = Math.round(
+    props.heightFor
+      ? props.heightFor(width)
+      : Math.min(props.maxHeight, Math.max(props.minHeight, width * props.aspect)),
+  )
   c.width = Math.round(width * dpr)
   c.height = Math.round(height * dpr)
   c.style.height = `${height}px`

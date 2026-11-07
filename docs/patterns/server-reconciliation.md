@@ -25,6 +25,8 @@ Both sides number inputs, and the server says which ones it has applied.
 
 If prediction was correct, the replay lands exactly where the client already was, and nothing visible happens. Corrections appear only when the server knew something the client did not.
 
+<NetSyncViz mode="prediction" />
+
 ## Example (Unity C#)
 
 Shared types and simulation, as in [Client-Side Prediction](./client-side-prediction):

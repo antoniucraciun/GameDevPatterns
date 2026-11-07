@@ -17,6 +17,8 @@ Keep **two buffers**:
 
 At the end of the tick, **swap** them. Swapping exchanges two references, not the data, so it is O(1). Every update in a tick then sees the same consistent snapshot of the previous tick, and iteration order no longer matters.
 
+<DoubleBufferViz />
+
 ## Example (Unity C#)
 
 A fire-spread grid, where order independence matters:

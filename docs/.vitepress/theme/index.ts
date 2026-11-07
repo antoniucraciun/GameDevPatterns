@@ -12,6 +12,9 @@ import JumpTimingViz from './viz/JumpTimingViz.vue'
 import FlowFieldViz from './viz/FlowFieldViz.vue'
 import CellularAutomataViz from './viz/CellularAutomataViz.vue'
 import BspDungeonViz from './viz/BspDungeonViz.vue'
+import NetSyncViz from './viz/NetSyncViz.vue'
+import SteeringViz from './viz/SteeringViz.vue'
+import DoubleBufferViz from './viz/DoubleBufferViz.vue'
 import './custom.css'
 
 export default {
@@ -32,5 +35,8 @@ export default {
     app.component('FlowFieldViz', FlowFieldViz)
     app.component('CellularAutomataViz', CellularAutomataViz)
     app.component('BspDungeonViz', BspDungeonViz)
+    app.component('NetSyncViz', NetSyncViz)
+    app.component('SteeringViz', SteeringViz)
+    app.component('DoubleBufferViz', DoubleBufferViz)
   },
 } satisfies Theme
