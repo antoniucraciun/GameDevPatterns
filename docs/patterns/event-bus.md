@@ -20,11 +20,15 @@ Player ─Publish(PlayerDied)─►┘                 └─► Analytics
 
 Compared with Observer, the bus trades *explicitness* (who is connected to whom is no longer visible in the code) for *decoupling* (publishers and subscribers can come and go independently).
 
-## Example (Unity C#)
+## Example
 
-A small, type-safe, allocation-free bus:
+### The bus and its events
 
-```csharp
+Unity uses a small, type-safe, allocation-free generic bus. Godot's usual bus is an autoload that declares one signal per event. Unreal's is a subsystem that holds one multicast delegate per event.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -88,9 +92,58 @@ public static class EventBusRegistry
 }
 ```
 
-Publishing and subscribing:
+```gdscript [Godot (GDScript)]
+# events.gd: autoload named Events (Project Settings → Globals → Autoload).
+# The signal's parameters are the event's data; the signal itself is the event type.
+extends Node
 
-```csharp
+signal enemy_killed(enemy_type_id: int, position: Vector3)
+signal boss_fight_started(boss_id: StringName)
+```
+
+```cpp [Unreal (C++)]
+// GameEventsSubsystem.h: lives as long as the game instance, across level loads.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "GameEventsSubsystem.generated.h"
+
+// Events are small structs: "what happened", plus the data listeners need.
+struct FEnemyKilled
+{
+	int32 EnemyTypeId = 0;
+	FVector Location = FVector::ZeroVector;
+};
+
+struct FBossFightStarted
+{
+	FName BossId;
+};
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnEnemyKilled, const FEnemyKilled&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnBossFightStarted, const FBossFightStarted&);
+
+UCLASS()
+class UGameEventsSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	FOnEnemyKilled EnemyKilled;
+	FOnBossFightStarted BossFightStarted;
+};
+```
+
+:::
+
+### Publishing and subscribing
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class Enemy : MonoBehaviour
 {
     [SerializeField] int typeId;
@@ -118,7 +171,110 @@ public class AchievementSystem : MonoBehaviour
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# enemy.gd
+extends CharacterBody3D
+
+@export var type_id := 0
+
+
+func die() -> void:
+	Events.enemy_killed.emit(type_id, global_position)
+	queue_free()
+
+
+# achievement_system.gd
+extends Node
+
+var _kills := 0
+
+
+func _ready() -> void:
+	# Freeing this node removes the connection automatically.
+	Events.enemy_killed.connect(_on_enemy_killed)
+
+
+func _on_enemy_killed(_enemy_type_id: int, _position: Vector3) -> void:
+	_kills += 1
+	if _kills == 100:
+		_unlock("centurion")
+
+
+func _unlock(_id: String) -> void:
+	pass  # platform achievements
+```
+
+```cpp [Unreal (C++)]
+// Enemy.cpp
+void AEnemy::Die()
+{
+	FEnemyKilled Event;
+	Event.EnemyTypeId = TypeId;
+	Event.Location = GetActorLocation();
+	GetGameInstance()->GetSubsystem<UGameEventsSubsystem>()->EnemyKilled.Broadcast(Event);
+	Destroy();
+}
+
+// AchievementSubsystem.h: subsystems can subscribe to each other in Initialize.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "AchievementSubsystem.generated.h"
+
+struct FEnemyKilled;
+
+UCLASS()
+class UAchievementSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+
+private:
+	void HandleEnemyKilled(const FEnemyKilled& Event);
+	void Unlock(FName Id) { /* platform achievements */ }
+
+	FDelegateHandle EnemyKilledHandle;
+	int32 Kills = 0;
+};
+
+// AchievementSubsystem.cpp
+#include "AchievementSubsystem.h"
+#include "GameEventsSubsystem.h"
+
+void UAchievementSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	// Make sure the bus is initialized before subscribing to it.
+	UGameEventsSubsystem* Events = Cast<UGameEventsSubsystem>(Collection.InitializeDependency(UGameEventsSubsystem::StaticClass()));
+	EnemyKilledHandle = Events->EnemyKilled.AddUObject(this, &UAchievementSubsystem::HandleEnemyKilled);
+}
+
+void UAchievementSubsystem::Deinitialize()
+{
+	if (UGameEventsSubsystem* Events = GetGameInstance()->GetSubsystem<UGameEventsSubsystem>())
+		Events->EnemyKilled.Remove(EnemyKilledHandle);
+	Super::Deinitialize();
+}
+
+void UAchievementSubsystem::HandleEnemyKilled(const FEnemyKilled& Event)
+{
+	if (++Kills == 100) Unlock(TEXT("centurion"));
+}
+```
+
+:::
+
 `EventBus<T>` is one static class per event type, so dispatching is a direct array loop, with no dictionary lookup and no boxing.
+
+**Engine notes**
+
+- **Unity:** With Domain Reload disabled, static state survives between play sessions; the registry above clears it.
+- **Godot:** An autoload with signals is the idiomatic bus, and it is visible in the editor's remote tree while the game runs. Connections from freed nodes are removed automatically, which avoids the "forgotten unsubscribe" pitfall for nodes, though not for nodes that are only removed from the tree.
+- **Unreal:** Lyra's **Gameplay Message Router** plugin (`UGameplayMessageSubsystem`, copied from the Lyra sample into your project) is a common ready-made bus: messages are `USTRUCT`s on `FGameplayTag` channels, sent with `BroadcastMessage` and received with `RegisterListener`, which returns a handle to `Unregister`. It is not part of the engine itself. Use `DYNAMIC` delegates in the subsystem above if Blueprints need to listen.
 
 ## When to use
 

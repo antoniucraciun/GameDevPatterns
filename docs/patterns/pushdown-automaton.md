@@ -27,9 +27,15 @@ push Stunned            pop (stun ends)
 └──────────┘            └──────────┘
 ```
 
-## Example (Unity C#)
+## Example
 
-```csharp
+### Core
+
+The stack itself has no engine types. Only the top state runs; the ones below it are paused, not exited, so they keep their progress.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -72,9 +78,142 @@ public class StateStack
 }
 ```
 
-Interruptions that return to whatever was happening before:
+```gdscript [Godot (GDScript)]
+# stack_state.gd
+class_name StackState
+extends RefCounted
 
-```csharp
+
+func enter() -> void:  # pushed onto the stack
+	pass
+
+
+func exit() -> void:  # popped off the stack
+	pass
+
+
+func pause() -> void:  # something was pushed on top
+	pass
+
+
+func resume() -> void:  # the state on top was popped
+	pass
+
+
+func update(_delta: float) -> void:
+	pass
+
+
+# state_stack.gd
+class_name StateStack
+extends RefCounted
+
+var _stack: Array[StackState] = []
+
+var top: StackState:
+	get:
+		return null if _stack.is_empty() else _stack.back()
+
+
+func push(state: StackState) -> void:
+	if top != null:
+		top.pause()
+	_stack.push_back(state)
+	state.enter()
+
+
+func pop() -> void:
+	if _stack.is_empty():
+		return
+	_stack.pop_back().exit()
+	if top != null:
+		top.resume()
+
+
+func replace(state: StackState) -> void:  # replace the top without remembering it
+	if not _stack.is_empty():
+		_stack.pop_back().exit()
+	_stack.push_back(state)
+	state.enter()
+
+
+func update(delta: float) -> void:
+	if top != null:
+		top.update(delta)
+```
+
+```cpp [Unreal (C++)]
+// StateStack.h: plain C++; the stack owns its states.
+#pragma once
+
+#include "CoreMinimal.h"
+
+class FStackState
+{
+public:
+	virtual ~FStackState() = default;
+	virtual void Enter() {}     // pushed onto the stack
+	virtual void Exit() {}      // popped off the stack
+	virtual void Pause() {}     // something was pushed on top
+	virtual void Resume() {}    // the state on top was popped
+	virtual void Tick(float DeltaSeconds) {}
+};
+
+class FStateStack
+{
+public:
+	FStackState* Top() const { return Stack.Num() > 0 ? Stack.Last().Get() : nullptr; }
+
+	void Push(TUniquePtr<FStackState> State)
+	{
+		if (FStackState* Current = Top()) Current->Pause();
+		Stack.Add(MoveTemp(State));
+		Stack.Last()->Enter();
+	}
+
+	void Pop()
+	{
+		if (Stack.Num() == 0) return;
+		Retire(Stack.Pop());
+		if (FStackState* Current = Top()) Current->Resume();
+	}
+
+	void Switch(TUniquePtr<FStackState> State)   // replace the top without remembering it
+	{
+		if (Stack.Num() > 0) Retire(Stack.Pop());
+		Stack.Add(MoveTemp(State));
+		Stack.Last()->Enter();
+	}
+
+	void Tick(float DeltaSeconds)
+	{
+		Retired.Reset();                          // safe now: no popped state is still on the call stack
+		if (FStackState* Current = Top()) Current->Tick(DeltaSeconds);
+	}
+
+private:
+	// A state may pop itself from inside its own Tick, so deleting it right away would
+	// destroy the object whose function is still running. Keep it until the next Tick.
+	void Retire(TUniquePtr<FStackState> State)
+	{
+		State->Exit();
+		Retired.Add(MoveTemp(State));
+	}
+
+	TArray<TUniquePtr<FStackState>> Stack;
+	TArray<TUniquePtr<FStackState>> Retired;
+};
+```
+
+:::
+
+### Interruptions that return to whatever was happening before
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class Character : MonoBehaviour
 {
     public readonly StateStack States = new();
@@ -112,7 +251,154 @@ public class StunnedState : StackState
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# enemy.gd
+class_name Enemy
+extends CharacterBody3D
+
+var states := StateStack.new()
+@onready var anim: AnimationPlayer = $AnimationPlayer
+
+
+func _ready() -> void:
+	states.push(PatrolState.new(self))
+
+
+func _physics_process(delta: float) -> void:
+	states.update(delta)
+
+
+# Any system can interrupt: the stun knows nothing about what it interrupted.
+func stun(seconds: float) -> void:
+	states.push(StunnedState.new(self, seconds))
+
+
+class PatrolState extends StackState:
+	var _enemy: Enemy
+	var _waypoint := 0  # survives being paused
+
+	func _init(enemy: Enemy) -> void:
+		_enemy = enemy
+
+	func resume() -> void:
+		_enemy.anim.play("walk")  # pick up where we left off
+
+	func update(_delta: float) -> void:
+		pass  # walk toward the waypoint, advance the index on arrival
+
+
+class StunnedState extends StackState:
+	var _enemy: Enemy
+	var _remaining: float
+
+	func _init(enemy: Enemy, seconds: float) -> void:
+		_enemy = enemy
+		_remaining = seconds
+
+	func enter() -> void:
+		_enemy.anim.play("stunned")
+
+	func update(delta: float) -> void:
+		_remaining -= delta
+		if _remaining <= 0.0:
+			_enemy.states.pop()  # return to whatever was running before
+```
+
+```cpp [Unreal (C++)]
+// EnemyCharacter.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "StateStack.h"
+#include "EnemyCharacter.generated.h"
+
+class UAnimMontage;
+
+UCLASS()
+class AEnemyCharacter : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+	AEnemyCharacter();
+
+	// Any system can interrupt: the stun knows nothing about what it interrupted.
+	void Stun(float Seconds);
+
+	FStateStack States;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Animation") TObjectPtr<UAnimMontage> StunMontage;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
+};
+
+// EnemyCharacter.cpp
+#include "EnemyCharacter.h"
+
+class FPatrolState : public FStackState
+{
+public:
+	explicit FPatrolState(AEnemyCharacter& InEnemy) : Enemy(InEnemy) {}
+	virtual void Tick(float DeltaSeconds) override { /* walk toward waypoint, advance index on arrival */ }
+
+private:
+	AEnemyCharacter& Enemy;
+	int32 Waypoint = 0;                       // survives being paused
+};
+
+class FStunnedState : public FStackState
+{
+public:
+	FStunnedState(AEnemyCharacter& InEnemy, float Seconds) : Enemy(InEnemy), Remaining(Seconds) {}
+
+	virtual void Enter() override { Enemy.PlayAnimMontage(Enemy.StunMontage); }
+	virtual void Exit() override { Enemy.StopAnimMontage(Enemy.StunMontage); }
+
+	virtual void Tick(float DeltaSeconds) override
+	{
+		if ((Remaining -= DeltaSeconds) <= 0.f) Enemy.States.Pop();   // return to whatever was running before
+	}
+
+private:
+	AEnemyCharacter& Enemy;
+	float Remaining;
+};
+
+AEnemyCharacter::AEnemyCharacter()
+{
+	PrimaryActorTick.bCanEverTick = true;
+}
+
+void AEnemyCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	States.Push(MakeUnique<FPatrolState>(*this));
+}
+
+void AEnemyCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	States.Tick(DeltaSeconds);
+}
+
+void AEnemyCharacter::Stun(float Seconds)
+{
+	States.Push(MakeUnique<FStunnedState>(*this, Seconds));
+}
+```
+
+:::
+
 The same structure drives game flow (*Playing* → push *Paused* → push *Settings* → pop → pop), which is what a [Screen Stack](./screen-stack) does for UI.
+
+**Engine notes**
+
+- **Unity:** The Animator has no stack of its own; the states call `Animator.Play` on enter and resume, as here.
+- **Godot:** `RefCounted` states are freed when the stack drops them, so there is nothing to clean up. Inner classes keep small states next to the node that uses them.
+- **Unreal:** Owning states with `TUniquePtr` frees them on pop, which is why a state that pops itself must not be deleted mid-`Tick` (the `Retired` list above). For purely visual interruptions, an animation montage already plays over the current animation and blends back when it ends.
 
 ## When to use
 

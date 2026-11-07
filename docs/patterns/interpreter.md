@@ -32,11 +32,13 @@ base * (1 + strength / 100) - armor * 0.5
 
 The tree is the "interpreter": evaluation is a recursive walk. For a few expressions, it is fast enough. For thousands per frame, compile the tree into [Bytecode](./bytecode) or C# delegates.
 
-## Example (Unity C#)
+## Example
 
-Expression nodes:
+### Core: expression nodes
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -77,9 +79,165 @@ public sealed class Binary : Expr
 }
 ```
 
-A small recursive-descent parser, with precedence from lowest to highest: comparison, then `+ -`, then `* /`, then `^`, then unary minus and parentheses:
+```gdscript [Godot (GDScript)]
+# expr_context.gd: supplies variable values. Subclass it, or see StatContext below.
+class_name ExprContext
+extends RefCounted
 
-```csharp
+
+func get_value(_variable: String) -> float:
+	return 0.0
+
+
+# expr.gd
+class_name Expr
+extends RefCounted
+
+
+func eval(_ctx: ExprContext) -> float:
+	return 0.0
+
+
+# num_expr.gd
+class_name NumExpr
+extends Expr
+
+var _value: float
+
+
+func _init(value: float) -> void:
+	_value = value
+
+
+func eval(_ctx: ExprContext) -> float:
+	return _value
+
+
+# var_expr.gd
+class_name VarExpr
+extends Expr
+
+var _variable: String
+
+
+func _init(variable: String) -> void:
+	_variable = variable
+
+
+func eval(ctx: ExprContext) -> float:
+	return ctx.get_value(_variable)
+
+
+# binary_expr.gd
+class_name BinaryExpr
+extends Expr
+
+var _op: String
+var _left: Expr
+var _right: Expr
+
+
+func _init(op: String, left: Expr, right: Expr) -> void:
+	_op = op
+	_left = left
+	_right = right
+
+
+func eval(ctx: ExprContext) -> float:
+	var a := _left.eval(ctx)
+	var b := _right.eval(ctx)
+	match _op:
+		"+": return a + b
+		"-": return a - b
+		"*": return a * b
+		"/": return 0.0 if b == 0.0 else a / b  # designers shouldn't crash the game
+		"^": return pow(a, b)
+		"<": return 1.0 if a < b else 0.0
+		">": return 1.0 if a > b else 0.0
+	push_error("Unknown operator %s" % _op)
+	return 0.0
+```
+
+```cpp [Unreal (C++)]
+// Expr.h
+#pragma once
+
+#include "CoreMinimal.h"
+
+class IExprContext
+{
+public:
+	virtual ~IExprContext() = default;
+	virtual float Get(const FString& Variable) const = 0;
+};
+
+class FExpr
+{
+public:
+	virtual ~FExpr() = default;
+	virtual float Eval(const IExprContext& Ctx) const = 0;
+};
+
+class FNumExpr final : public FExpr
+{
+public:
+	explicit FNumExpr(float InValue) : Value(InValue) {}
+	virtual float Eval(const IExprContext&) const override { return Value; }
+
+private:
+	float Value;
+};
+
+class FVarExpr final : public FExpr
+{
+public:
+	explicit FVarExpr(FString InName) : Name(MoveTemp(InName)) {}
+	virtual float Eval(const IExprContext& Ctx) const override { return Ctx.Get(Name); }
+
+private:
+	FString Name;
+};
+
+class FBinaryExpr final : public FExpr
+{
+public:
+	FBinaryExpr(TCHAR InOp, TUniquePtr<FExpr> InLeft, TUniquePtr<FExpr> InRight)
+		: Op(InOp), Left(MoveTemp(InLeft)), Right(MoveTemp(InRight)) {}
+
+	virtual float Eval(const IExprContext& Ctx) const override
+	{
+		const float A = Left->Eval(Ctx), B = Right->Eval(Ctx);
+		switch (Op)
+		{
+		case '+': return A + B;
+		case '-': return A - B;
+		case '*': return A * B;
+		case '/': return B == 0.f ? 0.f : A / B;            // designers shouldn't crash the game
+		case '^': return FMath::Pow(A, B);
+		case '<': return A < B ? 1.f : 0.f;
+		case '>': return A > B ? 1.f : 0.f;
+		default:  checkNoEntry(); return 0.f;
+		}
+	}
+
+private:
+	TCHAR Op;
+	TUniquePtr<FExpr> Left, Right;
+};
+```
+
+:::
+
+### Core: a recursive-descent parser
+
+Precedence from lowest to highest: comparison, then `+ -`, then `* /`, then `^`, then unary minus and parentheses.
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using System.Globalization;
+
 public sealed class ExprParser
 {
     readonly string s; int i;
@@ -125,9 +283,185 @@ public sealed class ExprParser
 }
 ```
 
-Formulas as data, parsed once and evaluated many times:
+```gdscript [Godot (GDScript)]
+# expr_parser.gd: GDScript has no exceptions, so the first error is stored and parse() returns null.
+#   var parser := ExprParser.new(text)
+#   var expr := parser.parse()
+#   if expr == null: push_error(parser.error)
+class_name ExprParser
+extends RefCounted
 
-```csharp
+var error := ""
+var _s: String
+var _i := 0
+
+
+func _init(text: String) -> void:
+	_s = text
+
+
+func parse() -> Expr:
+	var e := _comparison()
+	_skip_spaces()
+	if _i < _s.length():
+		_fail("Unexpected '%s'" % _s[_i])
+	return null if error != "" else e
+
+
+func _comparison() -> Expr:
+	var l := _sum()
+	while _match("<") or _match(">"):
+		l = BinaryExpr.new(_s[_i - 1], l, _sum())
+	return l
+
+
+func _sum() -> Expr:
+	var l := _product()
+	while _match("+") or _match("-"):
+		l = BinaryExpr.new(_s[_i - 1], l, _product())
+	return l
+
+
+func _product() -> Expr:
+	var l := _power()
+	while _match("*") or _match("/"):
+		l = BinaryExpr.new(_s[_i - 1], l, _power())
+	return l
+
+
+func _power() -> Expr:
+	var l := _unary()
+	if _match("^"):
+		return BinaryExpr.new("^", l, _power())  # right-associative
+	return l
+
+
+func _unary() -> Expr:
+	if _match("-"):
+		return BinaryExpr.new("-", NumExpr.new(0.0), _unary())
+	if _match("("):
+		var e := _comparison()
+		if not _match(")"):
+			_fail("Expected ')'")
+		return e
+
+	_skip_spaces()
+	var start := _i
+	if _i < _s.length() and (_is_digit(_s[_i]) or _s[_i] == "."):
+		while _i < _s.length() and (_is_digit(_s[_i]) or _s[_i] == "."):
+			_i += 1
+		return NumExpr.new(_s.substr(start, _i - start).to_float())  # to_float ignores the locale
+	if _i < _s.length() and (_is_letter(_s[_i]) or _s[_i] == "_"):
+		while _i < _s.length() and (_is_letter(_s[_i]) or _is_digit(_s[_i]) or _s[_i] in "_."):
+			_i += 1
+		return VarExpr.new(_s.substr(start, _i - start))
+	_fail("Expected a value")
+	return NumExpr.new(0.0)
+
+
+func _skip_spaces() -> void:
+	while _i < _s.length() and _s[_i] in " \t\n":
+		_i += 1
+
+
+func _match(c: String) -> bool:
+	_skip_spaces()
+	if _i < _s.length() and _s[_i] == c:
+		_i += 1
+		return true
+	return false
+
+
+func _fail(message: String) -> void:
+	if error == "":  # keep the first error
+		error = "%s at %d in \"%s\"" % [message, _i, _s]
+
+
+static func _is_digit(c: String) -> bool:
+	return c >= "0" and c <= "9"
+
+
+static func _is_letter(c: String) -> bool:
+	return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+```
+
+```cpp [Unreal (C++)]
+// ExprParser.h: Unreal builds without exceptions, so Parse returns null and fills OutError.
+#pragma once
+
+#include "Expr.h"
+
+class FExprParser
+{
+public:
+	static TUniquePtr<FExpr> Parse(const FString& Text, FString& OutError)
+	{
+		FExprParser P(Text);
+		TUniquePtr<FExpr> E = P.Comparison();
+		P.SkipSpaces();
+		if (P.I < P.S.Len()) P.Fail(FString::Printf(TEXT("Unexpected '%c'"), P.S[P.I]));
+		OutError = P.Error;
+		if (!P.Error.IsEmpty()) return nullptr;
+		return E;
+	}
+
+private:
+	explicit FExprParser(const FString& Text) : S(Text) {}
+
+	using FExprPtr = TUniquePtr<FExpr>;
+
+	FExprPtr Binary(TCHAR Op, FExprPtr L, FExprPtr R) { return MakeUnique<FBinaryExpr>(Op, MoveTemp(L), MoveTemp(R)); }
+
+	FExprPtr Comparison() { FExprPtr L = Sum();     while (Match('<') || Match('>')) { const TCHAR Op = S[I - 1]; L = Binary(Op, MoveTemp(L), Sum()); }     return L; }
+	FExprPtr Sum()        { FExprPtr L = Product(); while (Match('+') || Match('-')) { const TCHAR Op = S[I - 1]; L = Binary(Op, MoveTemp(L), Product()); } return L; }
+	FExprPtr Product()    { FExprPtr L = Power();   while (Match('*') || Match('/')) { const TCHAR Op = S[I - 1]; L = Binary(Op, MoveTemp(L), Power()); }   return L; }
+	FExprPtr Power()      { FExprPtr L = Unary();   if (Match('^')) return Binary('^', MoveTemp(L), Power()); return L; }   // right-associative
+
+	FExprPtr Unary()
+	{
+		if (Match('-')) return Binary('-', MakeUnique<FNumExpr>(0.f), Unary());
+		if (Match('(')) { FExprPtr E = Comparison(); if (!Match(')')) Fail(TEXT("Expected ')'")); return E; }
+
+		SkipSpaces();
+		const int32 Start = I;
+		if (I < S.Len() && (FChar::IsDigit(S[I]) || S[I] == '.'))
+		{
+			while (I < S.Len() && (FChar::IsDigit(S[I]) || S[I] == '.')) ++I;
+			return MakeUnique<FNumExpr>(FCString::Atof(*S.Mid(Start, I - Start)));
+		}
+		if (I < S.Len() && (FChar::IsAlpha(S[I]) || S[I] == '_'))
+		{
+			while (I < S.Len() && (FChar::IsAlnum(S[I]) || S[I] == '_' || S[I] == '.')) ++I;
+			return MakeUnique<FVarExpr>(S.Mid(Start, I - Start));
+		}
+		Fail(TEXT("Expected a value"));
+		return MakeUnique<FNumExpr>(0.f);
+	}
+
+	void SkipSpaces() { while (I < S.Len() && FChar::IsWhitespace(S[I])) ++I; }
+	bool Match(TCHAR C) { SkipSpaces(); if (I < S.Len() && S[I] == C) { ++I; return true; } return false; }
+
+	void Fail(const FString& Message)
+	{
+		if (Error.IsEmpty()) Error = FString::Printf(TEXT("%s at %d in \"%s\""), *Message, I, *S);   // keep the first error
+	}
+
+	const FString& S;
+	int32 I = 0;
+	FString Error;
+};
+```
+
+:::
+
+### Engine wiring: formulas as data, parsed once and evaluated many times
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using System.Collections.Generic;
+
 [UnityEngine.CreateAssetMenu(menuName = "Formulas/Formula")]
 public class Formula : UnityEngine.ScriptableObject
 {
@@ -154,7 +488,132 @@ public class StatContext : IExprContext
 // damageFormula.Evaluate(new StatContext(new() { ["base"] = 20, ["strength"] = 45, ["armor"] = 12 }))  →  23
 ```
 
+```gdscript [Godot (GDScript)]
+# formula.gd: a .tres per formula. Add @tool to this script and the Expr scripts
+# to see syntax errors while editing, not only when the game loads the resource.
+class_name Formula
+extends Resource
+
+@export_multiline var expression := "base * (1 + strength / 100) - armor * 0.5":
+	set(value):
+		expression = value
+		_parsed = null
+		var parser := ExprParser.new(value)
+		if parser.parse() == null:
+			push_error("%s: %s" % [resource_path, parser.error])
+
+var _parsed: Expr
+
+
+func evaluate(ctx: ExprContext) -> float:
+	if _parsed == null:  # also covers the default value, which never goes through the setter
+		_parsed = ExprParser.new(expression).parse()
+	return _parsed.eval(ctx) if _parsed else 0.0
+
+
+# stat_context.gd
+class_name StatContext
+extends ExprContext
+
+var _values: Dictionary
+
+
+func _init(values: Dictionary) -> void:
+	_values = values
+
+
+func get_value(variable: String) -> float:
+	return _values.get(variable, 0.0)
+
+# damage_formula.evaluate(StatContext.new({"base": 20.0, "strength": 45.0, "armor": 12.0}))  →  23
+
+# The built-in alternative, for formulas you trust: Godot's Expression class.
+#   var e := Expression.new()
+#   if e.parse("base * (1.0 + strength / 100.0) - armor * 0.5", ["base", "strength", "armor"]) == OK:
+#       var damage: float = e.execute([20.0, 45.0, 12.0], null, false, true)  # const_calls_only = true
+```
+
+```cpp [Unreal (C++)]
+// Formula.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Expr.h"
+#include "Formula.generated.h"
+
+UCLASS(BlueprintType)
+class UFormula : public UDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Formula", meta = (MultiLine = true))
+	FString Expression = TEXT("base * (1 + strength / 100) - armor * 0.5");
+
+	float Evaluate(const IExprContext& Ctx) const;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override;
+#endif
+
+private:
+	mutable TUniquePtr<FExpr> Parsed;                        // parsed on first use
+};
+
+// Formula.cpp
+#include "Formula.h"
+#include "ExprParser.h"
+
+float UFormula::Evaluate(const IExprContext& Ctx) const
+{
+	if (!Parsed)
+	{
+		FString Error;
+		Parsed = FExprParser::Parse(Expression, Error);
+		if (!Parsed) { UE_LOG(LogTemp, Error, TEXT("%s: %s"), *GetName(), *Error); return 0.f; }
+	}
+	return Parsed->Eval(Ctx);
+}
+
+#if WITH_EDITOR
+void UFormula::PostEditChangeProperty(FPropertyChangedEvent& Event)       // designers see syntax errors immediately
+{
+	Super::PostEditChangeProperty(Event);
+	Parsed.Reset();
+	FString Error;
+	if (!FExprParser::Parse(Expression, Error)) UE_LOG(LogTemp, Error, TEXT("%s: %s"), *GetName(), *Error);
+}
+#endif
+
+// StatContext.h
+class FStatContext : public IExprContext
+{
+public:
+	explicit FStatContext(TMap<FString, float> InValues) : Values(MoveTemp(InValues)) {}
+
+	virtual float Get(const FString& Variable) const override
+	{
+		const float* Value = Values.Find(Variable);
+		return Value ? *Value : 0.f;
+	}
+
+private:
+	TMap<FString, float> Values;
+};
+
+// DamageFormula->Evaluate(FStatContext({{TEXT("base"), 20.f}, {TEXT("strength"), 45.f}, {TEXT("armor"), 12.f}}))  →  23
+```
+
+:::
+
 Conditions use the same machinery: `gold > 49` evaluates to 1 or 0. Add `and`, `or` and `not` operators the same way to cover dialogue and quest conditions.
+
+**Engine notes**
+
+- **Unity:** `float.Parse` with `CultureInfo.InvariantCulture` matters: on a German system, `"0.5"` would otherwise fail to parse.
+- **Godot:** The built-in `Expression` class parses and runs GDScript-like expressions, which is enough for trusted formulas. Its differences from the parser above: inputs are positional (names in `parse`, values in `execute`), `^` is bitwise XOR (use `pow(a, b)`), integer operands divide as integers (`45 / 100` is 0, so pass floats), comparisons return `bool`, and it can call methods on the base instance, so pass `null` and `const_calls_only = true` for untrusted text.
+- **Unreal:** Exceptions are disabled, so the parser reports errors through `OutError`. `FString` keys in a `TMap` compare case-insensitively, so `Base` and `base` are the same variable. Blueprints and the Gameplay Ability System (magnitude calculations, `FScalableFloat` curve tables) cover many "designer formula" needs without a text language.
 
 ## When to use
 
