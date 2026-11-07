@@ -12,6 +12,8 @@ The player presses Jump a few frames before landing. The character is still airb
 
 When an action is pressed but cannot happen yet, **remember the press with a timestamp** instead of discarding it. Each frame, check whether the action has become possible. If it has, and the buffered press is still younger than the buffer window (typically 0.1–0.2 s), perform the action and **consume** the buffered press.
 
+<JumpTimingViz mode="buffer" />
+
 ## Example (Unity C#)
 
 ```csharp

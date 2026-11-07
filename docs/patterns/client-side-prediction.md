@@ -18,6 +18,8 @@ The client **runs the same movement code as the server**, on its own inputs, rig
 
 Prediction requires the movement simulation to be **deterministic enough**. Given the same state and input, client and server must produce the same result, or every update triggers a correction.
 
+<NetSyncViz mode="prediction" />
+
 ## Example (Unity C#)
 
 Transport-agnostic. `Send` stands in for your networking library.

@@ -21,6 +21,8 @@ The classic cave rule:
 
 Tuning the fill percentage, the thresholds and the iteration count changes the character: open caverns, narrow tunnels or isolated pockets.
 
+<CellularAutomataViz />
+
 ## Example (Unity C#)
 
 ```csharp

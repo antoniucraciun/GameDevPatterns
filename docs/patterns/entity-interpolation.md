@@ -25,6 +25,8 @@ snapshots:    t=1.00      t=1.05      t=1.10      t=1.15 (latest)
                          interpolate between these two
 ```
 
+<NetSyncViz mode="interpolation" />
+
 ## Example (Unity C#)
 
 ```csharp

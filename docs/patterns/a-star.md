@@ -23,6 +23,8 @@ It keeps an **open set** (nodes discovered but not expanded, ordered by `f` in a
 
 If `h` never overestimates the true cost (it is **admissible**), A* returns a shortest path. The better `h` is, the fewer nodes it explores.
 
+<AStarViz />
+
 | Grid movement | Heuristic |
 | --- | --- |
 | 4 directions | Manhattan: `dx + dy` |
