@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Game Dev Patterns
   text: A catalog of programming patterns for games
-  tagline: Game loops, architecture, AI, performance, netcode, game feel and more. Each pattern has a problem statement, a solution and a Unity C# example.
+  tagline: Game loops, architecture, AI, performance, netcode, game feel and more. Each pattern has a problem statement, a solution and code examples for Unity (C#), Godot (GDScript) and Unreal (C++).
   actions:
     - theme: brand
       text: Browse the catalog
