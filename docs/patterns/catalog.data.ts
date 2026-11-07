@@ -8,9 +8,12 @@ const recipesDir = fileURLToPath(new URL('../recipes/', import.meta.url))
 
 type WithWritten<T> = T & { written: boolean }
 
+// A page is interactive if it embeds a visualizer component such as <AStarViz />.
+const VIZ_TAG = /<[A-Z]\w*Viz\b/
+
 export interface CatalogData {
   categories: typeof categories
-  patterns: WithWritten<(typeof patterns)[number]>[]
+  patterns: (WithWritten<(typeof patterns)[number]> & { interactive: boolean })[]
   recipeGroups: typeof recipeGroups
   recipes: (WithWritten<(typeof recipes)[number]> & { sampleUrl: string | null })[]
 }
@@ -42,7 +45,11 @@ export default {
 
     return {
       categories,
-      patterns: patterns.map((p) => ({ ...p, written: existsSync(`${patternsDir}${p.slug}.md`) })),
+      patterns: patterns.map((p) => {
+        const file = `${patternsDir}${p.slug}.md`
+        const written = existsSync(file)
+        return { ...p, written, interactive: written && VIZ_TAG.test(readFileSync(file, 'utf8')) }
+      }),
       recipeGroups,
       recipes: recipes.map((r) => ({
         ...r,

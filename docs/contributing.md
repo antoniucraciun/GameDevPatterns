@@ -65,7 +65,7 @@ Every pattern page uses the same sections, in this order:
 Some patterns are about time or space, which text and code show poorly. Those pages can embed a small interactive canvas, such as `<AStarViz />` on the A* page. Visualizers live in `docs/.vitepress/theme/viz/`:
 
 1. Create `MyPatternViz.vue` and wrap it in `VizFrame`. Pass a `draw(ctx, width, height, colors)` function, plus optional `update(dt)` (called while playing), `step` and `reset`. Put sliders and toggles in the default slot, live numbers in `#stats`, and a short explanation of what the reader is seeing in `#caption`.
-2. Register it in `theme/index.ts` and place it in the page, usually at the end of **Solution**.
+2. Register it in `theme/index.ts` and place it in the page, usually at the end of **Solution**. The catalog then marks the pattern **Interactive** automatically: any tag ending in `Viz` counts.
 
 `VizFrame` provides the canvas, Play / Step / Reset, light and dark colours, and pausing while off screen. It starts paused for readers who prefer reduced motion. Keep each visualizer focused on the one idea that is hard to see in a still diagram, and use `makeRandom` from `viz/types.ts` so every reader starts from the same state.
 

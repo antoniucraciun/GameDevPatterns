@@ -25,3 +25,16 @@
 
 /* Home page: give the keep-it-simple callout below the feature cards some room. */
 .VPHome .vp-doc .custom-block { margin-top: 48px; }
+
+/*
+ * Visualizer accent: VitePress's light-mode "yellow" is brown, but captions refer to yellow
+ * markers, so visualizers use their own amber that reads as yellow in both themes.
+ */
+:root {
+  --viz-yellow: #e09b0b;
+  --viz-yellow-soft: rgba(224, 155, 11, 0.22);
+}
+.dark {
+  --viz-yellow: #f9b44e;
+  --viz-yellow-soft: rgba(249, 180, 78, 0.18);
+}
