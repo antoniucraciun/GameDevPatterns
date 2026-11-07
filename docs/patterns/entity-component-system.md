@@ -22,11 +22,15 @@ Behind the scenes, an ECS stores components of entities with the same set of com
 
 Adding behaviour means adding a component, such as a `Burning` tag, so the burn system picks the entity up. Removing it stops the behaviour. There is no class hierarchy at all.
 
-## Example (Unity C#)
+## Example
 
-Unity's **Entities** package (DOTS, 1.x). Components are structs, systems are `ISystem` structs compiled with Burst, and GameObjects are converted to entities by **bakers**.
+Projectiles that move and expire, with all the logic in systems that run over plain data. Unity and Unreal ship ECS frameworks; Godot doesn't, so its version applies the same data-oriented idea by hand.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+// Unity's Entities package (DOTS, 1.x): components are structs, systems are ISystem structs
+// compiled with Burst, and GameObjects in a subscene are converted to entities by bakers.
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -95,7 +99,161 @@ public partial struct LifetimeSystem : ISystem
 }
 ```
 
-Projectiles placed in a **subscene** are baked into entities. Tens of thousands of them move and expire with no MonoBehaviour `Update`, no garbage collection and work spread across all cores.
+```gdscript [Godot (GDScript)]
+# projectile_system.gd: Godot has no built-in ECS, but the core idea carries over.
+# "Components" are parallel packed arrays (one entry per projectile), the "system" is one loop
+# over them, and a MultiMeshInstance3D draws every projectile in a single call, with no node each.
+# Assign a MultiMesh (transform format 3D, a mesh) to this node in the inspector.
+extends MultiMeshInstance3D
+
+@export var capacity := 10000
+
+var _positions := PackedVector3Array()
+var _velocities := PackedVector3Array()
+var _lifetimes := PackedFloat32Array()
+
+
+func _ready() -> void:
+	multimesh.instance_count = capacity
+	multimesh.visible_instance_count = 0
+
+
+func spawn(position: Vector3, velocity: Vector3, lifetime := 3.0) -> void:
+	if _positions.size() >= capacity:
+		return
+	_positions.append(position)
+	_velocities.append(velocity)
+	_lifetimes.append(lifetime)
+
+
+func _physics_process(delta: float) -> void:
+	var i := 0
+	while i < _positions.size():
+		_lifetimes[i] -= delta
+		if _lifetimes[i] <= 0.0:
+			_remove(i)  # swap-remove: keeps the arrays dense, don't advance i
+			continue
+		_positions[i] += _velocities[i] * delta
+		multimesh.set_instance_transform(i, Transform3D(Basis.IDENTITY, _positions[i]))
+		i += 1
+	multimesh.visible_instance_count = _positions.size()
+
+
+func _remove(i: int) -> void:
+	var last := _positions.size() - 1
+	_positions[i] = _positions[last]
+	_velocities[i] = _velocities[last]
+	_lifetimes[i] = _lifetimes[last]
+	_positions.resize(last)
+	_velocities.resize(last)
+	_lifetimes.resize(last)
+```
+
+```cpp [Unreal (C++)]
+// ProjectileMass.h: Unreal's ECS is **Mass Entity** (MassEntity / MassGameplay plugins).
+// Fragments are data, processors are the systems, and entities are created from Mass
+// Entity Config assets that list their fragments and traits.
+// (Mass APIs shift between 5.x versions; this follows the 5.4-5.5 shape.)
+#pragma once
+
+#include "CoreMinimal.h"
+#include "MassEntityTypes.h"
+#include "MassProcessor.h"
+#include "MassCommonFragments.h"
+#include "MassExecutionContext.h"
+#include "ProjectileMass.generated.h"
+
+// ── Fragments: plain data ──
+USTRUCT() struct FVelocityFragment : public FMassFragment
+{
+	GENERATED_BODY()
+	FVector Value = FVector::ZeroVector;
+};
+
+USTRUCT() struct FLifetimeFragment : public FMassFragment
+{
+	GENERATED_BODY()
+	float Remaining = 3.f;
+};
+
+// ── Processors: all the logic, over all entities with matching fragments ──
+UCLASS()
+class UProjectileMoveProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	UProjectileMoveProcessor() : EntityQuery(*this)
+	{
+		ExecutionFlags = int32(EProcessorExecutionFlags::All);
+		ProcessingPhase = EMassProcessingPhase::PrePhysics;
+	}
+
+protected:
+	virtual void ConfigureQueries() override
+	{
+		EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
+		EntityQuery.AddRequirement<FVelocityFragment>(EMassFragmentAccess::ReadOnly);
+	}
+
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override
+	{
+		EntityQuery.ForEachEntityChunk(EntityManager, Context, [](FMassExecutionContext& Chunk)
+		{
+			const float Dt = Chunk.GetDeltaTimeSeconds();
+			const TArrayView<FTransformFragment> Transforms = Chunk.GetMutableFragmentView<FTransformFragment>();
+			const TConstArrayView<FVelocityFragment> Velocities = Chunk.GetFragmentView<FVelocityFragment>();
+			for (int32 I = 0; I < Chunk.GetNumEntities(); ++I)
+				Transforms[I].GetMutableTransform().AddToTranslation(Velocities[I].Value * Dt);
+		});
+	}
+
+private:
+	FMassEntityQuery EntityQuery;
+};
+
+UCLASS()
+class UProjectileLifetimeProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	UProjectileLifetimeProcessor() : EntityQuery(*this) { ExecutionFlags = int32(EProcessorExecutionFlags::All); }
+
+protected:
+	virtual void ConfigureQueries() override
+	{
+		EntityQuery.AddRequirement<FLifetimeFragment>(EMassFragmentAccess::ReadWrite);
+	}
+
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override
+	{
+		EntityQuery.ForEachEntityChunk(EntityManager, Context, [](FMassExecutionContext& Chunk)
+		{
+			const float Dt = Chunk.GetDeltaTimeSeconds();
+			const TArrayView<FLifetimeFragment> Lifetimes = Chunk.GetMutableFragmentView<FLifetimeFragment>();
+			TArray<FMassEntityHandle> Expired;
+			for (int32 I = 0; I < Chunk.GetNumEntities(); ++I)
+				if ((Lifetimes[I].Remaining -= Dt) <= 0.f) Expired.Add(Chunk.GetEntity(I));
+			// Structural changes are deferred, not done mid-iteration.
+			if (Expired.Num() > 0) Chunk.Defer().DestroyEntities(Expired);
+		});
+	}
+
+private:
+	FMassEntityQuery EntityQuery;
+};
+```
+
+:::
+
+Tens of thousands of projectiles move and expire with no per-object update call, data laid out contiguously, and (in Unity and Unreal) work spread across all cores.
+
+**Engine notes**
+
+- **Unity:** projectiles placed in a **subscene** are baked into entities. Entities Graphics renders them; GameObjects and entities can coexist in one project.
+- **Godot:** for physics without nodes, use `PhysicsServer3D` bodies directly; for rendering without nodes, `RenderingServer` instances or `MultiMesh` as above. Community ECS add-ons exist, but the server APIs are the built-in path to "many things, no nodes".
+- **Unreal:** Mass is used by City Sample crowds and traffic. Entities are rendered through **Mass Representation** (instanced static meshes or full actors when close). For a few hundred objects, plain actors with ticking turned off are simpler.
 
 ## When to use
 

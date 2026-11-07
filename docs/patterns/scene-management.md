@@ -26,9 +26,13 @@ A **scene loader** owns all loading:
 - **Set the active scene** to the level, so lighting settings and newly instantiated objects belong to it.
 - **Hold activation** (`allowSceneActivation = false`) until the loading screen has faded in and other work has finished, so the swap happens off-screen.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+A level loader that lives in a persistent core: fade out, unload the old level, load the new one in the background with a progress bar, then fade in.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -89,9 +93,131 @@ public class SceneLoader : MonoBehaviour      // lives in the Core scene
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# scene_loader.gd: autoload named SceneLoader, with a CanvasLayer child holding the loading UI.
+# Levels are instanced under a container node instead of replacing the whole tree, so autoloads
+# and the core UI persist.
+extends Node
+
+signal level_loaded(path: String)
+
+@onready var _fade: ColorRect = $LoadingLayer/Fade
+@onready var _progress: ProgressBar = $LoadingLayer/Progress
+
+var current_level: Node
+var is_loading := false
+
+
+func load_level(path: String, container: Node) -> void:
+	if is_loading:
+		return
+	is_loading = true
+	await _fade_to(1.0)  # cover the screen first
+
+	if current_level:
+		current_level.queue_free()
+		await get_tree().process_frame  # let it be freed before loading the next one
+
+	ResourceLoader.load_threaded_request(path)  # load on a background thread
+	var progress := []
+	while ResourceLoader.load_threaded_get_status(path, progress) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		_progress.value = progress[0] * 100.0
+		await get_tree().process_frame
+	var scene := ResourceLoader.load_threaded_get(path) as PackedScene
+
+	current_level = scene.instantiate()
+	container.add_child(current_level)
+	level_loaded.emit(path)
+
+	await _fade_to(0.0)
+	is_loading = false
+
+
+func _fade_to(alpha: float) -> void:
+	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	var tween := create_tween()
+	tween.tween_property(_fade, "color:a", alpha, 0.35)
+	await tween.finished
+	if alpha == 0.0:
+		_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+```
+
+```cpp [Unreal (C++)]
+// LevelLoaderSubsystem.h: streams sub-levels into a persistent level, so the persistent level
+// (game mode, core UI, managers) never unloads. Full map changes use OpenLevel instead.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "LevelLoaderSubsystem.generated.h"
+
+UCLASS()
+class ULevelLoaderSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnLevelLoaded, FName);
+	FOnLevelLoaded OnLevelLoaded;
+
+	void LoadLevel(FName Level)
+	{
+		if (bLoading) return;
+		bLoading = true;
+		Next = Level;
+		ShowLoadingScreen();                                          // cover the screen first
+
+		if (!Current.IsNone())
+			UGameplayStatics::UnloadStreamLevel(this, Current, Latent(TEXT("OnUnloaded")), /*bShouldBlock*/ false);
+		else
+			OnUnloaded();
+	}
+
+private:
+	UFUNCTION() void OnUnloaded()
+	{
+		// Loads on the async loading thread; OnLoaded runs when the level is visible.
+		UGameplayStatics::LoadStreamLevel(this, Next, /*bMakeVisible*/ true, /*bShouldBlock*/ false, Latent(TEXT("OnLoaded")));
+	}
+
+	UFUNCTION() void OnLoaded()
+	{
+		Current = Next;
+		bLoading = false;
+		HideLoadingScreen();
+		OnLevelLoaded.Broadcast(Current);
+	}
+
+	FLatentActionInfo Latent(const TCHAR* Callback)
+	{
+		FLatentActionInfo Info;
+		Info.CallbackTarget = this;
+		Info.ExecutionFunction = Callback;
+		Info.Linkage = 0;
+		Info.UUID = ++LatentId;                                        // unique per request
+		return Info;
+	}
+
+	void ShowLoadingScreen() { /* add a widget, or use the MoviePlayer for full map changes */ }
+	void HideLoadingScreen() { /* remove it */ }
+
+	FName Current, Next;
+	bool bLoading = false;
+	int32 LatentId = 0;
+};
+```
+
+:::
+
 Streaming areas of a larger world by distance, with hysteresis so areas at the boundary do not load and unload repeatedly:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
 public class StreamingVolume : MonoBehaviour
 {
     [SerializeField] string sceneName;
@@ -121,7 +247,80 @@ public class StreamingVolume : MonoBehaviour
 }
 ```
 
-Scene names as strings are fragile, because renaming a scene breaks them silently. Use a small serialisable scene-reference type that stores the asset in the editor and the name at build time, or load scenes through **Addressables**, which also handles content downloaded after install.
+```gdscript [Godot (GDScript)]
+# streaming_area.gd: place one per area of the world; it instances the area's scene as a child.
+extends Node3D
+
+@export_file("*.tscn") var scene_path: String
+@export var load_distance := 80.0
+@export var unload_distance := 110.0
+@export var player: Node3D
+
+var _instance: Node
+var _busy := false
+
+
+func _process(_delta: float) -> void:
+	if _busy:
+		return
+	var d := global_position.distance_to(player.global_position)
+	if _instance == null and d < load_distance:
+		_load()
+	elif _instance != null and d > unload_distance:
+		_instance.queue_free()
+		_instance = null
+
+
+func _load() -> void:
+	_busy = true
+	ResourceLoader.load_threaded_request(scene_path)
+	while ResourceLoader.load_threaded_get_status(scene_path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		await get_tree().process_frame
+	_instance = (ResourceLoader.load_threaded_get(scene_path) as PackedScene).instantiate()
+	add_child(_instance)
+	_busy = false
+```
+
+```cpp [Unreal (C++)]
+// Built in: place a Level Streaming Volume in the persistent level and assign it to sub-levels
+// in the Levels window; the engine loads them while the player's viewpoint is inside.
+// For open worlds, World Partition streams cells by distance automatically, no code needed.
+//
+// A manual distance check, if you want the exact Unity / Godot behaviour:
+void AStreamingArea::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!Player || bBusy) return;
+	const float D = FVector::Dist(Player->GetActorLocation(), GetActorLocation());
+
+	FLatentActionInfo Info;
+	Info.CallbackTarget = this;
+	Info.ExecutionFunction = TEXT("OnStreamingDone");   // a UFUNCTION that clears bBusy
+	Info.UUID = GetUniqueID();
+	Info.Linkage = 0;
+
+	if (!bLoaded && D < LoadDistance)
+	{
+		bBusy = bLoaded = true;
+		UGameplayStatics::LoadStreamLevel(this, LevelName, true, false, Info);
+	}
+	else if (bLoaded && D > UnloadDistance)
+	{
+		bBusy = true;
+		bLoaded = false;
+		UGameplayStatics::UnloadStreamLevel(this, LevelName, Info, false);
+	}
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** scene names as strings are fragile, because renaming a scene breaks them silently. Use a small serialisable scene-reference type that stores the asset in the editor and the name at build time, or load scenes through **Addressables**, which also handles content downloaded after install.
+- **Godot:** `get_tree().change_scene_to_packed()` replaces the current scene wholesale, which is fine for simple games; instancing levels under a container, as above, keeps a persistent core. Use `@export_file` paths or UIDs (`uid://`) so renames don't break references.
+- **Unreal:** reference levels with `TSoftObjectPtr<UWorld>` instead of names where you can. Full map changes (`OpenLevel`) destroy everything except the game instance and its subsystems, which is why persistent services live there.
 
 ## When to use
 

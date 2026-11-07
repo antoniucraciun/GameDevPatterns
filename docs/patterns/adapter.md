@@ -18,9 +18,13 @@ Define the interface **your game wants**, then write an **adapter** per external
 
 All platform `#if`s and SDK quirks live in the adapters. Gameplay code never sees them.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+The game wants a simple, typed achievements API. Each platform SDK has its own shape; an adapter per platform translates between them.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -79,12 +83,121 @@ public static class AchievementsInstaller
 }
 
 // Gameplay never knows which platform it runs on:
-// achievements.Unlock(AchievementId.Centurion);
+//   achievements.Unlock(AchievementId.Centurion);
 ```
 
-The Steam calls illustrate the Steamworks.NET wrapper. `SteamManager` comes from its sample scripts. Each platform adapter follows the same shape with its own SDK calls.
+```gdscript [Godot (GDScript)]
+# achievements.gd: the interface the GAME wants, as a base class. This one is also the
+# null version for the editor, tests and platforms without achievements.
+class_name Achievements
+extends RefCounted
 
-Adapters also help *inside* a project. Wrap a legacy system, or an asset-store package with an awkward API, behind an interface shaped like the rest of your code, so it can be replaced later.
+enum Id { FIRST_BLOOD, CENTURION, NO_DAMAGE_BOSS, COMPLETIONIST }
+
+
+func unlock(id: Id) -> void:
+	print("[Achievements] Unlock %s" % Id.keys()[id])
+
+
+func set_progress(_id: Id, _current: int, _total: int) -> void:
+	pass
+
+
+# steam_achievements.gd: adapter over the GodotSteam add-on's API.
+class_name SteamAchievements
+extends Achievements
+
+# Our enum → Steam's string API names, configured in one place.
+const API_NAMES := {
+	Id.FIRST_BLOOD: "ACH_FIRST_BLOOD",
+	Id.CENTURION: "ACH_KILL_100",
+	Id.NO_DAMAGE_BOSS: "ACH_FLAWLESS_BOSS",
+	Id.COMPLETIONIST: "ACH_100_PERCENT",
+}
+
+
+func unlock(id: Id) -> void:
+	if not Steam.isSteamRunning():  # SDK quirk handled here
+		return
+	Steam.setAchievement(API_NAMES[id])
+	Steam.storeStats()  # Steam requires an explicit store
+
+
+func set_progress(id: Id, current: int, total: int) -> void:
+	Steam.indicateAchievementProgress(API_NAMES[id], current, total)
+
+
+# The boot autoload chooses once:
+#   var achievements: Achievements = SteamAchievements.new() \
+#       if Engine.has_singleton("Steam") and not OS.has_feature("editor") else Achievements.new()
+```
+
+```cpp [Unreal (C++)]
+// Unreal's Online Subsystem is itself an adapter layer over Steam, EOS, consoles and more.
+// This game-side adapter maps our enum to its achievement ids and hides the write objects.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "OnlineSubsystem.h"
+#include "OnlineSubsystemUtils.h"
+#include "Interfaces/OnlineAchievementsInterface.h"
+#include "AchievementsSubsystem.generated.h"
+
+UENUM() enum class EAchievementId : uint8 { FirstBlood, Centurion, NoDamageBoss, Completionist };
+
+UCLASS()
+class UAchievementsSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	void Unlock(EAchievementId Id) { SetProgress(Id, 1, 1); }
+
+	void SetProgress(EAchievementId Id, int32 Current, int32 Total)
+	{
+		IOnlineSubsystem* Online = Online::GetSubsystem(GetWorld());
+		IOnlineAchievementsPtr Achievements = Online ? Online->GetAchievementsInterface() : nullptr;
+		const ULocalPlayer* Player = GetGameInstance()->GetFirstGamePlayer();
+		if (!Achievements || !Player || !Player->GetPreferredUniqueNetId().IsValid())
+		{
+			UE_LOG(LogTemp, Log, TEXT("[Achievements] %s %d/%d"), *UEnum::GetValueAsString(Id), Current, Total);
+			return;                                                   // editor, tests, no platform
+		}
+
+		// Online Subsystem achievements are written as progress from 0 to 100.
+		FOnlineAchievementsWriteRef Write = MakeShared<FOnlineAchievementsWrite>();
+		Write->SetFloatStat(ApiName(Id), 100.f * Current / FMath::Max(1, Total));
+		Achievements->WriteAchievements(*Player->GetPreferredUniqueNetId().GetUniqueNetId(), Write);
+	}
+
+private:
+	// Our enum → the platform's achievement ids, configured in one place.
+	static FString ApiName(EAchievementId Id)
+	{
+		switch (Id)
+		{
+		case EAchievementId::FirstBlood:   return TEXT("ACH_FIRST_BLOOD");
+		case EAchievementId::Centurion:    return TEXT("ACH_KILL_100");
+		case EAchievementId::NoDamageBoss: return TEXT("ACH_FLAWLESS_BOSS");
+		default:                           return TEXT("ACH_100_PERCENT");
+		}
+	}
+};
+
+// Gameplay never knows which platform it runs on:
+//   GetGameInstance()->GetSubsystem<UAchievementsSubsystem>()->Unlock(EAchievementId::Centurion);
+```
+
+:::
+
+Adapters also help *inside* a project. Wrap a legacy system, or a third-party package with an awkward API, behind an interface shaped like the rest of your code, so it can be replaced later.
+
+**Engine notes**
+
+- **Unity:** the Steam calls illustrate the Steamworks.NET wrapper; `SteamManager` comes from its sample scripts. Each platform adapter follows the same shape with its own SDK calls.
+- **Godot:** the Steam calls are from the **GodotSteam** add-on, which registers a `Steam` singleton. On consoles, the platform's own Godot port provides its SDK.
+- **Unreal:** the newer **Online Services** plugins (OSS v2 / EOS) have a different API from the classic Online Subsystem shown here. The game-side adapter is exactly what lets you switch without touching gameplay.
 
 ## When to use
 

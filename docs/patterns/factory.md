@@ -20,11 +20,13 @@ Common variations:
 | **Registry factory** | A map from IDs to creation recipes, filled from data | Spawn anything by ID from a spreadsheet or the debug console |
 | **Abstract factory** | An interface for creating *families* of related objects, with one implementation per family | `IUiFactory` with "fantasy" and "sci-fi" skins, or "console" and "mobile" layouts |
 
-## Example (Unity C#)
+## Example
 
 A registry factory that combines [Type Object](./type-object), [Object Pool](./object-pool) and [Dependency Injection](./dependency-injection) behind one call:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Pool;
@@ -86,14 +88,142 @@ public class EnemyFactory : IEnemyFactory
 }
 
 // Every caller creates enemies the same way:
-// factory.Create("goblin", spawnPoint.position);        // wave spawner
-// factory.Create("skeleton", boss.transform.position);  // boss summon
-// factory.Create(args[0], player.position + Vector3.forward * 3);   // debug console
+//   factory.Create("goblin", spawnPoint.position);        // wave spawner
+//   factory.Create("skeleton", boss.transform.position);  // boss summon
+//   factory.Create(args[0], player.position + Vector3.forward * 3);   // debug console
 ```
+
+```gdscript [Godot (GDScript)]
+# enemy_factory.gd
+class_name EnemyFactory
+extends RefCounted
+
+var _types := {}       # StringName -> EnemyType
+var _pools := {}       # EnemyType -> Array[Enemy] of inactive enemies
+var _analytics         # dependencies the enemies need
+var _difficulty: DifficultySettings
+var _parent: Node3D
+
+
+func _init(all_types: Array[EnemyType], analytics, difficulty: DifficultySettings, parent: Node3D) -> void:
+	for t in all_types:
+		_types[StringName(t.resource_path.get_file().get_basename())] = t
+	_analytics = analytics
+	_difficulty = difficulty
+	_parent = parent
+
+
+func create(type_id: StringName, position: Vector3) -> Enemy:
+	var type: EnemyType = _types.get(type_id)
+	if type == null:
+		push_error("Unknown enemy type '%s'" % type_id)
+		return null
+
+	var pool: Array = _pools.get_or_add(type, [])
+	var enemy: Enemy = pool.pop_back() if not pool.is_empty() else type.get_scene().instantiate()
+	enemy.init(type, _difficulty.health_multiplier)   # stats from data, scaled
+	enemy.construct(_analytics)                        # inject dependencies
+	if enemy.get_parent() == null:
+		_parent.add_child(enemy)
+	enemy.global_position = position
+	enemy.process_mode = Node.PROCESS_MODE_INHERIT
+	enemy.show()
+	EnemyRegistry.add(enemy)                           # minimap, director, quests
+	return enemy
+
+
+func despawn(enemy: Enemy) -> void:
+	EnemyRegistry.remove(enemy)
+	enemy.hide()
+	enemy.process_mode = Node.PROCESS_MODE_DISABLED   # parked in the pool, still in the tree
+	_pools[enemy.type].append(enemy)
+
+# Every caller creates enemies the same way:
+#   factory.create(&"goblin", spawn_point.global_position)
+#   factory.create(StringName(args[0]), player.global_position + Vector3.FORWARD * 3)
+```
+
+```cpp [Unreal (C++)]
+// EnemyFactorySubsystem.h: one per world, so every caller goes through the same factory.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "EnemyFactorySubsystem.generated.h"
+
+class UEnemyType;
+class AEnemy;
+
+USTRUCT()
+struct FEnemyPool
+{
+	GENERATED_BODY()
+	UPROPERTY() TArray<TObjectPtr<AEnemy>> Enemies;   // UPROPERTY: keeps pooled actors alive for the GC
+};
+
+UCLASS()
+class UEnemyFactorySubsystem : public UWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	void Configure(const TArray<UEnemyType*>& AllTypes, TSharedRef<IAnalytics> InAnalytics, float InHealthMultiplier)
+	{
+		for (UEnemyType* Type : AllTypes) Types.Add(Type->GetFName(), Type);
+		Analytics = InAnalytics;
+		HealthMultiplier = InHealthMultiplier;
+	}
+
+	AEnemy* Create(FName TypeId, const FVector& Location)
+	{
+		UEnemyType* Type = Types.FindRef(TypeId);
+		if (!Type)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Unknown enemy type '%s'"), *TypeId.ToString());
+			return nullptr;
+		}
+
+		TArray<TObjectPtr<AEnemy>>& Pool = Pools.FindOrAdd(TypeId).Enemies;
+		AEnemy* Enemy = Pool.Num() > 0 ? Pool.Pop().Get()
+			: GetWorld()->SpawnActorDeferred<AEnemy>(Type->GetEnemyClass(), FTransform(Location));
+		Enemy->Init(Type, HealthMultiplier);                 // stats from data, scaled
+		Enemy->Construct(Analytics);                          // inject dependencies
+		if (!Enemy->HasActorBegunPlay()) Enemy->FinishSpawning(FTransform(Location));
+		Enemy->SetActorLocation(Location);
+		Enemy->SetActorHiddenInGame(false);
+		Enemy->SetActorEnableCollision(true);
+		Enemy->SetActorTickEnabled(true);
+		return Enemy;
+	}
+
+	void Despawn(AEnemy* Enemy)
+	{
+		Enemy->SetActorHiddenInGame(true);
+		Enemy->SetActorEnableCollision(false);
+		Enemy->SetActorTickEnabled(false);
+		Pools.FindOrAdd(Enemy->Type->GetFName()).Enemies.Add(Enemy);
+	}
+
+private:
+	UPROPERTY() TMap<FName, TObjectPtr<UEnemyType>> Types;
+	UPROPERTY() TMap<FName, FEnemyPool> Pools;   // keyed by type id
+	TSharedPtr<IAnalytics> Analytics;
+	float HealthMultiplier = 1.f;
+};
+
+// Every caller creates enemies the same way:
+//   GetWorld()->GetSubsystem<UEnemyFactorySubsystem>()->Create("Goblin", SpawnPoint->GetActorLocation());
+```
+
+:::
 
 An abstract factory for a family of related objects, chosen once at startup:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public interface IUiFactory
 {
     Button CreateButton(string label, Transform parent);
@@ -104,7 +234,44 @@ public interface IUiFactory
 // The bootstrapper registers the right one; menus never check the platform themselves.
 ```
 
-Callers depend on `IEnemyFactory`, so tests can pass a fake factory that records what was created.
+```gdscript [Godot (GDScript)]
+# ui_factory.gd: base class; MobileUiFactory and DesktopUiFactory override both methods.
+class_name UiFactory
+extends RefCounted
+
+func create_button(_label: String, _parent: Control) -> Button:
+	return null
+
+func create_panel(_parent: Control) -> PanelContainer:
+	return null
+
+# The boot autoload picks one:
+#   var ui: UiFactory = MobileUiFactory.new() if OS.has_feature("mobile") else DesktopUiFactory.new()
+```
+
+```cpp [Unreal (C++)]
+// UiFactory.h: MobileUiFactory makes large touch targets; DesktopUiFactory compact, hover-enabled ones.
+class IUiFactory
+{
+public:
+	virtual ~IUiFactory() = default;
+	virtual UButton* CreateButton(const FText& Label, UPanelWidget* Parent) = 0;
+	virtual UPanelWidget* CreatePanel(UPanelWidget* Parent) = 0;
+};
+
+// The game instance picks one at startup:
+//   UiFactory = PLATFORM_ANDROID || PLATFORM_IOS ? MakeShared<FMobileUiFactory>() : MakeShared<FDesktopUiFactory>();
+```
+
+:::
+
+Callers depend on the factory interface, so tests can pass a fake factory that records what was created.
+
+**Engine notes**
+
+- **Unity:** `UnityEngine.Pool.ObjectPool<T>` (2021.1+) provides the pooling.
+- **Godot:** pooled nodes stay in the tree but are hidden and disabled with `process_mode`, which is cheaper than removing and re-adding them.
+- **Unreal:** `SpawnActorDeferred` lets the factory configure and inject before `BeginPlay`. In Unreal, `TObjectPtr` members must be `UPROPERTY` (as above) so the garbage collector keeps pooled actors alive.
 
 ## When to use
 
