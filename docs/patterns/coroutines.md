@@ -23,11 +23,13 @@ Unity offers two forms:
 | Stops when | The GameObject is disabled or destroyed, or `StopCoroutine` | It doesn't, unless you pass a cancellation token |
 | Error handling | Exceptions are logged, and the coroutine stops | `try/catch` works normally |
 
-## Example (Unity C#)
+## Example
 
-A coroutine sequence, readable top to bottom:
+A door that opens, waits, plays a sound and closes, written as one readable sequence. Triggering it again restarts the sequence.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections;
 using UnityEngine;
 
@@ -71,44 +73,152 @@ public class TimedDoor : MonoBehaviour
 }
 ```
 
-The same sequence with `async`, plus cancellation, which async code must handle itself:
+```gdscript [Godot (GDScript)]
+# timed_door.gd: in GDScript any function containing await is a coroutine.
+extends Node3D
 
-```csharp
-public class TimedDoorAsync : MonoBehaviour
+@export var panel: Node3D
+@export var open_offset := Vector3(0, 3, 0)
+@export var move_seconds := 2.0
+@export var stay_open_seconds := 5.0
+@export var sound: AudioStreamPlayer3D
+
+var _closed_position: Vector3
+var _run := 0          # bumped on every trigger; an older sequence sees it and stops
+var _tween: Tween
+
+
+func _ready() -> void:
+	_closed_position = panel.position
+
+
+func trigger() -> void:
+	_run += 1
+	_open_wait_close(_run)  # not awaited: runs alongside the caller
+
+
+func _open_wait_close(run: int) -> void:
+	await _move(_closed_position + open_offset)
+	if run != _run:
+		return  # restarted while opening
+	sound.play()
+	await get_tree().create_timer(stay_open_seconds).timeout
+	if run != _run:
+		return  # restarted while waiting
+	await _move(_closed_position)
+
+
+func _move(target: Vector3) -> void:
+	if _tween:
+		_tween.kill()  # restarting cancels the old movement
+	# A tween created by this node is freed with it, so nothing runs on a deleted door.
+	_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_tween.tween_property(panel, "position", target, move_seconds)
+	await _tween.finished
+```
+
+```cpp [Unreal (C++)]
+// TimedDoor.h: C++ has no built-in coroutines in Unreal, so the sequence is a timer plus a
+// Tick-driven move with a completion callback.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "TimedDoor.generated.h"
+
+UCLASS()
+class ATimedDoor : public AActor
 {
-    [SerializeField] Transform panel;
-    [SerializeField] Vector3 openOffset = new(0f, 3f, 0f);
-    [SerializeField] float moveSeconds = 2f, stayOpenSeconds = 5f;
+	GENERATED_BODY()
 
-    public async Awaitable OpenWaitClose()
-    {
-        // destroyCancellationToken fires when this object is destroyed: without it, the
-        // method would keep running and touch a destroyed transform.
-        var token = destroyCancellationToken;
-        Vector3 closed = panel.localPosition;
-        try
-        {
-            await Move(closed + openOffset, token);
-            await Awaitable.WaitForSecondsAsync(stayOpenSeconds, token);
-            await Move(closed, token);
-        }
-        catch (System.OperationCanceledException) { /* destroyed mid-sequence: nothing to do */ }
-    }
+public:
+	ATimedDoor();
 
-    async Awaitable Move(Vector3 target, System.Threading.CancellationToken token)
-    {
-        Vector3 start = panel.localPosition;
-        for (float t = 0f; t < 1f; t += Time.deltaTime / moveSeconds)
-        {
-            panel.localPosition = Vector3.Lerp(start, target, Mathf.SmoothStep(0f, 1f, t));
-            await Awaitable.NextFrameAsync(token);
-        }
-        panel.localPosition = target;
-    }
+	UFUNCTION(BlueprintCallable, Category = "Door") void Trigger();
+
+	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Panel;
+	UPROPERTY(EditAnywhere, Category = "Door") FVector OpenOffset = FVector(0, 0, 300);
+	UPROPERTY(EditAnywhere, Category = "Door") float MoveSeconds = 2.f;
+	UPROPERTY(EditAnywhere, Category = "Door") float StayOpenSeconds = 5.f;
+	UPROPERTY(EditAnywhere, Category = "Door") TObjectPtr<USoundBase> OpenSound;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
+
+private:
+	void MoveTo(const FVector& Target, TFunction<void()> OnArrived);
+
+	FVector ClosedLocation, From, To;
+	float Alpha = 1.f;                         // 1 = not moving
+	TFunction<void()> Arrived;
+	FTimerHandle WaitTimer;
+};
+
+// TimedDoor.cpp
+#include "TimedDoor.h"
+#include "Kismet/GameplayStatics.h"
+
+ATimedDoor::ATimedDoor()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	Panel = CreateDefaultSubobject<USceneComponent>(TEXT("Panel"));
+	Panel->SetupAttachment(RootComponent);
+}
+
+void ATimedDoor::BeginPlay()
+{
+	Super::BeginPlay();
+	ClosedLocation = Panel->GetRelativeLocation();
+}
+
+void ATimedDoor::Trigger()
+{
+	GetWorldTimerManager().ClearTimer(WaitTimer);   // restarting cancels the old sequence
+	MoveTo(ClosedLocation + OpenOffset, [this]
+	{
+		if (OpenSound) UGameplayStatics::PlaySoundAtLocation(this, OpenSound, GetActorLocation());
+		// A weak lambda is skipped if the door has been destroyed in the meantime.
+		GetWorldTimerManager().SetTimer(WaitTimer, FTimerDelegate::CreateWeakLambda(this, [this]
+		{
+			MoveTo(ClosedLocation, nullptr);
+		}), StayOpenSeconds, false);
+	});
+}
+
+void ATimedDoor::MoveTo(const FVector& Target, TFunction<void()> OnArrived)
+{
+	From = Panel->GetRelativeLocation();
+	To = Target;
+	Alpha = 0.f;
+	Arrived = MoveTemp(OnArrived);               // replacing it cancels the old move's callback
+}
+
+void ATimedDoor::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (Alpha >= 1.f) return;
+	Alpha = FMath::Min(1.f, Alpha + DeltaSeconds / MoveSeconds);
+	Panel->SetRelativeLocation(FMath::InterpEaseInOut(From, To, Alpha, 2.f));
+	if (Alpha >= 1.f && Arrived)
+	{
+		TFunction<void()> Done = MoveTemp(Arrived);
+		Arrived = nullptr;
+		Done();
+	}
 }
 ```
 
-Coroutines and async methods are perfect for **sequences**: cutscenes, tutorials, spawn waves, door and elevator logic, UI transitions. For behaviour that must react to changing conditions every frame (AI, movement), a [State](./state) machine or the [Update Method](./update-method) is usually clearer.
+:::
+
+Coroutines and async functions are perfect for **sequences**: cutscenes, tutorials, spawn waves, door and elevator logic, UI transitions. For behaviour that must react to changing conditions every frame (AI, movement), a [State](./state) machine or the [Update Method](./update-method) is usually clearer.
+
+**Engine notes**
+
+- **Unity:** coroutines stop when their GameObject is disabled or destroyed. Unity 6 also has `async Awaitable` methods (`Awaitable.NextFrameAsync`, `WaitForSecondsAsync`); pass `destroyCancellationToken` so they stop when the object is destroyed instead of touching a dead transform.
+- **Godot:** `await` works on any signal: `create_timer(...).timeout`, `tween.finished`, `animation_finished`, your own signals. A coroutine on a freed node simply never resumes, but it can still resume after the node *left* the tree, so check `is_inside_tree()` after long waits if that matters.
+- **Unreal:** Blueprints have latent nodes (`Delay`, `Move Component To`) and **Timelines**, which are the usual way to script sequences. In C++, use timers with weak delegates as above, a `UTimelineComponent`, or a coroutine plugin such as UE5Coro if you want `co_await`.
 
 ## When to use
 

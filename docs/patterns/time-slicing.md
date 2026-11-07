@@ -21,11 +21,13 @@ Accept that **not everything must happen this frame**, and divide work deliberat
 
 The cost of time slicing is **latency**. Results arrive a few frames later, so systems must be designed to tolerate it: show a "thinking" state, use the old path until the new one arrives.
 
-## Example (Unity C#)
+## Example
 
-A frame-budgeted work queue:
+A frame-budgeted work queue: jobs run until this system has used its share of the frame, and the rest wait for the next frame.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -59,9 +61,93 @@ public class FrameBudget : MonoBehaviour
 //     FrameBudget.Instance.Enqueue(() => unit.SetPath(pathfinder.FindPath(unit.Cell, goal)));
 ```
 
-Round-robin updates for many agents:
+```gdscript [Godot (GDScript)]
+# frame_budget.gd: autoload named FrameBudget.
+extends Node
 
-```csharp
+@export var budget_ms := 2.0  # time this system may use per frame
+
+var _work: Array[Callable] = []
+var _head := 0                # index of the next job; avoids pop_front's O(n) shifting
+
+
+func enqueue(job: Callable) -> void:
+	_work.append(job)
+
+
+func pending() -> int:
+	return _work.size() - _head
+
+
+func _process(_delta: float) -> void:
+	var start := Time.get_ticks_usec()
+	var budget_usec := int(budget_ms * 1000.0)
+	# At least one job runs, even if it overruns.
+	while _head < _work.size() and Time.get_ticks_usec() - start < budget_usec:
+		_work[_head].call()
+		_head += 1
+	if _head == _work.size():
+		_work.clear()
+		_head = 0
+
+# 200 units request paths; they are computed over several frames instead of one.
+#   for unit in selected:
+#       FrameBudget.enqueue(func(): unit.set_path(pathfinder.find_path(unit.cell, goal)))
+```
+
+```cpp [Unreal (C++)]
+// FrameBudgetSubsystem.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "FrameBudgetSubsystem.generated.h"
+
+UCLASS()
+class UFrameBudgetSubsystem : public UTickableWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	double BudgetMs = 2.0;                                  // time this system may use per frame
+
+	void Enqueue(TFunction<void()> Job) { Work.Enqueue(MoveTemp(Job)); }
+
+	virtual void Tick(float DeltaTime) override
+	{
+		const double Start = FPlatformTime::Seconds();
+		TFunction<void()> Job;
+		// At least one job runs, even if it overruns.
+		while ((FPlatformTime::Seconds() - Start) * 1000.0 < BudgetMs && Work.Dequeue(Job))
+			Job();
+	}
+
+	virtual TStatId GetStatId() const override
+	{
+		RETURN_QUICK_DECLARE_CYCLE_STAT(UFrameBudgetSubsystem, STATGROUP_Tickables);
+	}
+
+private:
+	TQueue<TFunction<void()>> Work;
+};
+
+// 200 units request paths; they are computed over several frames instead of one.
+//   auto* Budget = GetWorld()->GetSubsystem<UFrameBudgetSubsystem>();
+//   for (AUnit* Unit : Selected)
+//       Budget->Enqueue([Unit = TWeakObjectPtr<AUnit>(Unit), Goal]
+//       { if (Unit.IsValid()) Unit->SetPath(Pathfinder.FindPath(Unit->Cell, Goal)); });
+```
+
+:::
+
+Round-robin updates for many agents: each agent updates every *n*th frame, and receives the real time since its last update.
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections.Generic;
+using UnityEngine;
+
 public interface ISlicedUpdate { void SlicedUpdate(float dt); }
 
 public class RoundRobinUpdater : MonoBehaviour
@@ -87,7 +173,95 @@ public class RoundRobinUpdater : MonoBehaviour
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# round_robin_updater.gd: agents need a sliced_update(dt) method.
+extends Node
+
+@export var slices := 4  # each agent updates every 4th frame
+
+var _agents: Array = []
+var _last_update: PackedFloat64Array = []
+var _frame := 0
+
+
+func register(agent: Object) -> void:
+	_agents.append(agent)
+	_last_update.append(_now())
+
+
+func _process(_delta: float) -> void:
+	var slice := _frame % slices
+	_frame += 1
+	var now := _now()
+	for i in range(slice, _agents.size(), slices):
+		var dt := now - _last_update[i]  # the real time since this agent last updated
+		_last_update[i] = now
+		_agents[i].sliced_update(dt)
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+```
+
+```cpp [Unreal (C++)]
+// RoundRobinSubsystem.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "RoundRobinSubsystem.generated.h"
+
+class ISlicedUpdate
+{
+public:
+	virtual ~ISlicedUpdate() = default;
+	virtual void SlicedUpdate(float DeltaTime) = 0;
+};
+
+UCLASS()
+class URoundRobinSubsystem : public UTickableWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	int32 Slices = 4;                                       // each agent updates every 4th frame
+
+	void Register(ISlicedUpdate* Agent) { Agents.Add({Agent, GetWorld()->GetTimeSeconds()}); }
+
+	virtual void Tick(float DeltaTime) override
+	{
+		const int32 Slice = Frame++ % Slices;
+		const double Now = GetWorld()->GetTimeSeconds();
+		for (int32 I = Slice; I < Agents.Num(); I += Slices)
+		{
+			const float Dt = float(Now - Agents[I].LastUpdate);   // the real time since this agent last updated
+			Agents[I].LastUpdate = Now;
+			Agents[I].Agent->SlicedUpdate(Dt);
+		}
+	}
+
+	virtual TStatId GetStatId() const override
+	{
+		RETURN_QUICK_DECLARE_CYCLE_STAT(URoundRobinSubsystem, STATGROUP_Tickables);
+	}
+
+private:
+	struct FEntry { ISlicedUpdate* Agent; double LastUpdate; };
+	TArray<FEntry> Agents;
+	int32 Frame = 0;
+};
+```
+
+:::
+
 Each agent receives the actual time since its last update, so timers and movement stay correct even though it updates less often. Combine this with [Level of Detail](./level-of-detail): nearby agents every frame, distant agents every 4th or 8th frame.
+
+**Engine notes**
+
+- **Budgets use wall-clock time** in all three versions (`Stopwatch`, `Time.get_ticks_usec()`, `FPlatformTime::Seconds()`), because the budget is about real milliseconds per frame.
+- **Unity:** the round-robin `dt` uses `Time.time`, which is scaled game time, so paused or slowed agents see paused or slowed time.
+- **Godot:** the round-robin `dt` above is wall-clock time. If agents should freeze when the game pauses, accumulate `delta` per agent instead.
+- **Unreal:** `GetWorld()->GetTimeSeconds()` is game time (it stops when paused and follows time dilation). Single actors can get round-robin behaviour for free with `PrimaryActorTick.TickInterval`, and the **Significance Manager** plugin decides which actors deserve frequent updates.
 
 ## When to use
 

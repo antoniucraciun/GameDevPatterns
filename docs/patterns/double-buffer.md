@@ -19,11 +19,15 @@ At the end of the tick, **swap** them. Swapping exchanges two references, not th
 
 <DoubleBufferViz />
 
-## Example (Unity C#)
+## Example
 
-A fire-spread grid, where order independence matters:
+A fire-spread grid, where order independence matters. This is pure logic with no engine types, so all three versions are drop-in cores:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+
 public class FireGrid
 {
     readonly int width, height;
@@ -44,12 +48,12 @@ public class FireGrid
     public void Tick(float spread, float cooling)
     {
         for (int y = 0; y < height; y++)
-        for (int x = 0; x < width; x++)
-        {
-            int i = y * width + x;
-            float neighbours = Read(x - 1, y) + Read(x + 1, y) + Read(x, y - 1) + Read(x, y + 1);
-            next[i] = Mathf.Clamp01(current[i] + neighbours * spread - cooling);
-        }
+            for (int x = 0; x < width; x++)
+            {
+                int i = y * width + x;
+                float neighbours = Read(x - 1, y) + Read(x + 1, y) + Read(x, y - 1) + Read(x, y + 1);
+                next[i] = Math.Clamp(current[i] + neighbours * spread - cooling, 0f, 1f);
+            }
 
         (current, next) = (next, current);   // swap references: O(1), no copying
     }
@@ -59,9 +63,101 @@ public class FireGrid
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# fire_grid.gd
+class_name FireGrid
+extends RefCounted
+
+var _width: int
+var _height: int
+var _current: PackedFloat32Array  # heat this tick: read only
+var _next: PackedFloat32Array     # heat next tick: write only
+
+
+func _init(width: int, height: int) -> void:
+	_width = width
+	_height = height
+	_current.resize(width * height)
+	_next.resize(width * height)
+
+
+func heat(x: int, y: int) -> float:
+	return _current[y * _width + x]
+
+
+func ignite(x: int, y: int) -> void:
+	_current[y * _width + x] = 1.0
+
+
+func tick(spread: float, cooling: float) -> void:
+	for y in _height:
+		for x in _width:
+			var neighbours := _read(x - 1, y) + _read(x + 1, y) + _read(x, y - 1) + _read(x, y + 1)
+			_next[y * _width + x] = clampf(_current[y * _width + x] + neighbours * spread - cooling, 0.0, 1.0)
+
+	# Swap: packed arrays are copy-on-write, so this swaps references without copying.
+	var tmp := _current
+	_current = _next
+	_next = tmp
+
+
+func _read(x: int, y: int) -> float:
+	if x < 0 or y < 0 or x >= _width or y >= _height:
+		return 0.0
+	return _current[y * _width + x]
+```
+
+```cpp [Unreal (C++)]
+// FireGrid.h: plain C++
+#pragma once
+
+#include "CoreMinimal.h"
+
+class FFireGrid
+{
+public:
+	FFireGrid(int32 InWidth, int32 InHeight) : Width(InWidth), Height(InHeight)
+	{
+		Current.SetNumZeroed(Width * Height);
+		Next.SetNumZeroed(Width * Height);
+	}
+
+	float Heat(int32 X, int32 Y) const { return Current[Y * Width + X]; }
+	void Ignite(int32 X, int32 Y) { Current[Y * Width + X] = 1.f; }
+
+	void Tick(float Spread, float Cooling)
+	{
+		for (int32 Y = 0; Y < Height; ++Y)
+			for (int32 X = 0; X < Width; ++X)
+			{
+				const float Neighbours = Read(X - 1, Y) + Read(X + 1, Y) + Read(X, Y - 1) + Read(X, Y + 1);
+				Next[Y * Width + X] = FMath::Clamp(Current[Y * Width + X] + Neighbours * Spread - Cooling, 0.f, 1.f);
+			}
+
+		Swap(Current, Next);   // moves the arrays' storage: O(1), no copying
+	}
+
+private:
+	float Read(int32 X, int32 Y) const
+	{
+		return X < 0 || Y < 0 || X >= Width || Y >= Height ? 0.f : Current[Y * Width + X];
+	}
+
+	int32 Width, Height;
+	TArray<float> Current;   // heat this tick: read only
+	TArray<float> Next;      // heat next tick: write only
+};
+```
+
+:::
+
 The same pattern for objects that read each other's state. Agents read the *published* state of their neighbours, and publish their own new state only after everyone has updated:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public struct AgentState { public Vector2 Position, Velocity; }
 
 public class Agent
@@ -73,12 +169,67 @@ public class Agent
 }
 
 // Update phase: everyone reads Current, writes Next.
-foreach (var a in agents) a.Next = ComputeSteering(a, neighbours);   // reads n.Current only
+//   foreach (var a in agents) a.Next = ComputeSteering(a, neighbours);   // reads n.Current only
 // Publish phase:
-foreach (var a in agents) a.Swap();
+//   foreach (var a in agents) a.Swap();
 ```
 
-The GPU does this at the largest scale. The front buffer is displayed while the back buffer is drawn, and they are swapped at vsync.
+```gdscript [Godot (GDScript)]
+# agent.gd
+class_name Agent
+extends RefCounted
+
+# What others see this tick, and what this agent computes for the next one.
+var current_position: Vector2
+var current_velocity: Vector2
+var next_position: Vector2
+var next_velocity: Vector2
+
+
+func publish() -> void:
+	current_position = next_position
+	current_velocity = next_velocity
+
+# Update phase: everyone reads current_*, writes next_*.
+#   for a in agents: a.compute_steering(neighbours)  # reads n.current_* only
+# Publish phase:
+#   for a in agents: a.publish()
+```
+
+```cpp [Unreal (C++)]
+// Agent.h: plain C++
+#pragma once
+
+#include "CoreMinimal.h"
+
+struct FAgentState
+{
+	FVector2D Position = FVector2D::ZeroVector;
+	FVector2D Velocity = FVector2D::ZeroVector;
+};
+
+struct FAgent
+{
+	FAgentState Current;   // what others see this tick
+	FAgentState Next;      // what this agent computes
+
+	void Publish() { Current = Next; }
+};
+
+// Update phase: everyone reads Current, writes Next.
+//   for (FAgent& A : Agents) A.Next = ComputeSteering(A, Neighbours);   // reads N.Current only
+// Publish phase:
+//   for (FAgent& A : Agents) A.Publish();
+```
+
+:::
+
+**Engine notes**
+
+- **All engines:** the GPU does this at the largest scale. The front buffer is displayed while the back buffer is drawn, and they are swapped at vsync.
+- **Unity:** on the GPU side, the same idea appears as ping-pong `RenderTexture`s or double-buffered `ComputeBuffer`s for simulations in compute shaders.
+- **Godot:** for big grids, keep the data in `Packed*Array`s as above: they are contiguous and cheap to swap. Grids drawn as textures can ping-pong two `ImageTexture`s or viewports.
+- **Unreal:** Niagara simulation stages and Render Graph textures double-buffer GPU simulations for you.
 
 ## When to use
 
