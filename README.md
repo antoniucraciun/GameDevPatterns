@@ -1,6 +1,6 @@
 # Game Dev Patterns
 
-A catalog of programming patterns for game development, with Unity C# examples, published with GitHub Pages:
+A catalog of programming patterns for game development, with code examples for Unity (C#), Godot (GDScript) and Unreal (C++), published with GitHub Pages:
 
 **https://antoniucraciun.github.io/GameDevPatterns/**
 

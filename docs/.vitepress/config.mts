@@ -45,7 +45,7 @@ const sidebar = [
 
 export default defineConfig({
   title: 'Game Dev Patterns',
-  description: 'An exhaustive catalog of programming patterns for game development, with Unity C# examples.',
+  description: 'An exhaustive catalog of programming patterns for game development, with code examples for Unity, Godot and Unreal.',
   // Served from https://antoniucraciun.github.io/GameDevPatterns/
   base: '/GameDevPatterns/',
   cleanUrls: true,
