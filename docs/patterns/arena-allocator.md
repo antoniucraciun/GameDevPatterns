@@ -28,11 +28,15 @@ Common arenas in games:
 
 In Unity, `Allocator.Temp` *is* a per-frame arena for native memory, and the Entities package exposes a rewindable world update allocator. In managed C#, the closest equivalent is a set of buffers allocated once and **reused** every frame.
 
-## Example (Unity C#)
+## Example
 
-Native memory from Unity's frame arena, which is cheap and freed automatically at the end of the frame:
+Only reach for an arena after the profiler shows allocation cost: GC spikes and `GC.Alloc` in the Unity Profiler, or allocator time and memory churn in Unreal Insights (with the memory trace channel). GDScript has no manual memory management at all; its tabs show the closest idiom, reusing preallocated packed arrays.
 
-```csharp
+Scratch memory for one frame:
+
+::: code-group
+
+```csharp [Unity (C#)]
 using Unity.Collections;
 using UnityEngine;
 
@@ -52,9 +56,65 @@ public class NearbyEnemyQuery : MonoBehaviour
 }
 ```
 
-A managed frame arena: typed buffers that are handed out during the frame, and all reclaimed by one `Reset`:
+```gdscript [Godot (GDScript)]
+# nearby_enemy_query.gd: GDScript has no allocators to choose. The closest idiom is a buffer
+# allocated once and reused every frame, with a separate count of how much is in use.
+extends Node3D
 
-```csharp
+var _nearby := PackedInt32Array()
+var _nearby_count := 0
+
+
+func _ready() -> void:
+	_nearby.resize(256)  # allocated once; size it from profiling
+
+
+func _process(_delta: float) -> void:
+	_nearby_count = 0
+	var here := global_position
+	var positions: PackedVector3Array = EnemyRegistry.positions  # an autoload
+	for i in positions.size():
+		if positions[i].distance_squared_to(here) < 100.0 and _nearby_count < _nearby.size():
+			_nearby[_nearby_count] = i
+			_nearby_count += 1
+
+	# ... use _nearby[0 .. _nearby_count - 1] this frame only ...
+```
+
+```cpp [Unreal (C++)]
+// Built in: FMemStack is a per-thread arena, and FMemMark releases everything allocated after
+// it in one step when it goes out of scope.
+#include "Misc/MemStack.h"
+
+void UNearbyEnemyQueryComponent::TickComponent(float DeltaTime, ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	FMemMark Mark(FMemStack::Get());
+	TArray<int32, TMemStackAllocator<>> Nearby;           // memory comes from the thread's arena
+	Nearby.Reserve(64);
+
+	// Alternative: TArray<int32, TInlineAllocator<64>> keeps the first 64 elements inside the
+	// array itself (on the stack here) and only touches the heap if it grows beyond that.
+
+	const FVector Here = GetOwner()->GetActorLocation();
+	const TArray<FVector>& Positions = GetWorld()->GetSubsystem<UEnemyRegistry>()->Positions;   // your world subsystem
+	for (int32 i = 0; i < Positions.Num(); ++i)
+		if (FVector::DistSquared(Positions[i], Here) < 1000.f * 1000.f)
+			Nearby.Add(i);
+
+	// ... use Nearby in this scope only ...
+}   // Mark's destructor pops everything allocated since it was created
+```
+
+:::
+
+A frame arena of your own: buffers handed out during the frame, and all reclaimed by one `Reset`:
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 
@@ -70,7 +130,8 @@ public sealed class FrameArena<T>
     {
         if (used + count > buffer.Length)
         {
-            // Out of space: grow for next time (rare), and fall back to a heap array this time.
+            // Out of space: grow (rare; this allocates). Slices handed out earlier keep
+            // pointing at the old array, which stays valid while they use it.
             Array.Resize(ref buffer, Math.Max(buffer.Length * 2, used + count));
         }
         var slice = new Span<T>(buffer, used, count);
@@ -104,9 +165,95 @@ public class Arenas : UnityEngine.MonoBehaviour
 // corners[0] = ...;   // valid until the end of this frame
 ```
 
-`Span<T>` cannot be stored in fields or captured by lambdas. The compiler enforces this, which helps prevent arena memory being kept beyond its lifetime.
+```gdscript [Godot (GDScript)]
+# frame_scratch.gd: autoload "FrameScratch". GDScript has no spans or pointers, so this hands
+# out index ranges in one buffer it owns, and callers read and write through it.
+extends Node
 
-The managed version resizes when it runs out of space, which allocates. Size it from profiling, so resizing happens at most once early on, never during play.
+var _vectors := PackedVector3Array()
+var _used := 0
+
+
+func _ready() -> void:
+	_vectors.resize(8192)
+	process_priority = 1000  # higher values run later: reset after everyone else's _process
+
+
+func _process(_delta: float) -> void:
+	_used = 0  # everything handed out this frame is free again
+
+
+# Returns the first index of `count` slots, valid until the end of this frame.
+func allocate(count: int) -> int:
+	if _used + count > _vectors.size():
+		_vectors.resize(maxi(_vectors.size() * 2, _used + count))  # rare: grow (allocates)
+	var start := _used
+	_used += count
+	return start
+
+
+func set_vector(i: int, v: Vector3) -> void:
+	_vectors[i] = v
+
+
+func get_vector(i: int) -> Vector3:
+	return _vectors[i]
+
+
+# Usage:
+#   var corners := FrameScratch.allocate(4)
+#   FrameScratch.set_vector(corners + 0, Vector3.ZERO)  # valid until the end of this frame
+```
+
+```cpp [Unreal (C++)]
+// FrameArena.h: a fixed-size bump allocator for trivially destructible types.
+#pragma once
+
+#include "CoreMinimal.h"
+#include <type_traits>
+
+class FFrameArena
+{
+public:
+	explicit FFrameArena(int32 CapacityBytes) { Buffer.SetNumUninitialized(CapacityBytes); }
+
+	// Hands out a view into the shared buffer. Valid until Reset().
+	template <typename T>
+	TArrayView<T> Allocate(int32 Count)
+	{
+		static_assert(std::is_trivially_destructible_v<T>, "Reset() runs no destructors");
+		const int64 Start = Align(Used, alignof(T));
+		const int64 End = Start + int64(Count) * sizeof(T);
+		// It can't grow without moving memory that callers point into: fail loudly instead.
+		if (!ensureMsgf(End <= Buffer.Num(), TEXT("Frame arena full: size it from profiling"))) return {};
+
+		T* Data = reinterpret_cast<T*>(Buffer.GetData() + Start);
+		for (int32 i = 0; i < Count; ++i) new (Data + i) T();
+		Used = End;
+		return TArrayView<T>(Data, Count);
+	}
+
+	void Reset() { Used = 0; }
+
+private:
+	TArray<uint8> Buffer;
+	int64 Used = 0;
+};
+
+// Owner, e.g. a game instance subsystem:
+//   FFrameArena Arena{1 << 20};
+//   EndFrameHandle = FCoreDelegates::OnEndFrame.AddLambda([this] { Arena.Reset(); });
+//
+// Usage: TArrayView<FVector> Corners = Arena.Allocate<FVector>(4);   // valid until the end of this frame
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `Allocator.Temp` is the built-in frame arena; `Allocator.TempJob` lasts up to four frames and must be disposed. `Span<T>` cannot be stored in fields or captured by lambdas; the compiler enforces this, which helps prevent arena memory being kept beyond its lifetime. The managed version resizes when it runs out of space, which allocates, so size it from profiling.
+- **Godot:** GDScript has no manual memory management: objects are reference-counted or freed with `free()`/`queue_free()`, and there is no garbage collector to pause the game. Arenas only appear in GDExtension (C++) code; in GDScript the gain comes from reusing preallocated packed arrays instead of creating new Arrays every frame.
+- **Unreal:** `FMemStack`/`FMemMark` are the engine's arena, used heavily by the renderer; `TMemStackAllocator` and `TInlineAllocator` plug into any `TArray`. Nothing in an `FMemStack` allocation runs destructors when the mark pops, so store only types that don't need them, and never keep pointers past the mark's scope.
 
 ## When to use
 

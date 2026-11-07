@@ -19,11 +19,15 @@ Describe work as **jobs**: small structs that process plain data (no references 
 
 The pattern of use: **schedule early, do other work, complete late**. Start jobs at the beginning of the frame, and wait for their results only when you need them.
 
-## Example (Unity C#)
+## Example
 
-Moving 10,000 objects in parallel with Burst. Transforms are accessed through `TransformAccessArray`, which jobs are allowed to write:
+Profile before and after: the Unity Profiler's Timeline view shows jobs on the worker threads, Godot's profiler shows the main thread's frame time, and Unreal Insights shows tasks per thread. A job that finishes but makes the main thread wait has not helped.
 
-```csharp
+Moving 10,000 objects in parallel. Unity writes transforms from Burst jobs through `TransformAccessArray`. Godot and Unreal can't touch scene objects from worker threads, so their tabs update plain arrays in parallel and copy the results into an instanced mesh on the main thread:
+
+::: code-group
+
+```csharp [Unity (C#)]
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -87,9 +91,118 @@ public class SwarmMover : MonoBehaviour
 }
 ```
 
-A pure-data job, for when no transforms are involved, with a dependency chain:
+```gdscript [Godot (GDScript)]
+# swarm_mover.gd: workers update packed arrays; the main thread copies them into a MultiMesh.
+# Each frame first finishes last frame's task, then starts this frame's, so the work overlaps
+# with everything else the main thread does (at the cost of one frame of latency).
+extends MultiMeshInstance3D
 
-```csharp
+@export var mesh: Mesh
+@export var count := 10000
+@export var bounds_radius := 50.0
+
+var _positions := PackedVector3Array()
+var _velocities := PackedVector3Array()
+var _dt := 0.0
+var _task := -1
+
+
+func _ready() -> void:
+	_positions.resize(count)
+	_velocities.resize(count)
+	for i in count:
+		_positions[i] = _random_direction() * randf() * bounds_radius
+		_velocities[i] = _random_direction() * 5.0
+	multimesh = MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.mesh = mesh
+	multimesh.instance_count = count
+
+
+func _process(delta: float) -> void:
+	if _task != -1:
+		WorkerThreadPool.wait_for_group_task_completion(_task)
+		for i in count:
+			multimesh.set_instance_transform(i, Transform3D(Basis(), _positions[i]))
+	_dt = delta
+	# Calls _move(i) for every i, spread over the worker threads.
+	_task = WorkerThreadPool.add_group_task(_move, count)
+
+
+func _move(i: int) -> void:  # runs on worker threads: touch only this element's data
+	var p := _positions[i]
+	var v := _velocities[i]
+	if p.length() > bounds_radius:
+		v = -p.normalized() * v.length()  # bounce back inward
+	_velocities[i] = v
+	_positions[i] = p + v * _dt
+
+
+func _exit_tree() -> void:
+	if _task != -1:
+		WorkerThreadPool.wait_for_group_task_completion(_task)  # never free data a task still uses
+
+
+func _random_direction() -> Vector3:
+	return Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized()
+```
+
+```cpp [Unreal (C++)]
+// Swarm.h: UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Instances;
+//          TArray<FVector> Positions, Velocities;  TArray<FTransform> Transforms;
+//          UE::Tasks::FTask MoveTask;  float BoundsRadius = 5000.f;
+
+// Swarm.cpp
+#include "Swarm.h"
+#include "Async/ParallelFor.h"
+#include "Tasks/Task.h"
+#include "Components/InstancedStaticMeshComponent.h"
+
+void ASwarm::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Finish last frame's task and apply it, then launch this frame's: the work overlaps with
+	// the rest of the game thread's frame, at the cost of one frame of latency.
+	if (MoveTask.IsValid())
+	{
+		MoveTask.Wait();
+		for (int32 i = 0; i < Positions.Num(); ++i) Transforms[i].SetLocation(Positions[i]);
+		Instances->BatchUpdateInstancesTransforms(0, Transforms, /*bWorldSpace*/ false, /*bMarkRenderStateDirty*/ true);
+	}
+
+	MoveTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, DeltaSeconds]
+	{
+		ParallelFor(Positions.Num(), [this, DeltaSeconds](int32 i)
+		{
+			FVector P = Positions[i];
+			FVector V = Velocities[i];
+			if (P.Size() > BoundsRadius) V = -P.GetSafeNormal() * V.Size();   // bounce back inward
+			Velocities[i] = V;
+			Positions[i] = P + V * DeltaSeconds;
+		});
+	});
+}
+
+void ASwarm::EndPlay(const EEndPlayReason::Type Reason)
+{
+	if (MoveTask.IsValid()) MoveTask.Wait();             // never free data a task still uses
+	Super::EndPlay(Reason);
+}
+```
+
+:::
+
+A pure-data job with a dependency chain: generate noise in parallel, then normalise once it's done, all off the main thread.
+
+::: code-group
+
+```csharp [Unity (C#)]
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
+
 [BurstCompile]
 struct NoiseJob : IJobParallelFor
 {
@@ -121,6 +234,80 @@ struct NormaliseJob : IJob
 // var b = new NormaliseJob { Heights = heights }.Schedule(a);       // runs after a, off the main thread
 // ... later: b.Complete(); copy into the terrain; heights.Dispose();
 ```
+
+```gdscript [Godot (GDScript)]
+# heightmap_builder.gd: one long job on a dedicated Thread; the "dependency" is just order.
+extends Node
+
+signal finished(heights: PackedFloat32Array)
+
+var _thread := Thread.new()
+
+
+func build(width: int, scale: float) -> void:
+	_thread.start(_generate.bind(width, scale))
+
+
+func _generate(width: int, scale: float) -> void:  # runs on the thread
+	var noise := FastNoiseLite.new()  # its own instance, not shared with the main thread
+	noise.frequency = 1.0 / scale
+	var heights := PackedFloat32Array()
+	heights.resize(width * width)
+	for y in width:
+		for x in width:
+			heights[y * width + x] = noise.get_noise_2d(x, y) * 0.5 + 0.5
+
+	var top := 0.0  # then normalise
+	for h in heights:
+		top = maxf(top, h)
+	for i in heights.size():
+		heights[i] /= top
+
+	_done.call_deferred(heights)  # back to the main thread
+
+
+func _done(heights: PackedFloat32Array) -> void:
+	_thread.wait_to_finish()  # always join a finished Thread
+	finished.emit(heights)
+```
+
+```cpp [Unreal (C++)]
+// UE::Tasks (UE 5.0+): a task can name prerequisites, and its body can use ParallelFor.
+#include "Async/ParallelFor.h"
+#include "Tasks/Task.h"
+
+UE::Tasks::FTask BuildHeightmap(TSharedRef<TArray<float>> Heights, int32 Width, float Scale)
+{
+	Heights->SetNumUninitialized(Width * Width);
+
+	UE::Tasks::FTask Noise = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Heights, Width, Scale]
+	{
+		ParallelFor(Heights->Num(), [&H = *Heights, Width, Scale](int32 i)
+		{
+			const FVector2D P(i % Width, i / Width);
+			H[i] = FMath::PerlinNoise2D(P / Scale) * 0.5f + 0.5f;
+		});
+	});
+
+	return UE::Tasks::Launch(UE_SOURCE_LOCATION, [Heights]
+	{
+		float Max = 0.f;
+		for (float H : *Heights) Max = FMath::Max(Max, H);
+		for (float& H : *Heights) H /= Max;
+	}, UE::Tasks::Prerequisites(Noise));                // runs after Noise, off the game thread
+}
+
+// Later: Task.Wait() (or check Task.IsCompleted() each frame), then copy into the landscape
+// on the game thread.
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** the safety system throws if two scheduled jobs write the same `NativeArray` without a dependency between them, and Burst compiles job code to vectorised native code. `TransformAccessArray` parallelises by transform hierarchy root, so objects under one parent run on one thread.
+- **Godot:** `WorkerThreadPool` (Godot 4.0+) runs tasks and group tasks on a shared pool; `Thread` is for one long-running job. The scene tree is not thread-safe, so worker code should only touch its own data and hand results back with `call_deferred()`. GDScript runs slower than Burst or C++, so for heavy maths move the loop body into C# or a GDExtension.
+- **Unreal:** `ParallelFor` splits a loop across the task system's workers; `UE::Tasks` (5.0+) adds prerequisites and nested tasks; the older task graph (`FFunctionGraphTask`, `AsyncTask(ENamedThreads::GameThread, …)`) is still common for jumping back to the game thread. UObjects and actors must only be modified on the game thread.
 
 ## When to use
 
