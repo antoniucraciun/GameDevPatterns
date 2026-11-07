@@ -56,8 +56,8 @@ function readColors(el: Element): VizColors {
     brandSoft: v('--vp-c-brand-soft'),
     green: v('--vp-c-green-1'),
     greenSoft: v('--vp-c-green-soft'),
-    yellow: v('--vp-c-yellow-1'),
-    yellowSoft: v('--vp-c-yellow-soft'),
+    yellow: v('--viz-yellow') || v('--vp-c-yellow-1'),
+    yellowSoft: v('--viz-yellow-soft') || v('--vp-c-yellow-soft'),
     red: v('--vp-c-red-1'),
     redSoft: v('--vp-c-red-soft'),
   }
