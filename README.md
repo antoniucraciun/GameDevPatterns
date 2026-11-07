@@ -4,6 +4,9 @@ A catalog of programming patterns for game development, with Unity C# examples, 
 
 **https://antoniucraciun.github.io/GameDevPatterns/**
 
+> [!NOTE]
+> **AI-assisted and still being proofread.** This site was written with AI assistance and may contain mistakes. The Godot and Unreal code examples in particular have not been compiled yet. Found one? Please [open an issue](https://github.com/antoniucraciun/GameDevPatterns/issues).
+
 > [!WARNING]
 > **Keep it simple.** Patterns solve specific problems. Reaching for one where plain code would do (an event-channel architecture for one button, a behavior tree for a patrolling enemy) adds complexity without benefit. Start simple and add a pattern only when the problem is real. See [Keep It Simple](https://antoniucraciun.github.io/GameDevPatterns/keep-it-simple).
 

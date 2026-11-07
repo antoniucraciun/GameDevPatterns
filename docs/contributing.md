@@ -2,6 +2,10 @@
 
 The site is built with [VitePress](https://vitepress.dev) and deployed to GitHub Pages by a GitHub Actions workflow on every push to `main`.
 
+## Found a mistake?
+
+This site was written with AI assistance and is still being proofread, so expect some errors, especially in the Godot and Unreal examples, which have not been compiled yet. If you spot one, please [open an issue](https://github.com/antoniucraciun/GameDevPatterns/issues) describing it, or fix it directly in a pull request. Corrections to code examples are especially welcome when you have compiled or run them in the engine.
+
 ## Adding a pattern
 
 1. **List it.** Add an entry to `docs/.vitepress/catalog.ts`:
