@@ -12,6 +12,8 @@ The player runs toward a gap and presses Jump at what *looks* like the edge. On 
 
 Record **when the character was last grounded**. Allow a jump as long as that moment was within a short grace period, typically 0.08–0.15 s. Once a jump is used, invalidate the grace period so it cannot be used for a second jump in mid-air.
 
+<JumpTimingViz mode="coyote" />
+
 ## Example (Unity C#)
 
 Combined with an [Input Buffer](./input-buffer), this covers both early and late presses:

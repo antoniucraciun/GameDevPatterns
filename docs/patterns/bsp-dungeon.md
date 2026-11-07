@@ -19,6 +19,8 @@ Use **binary space partitioning (BSP)**: recursively split the map into smaller 
 
 The tree is also useful afterwards. Siblings are near each other, so sections of the tree make natural "areas" or difficulty zones.
 
+<BspDungeonViz />
+
 ## Example (Unity C#)
 
 ```csharp

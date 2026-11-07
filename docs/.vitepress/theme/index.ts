@@ -8,6 +8,10 @@ import SidebarResizer from './SidebarResizer.vue'
 import FixedTimestepViz from './viz/FixedTimestepViz.vue'
 import SpatialPartitionViz from './viz/SpatialPartitionViz.vue'
 import AStarViz from './viz/AStarViz.vue'
+import JumpTimingViz from './viz/JumpTimingViz.vue'
+import FlowFieldViz from './viz/FlowFieldViz.vue'
+import CellularAutomataViz from './viz/CellularAutomataViz.vue'
+import BspDungeonViz from './viz/BspDungeonViz.vue'
 import './custom.css'
 
 export default {
@@ -24,5 +28,9 @@ export default {
     app.component('FixedTimestepViz', FixedTimestepViz)
     app.component('SpatialPartitionViz', SpatialPartitionViz)
     app.component('AStarViz', AStarViz)
+    app.component('JumpTimingViz', JumpTimingViz)
+    app.component('FlowFieldViz', FlowFieldViz)
+    app.component('CellularAutomataViz', CellularAutomataViz)
+    app.component('BspDungeonViz', BspDungeonViz)
   },
 } satisfies Theme

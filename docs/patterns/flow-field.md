@@ -19,6 +19,8 @@ Flip the problem: instead of one path per unit, compute **one field for the goal
 
 The cost depends on the **size of the map, not the number of units**. 10 units or 10,000, the field is computed once. When the goal moves, recompute the field, possibly at a lower rate or only in the area around the goal.
 
+<FlowFieldViz />
+
 ## Example (Unity C#)
 
 ```csharp
