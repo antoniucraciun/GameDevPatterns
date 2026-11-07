@@ -15,11 +15,15 @@ Split each object's data into two parts:
 - **Intrinsic** state is shared and immutable, such as the mesh, the material and the gameplay stats of the "oak" type. It is stored once.
 - **Extrinsic** state is unique per instance, such as position, current health or the burning flag. It is stored per object, together with a *reference* to the shared intrinsic data.
 
-## Example (Unity C#)
+## Example
 
-ScriptableObjects are a natural flyweight. Store the shared definition as an asset, and let each instance hold only its own state plus a reference to the asset:
+Each engine has an asset type that works as a flyweight: Unity ScriptableObjects, Godot Resources and Unreal Data Assets. Store the shared definition as an asset, and let each instance hold only its own state plus a reference to the asset:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 [CreateAssetMenu(menuName = "World/Tree Type")]
 public class TreeType : ScriptableObject          // intrinsic, shared
 {
@@ -37,9 +41,79 @@ public struct TreeInstance                        // extrinsic, per tree
 }
 ```
 
-The same idea applies at the GPU level. GPU instancing draws thousands of copies of one mesh and material in a single call, with per-instance transforms:
+```gdscript [Godot (GDScript)]
+# tree_type.gd: intrinsic, shared. Save one .tres per type (oak.tres, pine.tres).
+class_name TreeType
+extends Resource
 
-```csharp
+@export var mesh: Mesh
+@export var material: Material
+@export var wood_yield := 5
+@export var burn_time := 8.0
+
+
+# tree_instance.gd: extrinsic, per tree. Every oak points at the same oak.tres.
+# (Not named "Tree": Godot already has a Tree control.)
+class_name TreeInstance
+extends RefCounted
+
+var type: TreeType
+var position: Vector3
+var health: float
+```
+
+```cpp [Unreal (C++)]
+// TreeType.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "TreeType.generated.h"
+
+UCLASS(BlueprintType)
+class UTreeType : public UPrimaryDataAsset          // intrinsic, shared
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<UStaticMesh> Mesh;
+
+	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<UMaterialInterface> Material;
+
+	UPROPERTY(EditDefaultsOnly)
+	int32 WoodYield = 5;
+
+	UPROPERTY(EditDefaultsOnly)
+	float BurnTime = 8.f;
+};
+
+USTRUCT(BlueprintType)
+struct FTreeInstance                                // extrinsic, per tree
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UTreeType> Type = nullptr;
+
+	UPROPERTY(EditAnywhere)
+	FVector Position = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere)
+	float Health = 100.f;
+};
+```
+
+:::
+
+The same idea applies at the GPU level. Instancing draws thousands of copies of one mesh and material in a single call, with only a transform per instance:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class ForestRenderer : MonoBehaviour
 {
     [SerializeField] TreeType type;
@@ -57,6 +131,62 @@ public class ForestRenderer : MonoBehaviour
     void Update() => Graphics.RenderMeshInstanced(rp, type.mesh, 0, matrices);
 }
 ```
+
+```gdscript [Godot (GDScript)]
+# forest.gd: one MultiMesh, one draw call for every tree of this type.
+extends MultiMeshInstance3D
+
+@export var type: TreeType
+@export var count := 1000
+
+
+func _ready() -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D  # must be set while instance_count is 0
+	mm.mesh = type.mesh
+	mm.instance_count = count
+	for i in count:
+		var pos := Vector3(randf_range(-100.0, 100.0), 0.0, randf_range(-100.0, 100.0))
+		mm.set_instance_transform(i, Transform3D(Basis(), pos))  # extrinsic: one transform per tree
+	multimesh = mm
+	material_override = type.material
+```
+
+```cpp [Unreal (C++)]
+// Forest.h: UPROPERTY(EditAnywhere) TObjectPtr<UTreeType> Type;  UPROPERTY(EditAnywhere) int32 Count = 1000;
+//           UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Instances;
+
+// Forest.cpp
+#include "Forest.h"
+#include "Components/InstancedStaticMeshComponent.h"
+
+AForest::AForest()
+{
+	Instances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Instances"));
+	RootComponent = Instances;
+}
+
+void AForest::BeginPlay()
+{
+	Super::BeginPlay();
+	Instances->SetStaticMesh(Type->Mesh);
+	Instances->SetMaterial(0, Type->Material);
+
+	TArray<FTransform> Transforms;                  // extrinsic: one transform per tree
+	Transforms.Reserve(Count);
+	for (int32 i = 0; i < Count; ++i)
+		Transforms.Emplace(FVector(FMath::FRandRange(-10000.f, 10000.f), FMath::FRandRange(-10000.f, 10000.f), 0.f));
+	Instances->AddInstances(Transforms, /*bShouldReturnIndices*/ false);
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** ScriptableObjects are shared by reference, so changing one at runtime changes every tree of that type, and in the editor the change is saved to the asset. `Graphics.RenderMeshInstanced` is Unity 2022.1+; the Terrain's tree and detail systems already instance for you.
+- **Godot:** a Resource loaded from the same path is one shared object, which is exactly the flyweight. Tick **Local to Scene** (or `duplicate()`) only when an instance really needs its own copy. `MultiMeshInstance3D` draws all instances with one material and one visibility test, so very large forests should be split into several MultiMeshes so that off-screen parts can be culled.
+- **Unreal:** Data Assets are shared the same way; mark them `UPrimaryDataAsset` to load them through the Asset Manager. The **Foliage** tool places trees as Hierarchical Instanced Static Meshes for you, and with Nanite enabled the per-instance cost drops further.
 
 ## When to use
 

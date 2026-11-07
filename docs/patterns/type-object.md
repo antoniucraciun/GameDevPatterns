@@ -19,9 +19,13 @@ New kinds become new data, not new code. Type objects can also **inherit from ot
 
 This differs from [Flyweight](./flyweight), even though the structure looks alike. Flyweight is about *sharing memory*. Type Object is about *defining kinds as data*. In practice, a type object is usually a flyweight too.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+Enemy kinds as data assets, with inheritance between kinds, and an individual enemy that holds its kind plus its own state.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using UnityEngine;
 
 [CreateAssetMenu(menuName = "Enemies/Enemy Type")]
@@ -84,9 +88,139 @@ public class Enemy : MonoBehaviour
 }
 ```
 
-Designers now create `Orc.asset` with `maxHealth = 40`, then `Elite Orc.asset` with `parent = Orc` and `maxHealth = 120`. Everything else, including prefab, speed and loot, is inherited. No code changes.
+```gdscript [Godot (GDScript)]
+# enemy_type.gd: one .tres per kind of enemy.
+class_name EnemyType
+extends Resource
 
-Behaviour can be data too. Give `EnemyType` a reference to a behaviour asset (a behaviour tree or an AI profile) or a list of abilities, and kinds can differ in *what they do*, not just their numbers.
+@export var parent: EnemyType  # values left at their "unset" default are inherited
+
+@export var display_name := ""
+@export var max_health := 0      # 0 = inherit
+@export var move_speed := 0.0    # 0 = inherit
+@export var contact_damage := 0  # 0 = inherit
+@export var scene: PackedScene   # null = inherit
+@export var loot: LootTable      # null = inherit
+
+
+# Resolved values: walk up the parent chain until a value is set.
+func get_display_name() -> String:
+	return display_name if display_name != "" else (parent.get_display_name() if parent else resource_path.get_file().get_basename())
+
+func get_max_health() -> int:
+	return max_health if max_health > 0 else (parent.get_max_health() if parent else 1)
+
+func get_move_speed() -> float:
+	return move_speed if move_speed > 0.0 else (parent.get_move_speed() if parent else 1.0)
+
+func get_scene() -> PackedScene:
+	return scene if scene else (parent.get_scene() if parent else null)
+
+func get_loot() -> LootTable:
+	return loot if loot else (parent.get_loot() if parent else null)
+
+
+# The type object can create its typed objects.
+func spawn(parent_node: Node, position: Vector3) -> Enemy:
+	var enemy: Enemy = get_scene().instantiate()
+	enemy.init(self)
+	parent_node.add_child(enemy)
+	enemy.global_position = position
+	return enemy
+
+
+# enemy.gd
+class_name Enemy
+extends CharacterBody3D
+
+var type: EnemyType  # the kind
+var _health: int     # the individual's own state
+
+
+func init(enemy_type: EnemyType) -> void:
+	type = enemy_type
+	_health = type.get_max_health()
+	name = type.get_display_name()
+
+
+func take_damage(amount: int) -> void:
+	_health -= amount
+	if _health > 0:
+		return
+	# Drop from type.get_loot(), emit a "killed" signal with type for achievements, then:
+	queue_free()
+```
+
+```cpp [Unreal (C++)]
+// EnemyType.h: one Primary Data Asset per kind (Asset Manager can find and load them by type).
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "EnemyType.generated.h"
+
+UCLASS(BlueprintType)
+class UEnemyType : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	// Values left at their "unset" default are inherited from the parent.
+	UPROPERTY(EditAnywhere, Category = "Type") TObjectPtr<UEnemyType> Parent;
+
+	UPROPERTY(EditAnywhere, Category = "Type") FText DisplayName;
+	UPROPERTY(EditAnywhere, Category = "Type") int32 MaxHealth = 0;          // 0 = inherit
+	UPROPERTY(EditAnywhere, Category = "Type") float MoveSpeed = 0.f;        // 0 = inherit
+	UPROPERTY(EditAnywhere, Category = "Type") TSubclassOf<class AEnemy> EnemyClass;   // null = inherit
+
+	// Resolved values: walk up the parent chain until a value is set.
+	FText GetDisplayName() const { return !DisplayName.IsEmpty() ? DisplayName : Parent ? Parent->GetDisplayName() : FText::FromString(GetName()); }
+	int32 GetMaxHealth() const { return MaxHealth > 0 ? MaxHealth : Parent ? Parent->GetMaxHealth() : 1; }
+	float GetMoveSpeed() const { return MoveSpeed > 0.f ? MoveSpeed : Parent ? Parent->GetMoveSpeed() : 100.f; }
+	TSubclassOf<AEnemy> GetEnemyClass() const { return EnemyClass ? EnemyClass : Parent ? Parent->GetEnemyClass() : nullptr; }
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;   // catch parent cycles
+#endif
+};
+
+// Enemy.h
+UCLASS()
+class AEnemy : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+	void Init(const UEnemyType* InType)
+	{
+		Type = InType;
+		Health = Type->GetMaxHealth();
+		GetCharacterMovement()->MaxWalkSpeed = Type->GetMoveSpeed();
+	}
+
+	UPROPERTY(VisibleAnywhere, Category = "Enemy") TObjectPtr<const UEnemyType> Type;   // the kind
+
+private:
+	int32 Health = 0;                                                                  // the individual's own state
+};
+
+// Spawning a typed object: deferred, so Init runs before BeginPlay.
+//   AEnemy* Enemy = World->SpawnActorDeferred<AEnemy>(Type->GetEnemyClass(), Transform);
+//   Enemy->Init(Type);
+//   Enemy->FinishSpawning(Transform);
+```
+
+:::
+
+Designers now create an Orc asset with max health 40, then an Elite Orc with the Orc as parent and max health 120. Everything else, including the prefab or scene, speed and loot, is inherited. No code changes.
+
+Behaviour can be data too. Give the type a reference to a behaviour asset (a behaviour tree or an AI profile) or a list of abilities, and kinds can differ in *what they do*, not just their numbers.
+
+**Engine notes**
+
+- **Unity:** `OnValidate` runs in the editor whenever the asset changes, which is the right place to catch inheritance cycles.
+- **Godot:** typed `@export` fields make the inspector only accept the right resource type. To catch parent cycles in the editor, make the script `@tool` and check the chain in the `parent` setter, or validate all `.tres` files from an `EditorScript`.
+- **Unreal:** `UPrimaryDataAsset` lets the **Asset Manager** list and async-load all enemy types by type name. `IsDataValid` hooks into **Data Validation** to flag bad assets before they ship.
 
 ## When to use
 

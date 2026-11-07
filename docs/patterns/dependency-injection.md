@@ -22,11 +22,13 @@ Three ways to inject:
 
 Dependencies are usually **interfaces** (`ISaveService`), so the composition root decides which implementation each object gets. Tests pass in fakes.
 
-## Example (Unity C#)
+## Example
 
-Plain C# logic with constructor injection, with no Unity dependency, so it can be unit tested:
+Plain logic with constructor injection and no engine dependency, so it can be unit tested:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 public interface IWallet { int Gold { get; } bool TrySpend(int amount); }
 public interface IInventory { void Add(string itemId); }
 public interface IAnalytics { void Track(string evt, string data); }
@@ -52,23 +54,96 @@ public class Shop
 }
 ```
 
-A MonoBehaviour view with method injection:
+```gdscript [Godot (GDScript)]
+# shop.gd: plain logic, no nodes. GDScript has no interfaces: any object with the
+# methods noted below can be passed in, including fakes in tests.
+class_name Shop
+extends RefCounted
 
-```csharp
+var _wallet     # try_spend(amount: int) -> bool
+var _inventory  # add(item_id: String)
+var _analytics  # track(event: String, data: String)
+
+
+func _init(wallet, inventory, analytics) -> void:  # needs are explicit
+	_wallet = wallet
+	_inventory = inventory
+	_analytics = analytics
+
+
+func buy(item_id: String, price: int) -> bool:
+	if not _wallet.try_spend(price):
+		return false
+	_inventory.add(item_id)
+	_analytics.track("purchase", item_id)
+	return true
+```
+
+```cpp [Unreal (C++)]
+// Shop.h: plain C++, no UObjects, so it can be tested with automation tests.
+#pragma once
+
+#include "CoreMinimal.h"
+
+class IWallet { public: virtual ~IWallet() = default; virtual int32 GetGold() const = 0; virtual bool TrySpend(int32 Amount) = 0; };
+class IInventory { public: virtual ~IInventory() = default; virtual void Add(FName ItemId) = 0; };
+class IAnalytics { public: virtual ~IAnalytics() = default; virtual void Track(const FString& Event, const FString& Data) = 0; };
+
+class FShop
+{
+public:
+	FShop(TSharedRef<IWallet> InWallet, TSharedRef<IInventory> InInventory, TSharedRef<IAnalytics> InAnalytics)   // needs are explicit
+		: Wallet(InWallet), Inventory(InInventory), Analytics(InAnalytics) {}
+
+	bool Buy(FName ItemId, int32 Price)
+	{
+		if (!Wallet->TrySpend(Price)) return false;
+		Inventory->Add(ItemId);
+		Analytics->Track(TEXT("purchase"), ItemId.ToString());
+		return true;
+	}
+
+private:
+	TSharedRef<IWallet> Wallet;
+	TSharedRef<IInventory> Inventory;
+	TSharedRef<IAnalytics> Analytics;
+};
+```
+
+:::
+
+The **composition root** is the one place that knows the concrete types. It builds the services, hands them to scene objects, and gives a factory to whatever spawns objects at runtime, so spawned objects never look anything up:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class ShopView : MonoBehaviour
 {
     [SerializeField] UnityEngine.UI.Button buySwordButton;
     Shop shop;
 
-    public void Construct(Shop shop) => this.shop = shop;   // called by the composition root
+    public void Construct(Shop shop) => this.shop = shop;   // method injection, called by the root
 
     void Start() => buySwordButton.onClick.AddListener(() => shop.Buy("sword", 100));
 }
-```
 
-The composition root, the one place that knows the concrete types:
+public class EnemyFactory
+{
+    readonly IWallet wallet;
+    readonly IAnalytics analytics;
 
-```csharp
+    public EnemyFactory(IWallet wallet, IAnalytics analytics) { this.wallet = wallet; this.analytics = analytics; }
+
+    public Enemy Create(Enemy prefab, Vector3 position)
+    {
+        var enemy = Object.Instantiate(prefab, position, Quaternion.identity);
+        enemy.Construct(wallet, analytics);   // gold reward on death, kill tracking
+        return enemy;
+    }
+}
+
 public class GameInstaller : MonoBehaviour
 {
     [SerializeField] ShopView shopView;           // scene objects, assigned in the inspector
@@ -88,37 +163,146 @@ public class GameInstaller : MonoBehaviour
 }
 ```
 
-Objects created at runtime get their dependencies from a **factory** that the root built. The factory holds the dependencies and passes them on, so spawned enemies never look anything up:
+```gdscript [Godot (GDScript)]
+# game_installer.gd: the composition root, at the top of the level scene.
+extends Node
 
-```csharp
-public class EnemyFactory
+@export var shop_view: ShopView          # scene nodes, assigned in the inspector
+@export var enemy_spawner: EnemySpawner
+
+
+func _ready() -> void:
+	# Create services once.
+	var analytics = LogAnalytics.new() if OS.has_feature("editor") else RemoteAnalytics.new()
+	var wallet := Wallet.new(250)
+	var inventory := Inventory.new()
+
+	# Wire objects.
+	shop_view.construct(Shop.new(wallet, inventory, analytics))
+	enemy_spawner.construct(EnemyFactory.new(wallet, analytics))
+
+
+# shop_view.gd
+class_name ShopView
+extends Control
+
+@export var buy_sword_button: Button
+var _shop: Shop
+
+
+func construct(shop: Shop) -> void:  # method injection, called by the root
+	_shop = shop
+
+
+func _ready() -> void:
+	buy_sword_button.pressed.connect(func(): _shop.buy("sword", 100))
+
+
+# enemy_factory.gd
+class_name EnemyFactory
+extends RefCounted
+
+var _wallet
+var _analytics
+
+
+func _init(wallet, analytics) -> void:
+	_wallet = wallet
+	_analytics = analytics
+
+
+func create(scene: PackedScene, parent: Node, position: Vector3) -> Enemy:
+	var enemy: Enemy = scene.instantiate()
+	enemy.construct(_wallet, _analytics)  # before add_child, so _ready already has its dependencies
+	parent.add_child(enemy)
+	enemy.global_position = position
+	return enemy
+```
+
+```cpp [Unreal (C++)]
+// ShopGameMode.cpp: the composition root. A GameMode (or GameInstance) builds services once.
+void AShopGameMode::BeginPlay()
 {
-    readonly IWallet wallet;
-    readonly IAnalytics analytics;
+	Super::BeginPlay();
 
-    public EnemyFactory(IWallet wallet, IAnalytics analytics) { this.wallet = wallet; this.analytics = analytics; }
+	// Create services once.
+	TSharedRef<IAnalytics> Analytics = GIsEditor
+		? StaticCastSharedRef<IAnalytics>(MakeShared<FLogAnalytics>())
+		: StaticCastSharedRef<IAnalytics>(MakeShared<FRemoteAnalytics>());
+	TSharedRef<FWallet> Wallet = MakeShared<FWallet>(/*StartingGold*/ 250);
+	TSharedRef<FInventory> Inventory = MakeShared<FInventory>();
 
-    public Enemy Create(Enemy prefab, Vector3 position)
+	// Wire objects: the shop widget gets its logic object instead of finding it.
+	ShopWidget = CreateWidget<UShopWidget>(GetWorld(), ShopWidgetClass);
+	ShopWidget->Init(MakeShared<FShop>(Wallet, Inventory, Analytics));
+	ShopWidget->AddToViewport();
+
+	EnemyFactory = MakeShared<FEnemyFactory>(GetWorld(), Wallet, Analytics);
+}
+
+// EnemyFactory.cpp: SpawnActorDeferred lets you inject before BeginPlay runs.
+AEnemy* FEnemyFactory::Create(TSubclassOf<AEnemy> Class, const FTransform& Where)
+{
+	AEnemy* Enemy = World->SpawnActorDeferred<AEnemy>(Class, Where);
+	Enemy->Init(Wallet, Analytics);   // gold reward on death, kill tracking
+	Enemy->FinishSpawning(Where);     // BeginPlay runs now, with its dependencies in place
+	return Enemy;
+}
+```
+
+:::
+
+And a test, with fakes and no scene:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using NUnit.Framework;
+
+public class ShopTests
+{
+    [Test]
+    public void Buy_FailsWithoutEnoughGold()
     {
-        var enemy = Object.Instantiate(prefab, position, Quaternion.identity);
-        enemy.Construct(wallet, analytics);   // gold reward on death, kill tracking
-        return enemy;
+        var shop = new Shop(new Wallet(startingGold: 50), new Inventory(), new NullAnalytics());
+        Assert.IsFalse(shop.Buy("sword", 100));
     }
 }
 ```
 
-And a test, with fakes and no scene:
+```gdscript [Godot (GDScript)]
+# test_shop.gd: a GUT test (the Godot Unit Test add-on). GdUnit4 tests look much the same.
+extends GutTest
 
-```csharp
-[NUnit.Framework.Test]
-public void Buy_FailsWithoutEnoughGold()
+
+func test_buy_fails_without_enough_gold() -> void:
+	var shop := Shop.new(Wallet.new(50), Inventory.new(), NullAnalytics.new())
+	assert_false(shop.buy("sword", 100))
+```
+
+```cpp [Unreal (C++)]
+// ShopTests.cpp: an automation test (Session Frontend → Automation, or the command line).
+#include "Misc/AutomationTest.h"
+#include "Shop.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FShopFailsWithoutGoldTest, "Game.Shop.FailsWithoutEnoughGold",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FShopFailsWithoutGoldTest::RunTest(const FString& Parameters)
 {
-    var shop = new Shop(new Wallet(startingGold: 50), new Inventory(), new NullAnalytics());
-    NUnit.Framework.Assert.IsFalse(shop.Buy("sword", 100));
+	FShop Shop(MakeShared<FWallet>(50), MakeShared<FInventory>(), MakeShared<FNullAnalytics>());
+	TestFalse(TEXT("Buying a 100-gold sword with 50 gold"), Shop.Buy("Sword", 100));
+	return true;
 }
 ```
 
-In larger projects, a DI container such as **VContainer** or **Zenject/Extenject** automates the wiring: you register types, and it builds the graph and injects into scene objects and prefabs.
+:::
+
+**Engine notes**
+
+- **Unity:** in larger projects, a DI container such as **VContainer** or **Zenject/Extenject** automates the wiring: you register types, and it builds the graph and injects into scene objects and prefabs.
+- **Godot:** inject *before* `add_child`, as the factory does, so `_ready` already has its dependencies. Exported node references in the inspector are dependency injection done by the editor.
+- **Unreal:** `SpawnActorDeferred` + `FinishSpawning` is the idiomatic way to inject into actors. `UPROPERTY` references set in the editor and **subsystems** cover most other wiring.
 
 ## When to use
 

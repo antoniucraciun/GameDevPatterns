@@ -28,11 +28,13 @@ Outside rendering, the same idea applies:
 - **UI:** change many values, then rebuild once (Canvas rebuilds happen once per frame, so avoid forcing them manually).
 - **Saves, logs and analytics:** buffer writes and flush in one operation.
 
-## Example (Unity C#)
+## Example
 
-Batched raycasts: 500 agents check line of sight to the player with one scheduled job, instead of 500 sequential calls.
+Batched line-of-sight checks: 500 agents check whether they can see the player. Unity submits all rays as one scheduled job; Unreal queues them as async traces that run together on worker threads; Godot has no batched raycast API, so its tab runs them in one tight loop with a reused query and spreads them across frames.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
@@ -82,7 +84,7 @@ public class BatchedLineOfSight : MonoBehaviour
 
         // 3. Read results: no occluder hit means the agent can see the player.
         for (int i = 0; i < results.Length; i++)
-            CanSeePlayer[i] = results[i].colliderInstanceID == 0;
+            CanSeePlayer[i] = results[i].collider == null;
     }
 
     void OnDestroy()
@@ -94,9 +96,167 @@ public class BatchedLineOfSight : MonoBehaviour
 }
 ```
 
-`QueryParameters` and this `RaycastCommand` constructor are Unity 2022.2+. Results are read one frame stage later (`LateUpdate`). For line-of-sight that is fine. For bullets that must resolve instantly, it may not be.
+```gdscript [Godot (GDScript)]
+# batched_line_of_sight.gd: one reused query object, a fixed budget of rays per physics frame,
+# and agents processed round-robin so the cost stays flat however many there are.
+extends Node3D
 
-To see whether rendering batching is working, check the **Frame Debugger** (Window → Analysis), which shows each draw call and *why* two objects were not batched together.
+@export var player: Node3D
+@export var agents: Array[Node3D] = []  # e.g. 500 enemies
+@export_flags_3d_physics var occluders := 1
+@export var rays_per_frame := 128
+
+var can_see_player: Array[bool] = []
+var _query := PhysicsRayQueryParameters3D.new()
+var _next := 0
+
+
+func _ready() -> void:
+	can_see_player.resize(agents.size())
+	_query.collision_mask = occluders
+
+
+func _physics_process(_delta: float) -> void:
+	if agents.is_empty():
+		return
+	var space := get_world_3d().direct_space_state
+	var target := player.global_position + Vector3.UP
+	for _n in mini(rays_per_frame, agents.size()):
+		var i := _next
+		_next = (_next + 1) % agents.size()
+		_query.from = agents[i].global_position + Vector3.UP * 1.6
+		_query.to = target
+		can_see_player[i] = space.intersect_ray(_query).is_empty()  # no occluder hit: can see
+```
+
+```cpp [Unreal (C++)]
+// LineOfSightManager.h: UPROPERTY(EditAnywhere) TObjectPtr<AActor> Player;
+//                       UPROPERTY(EditAnywhere) TArray<TObjectPtr<AActor>> Agents;   // e.g. 500 enemies
+//                       TArray<bool> CanSeePlayer;  FTraceDelegate TraceDelegate;
+
+// LineOfSightManager.cpp
+#include "LineOfSightManager.h"
+#include "Engine/World.h"
+
+void ALineOfSightManager::BeginPlay()
+{
+	Super::BeginPlay();
+	TraceDelegate.BindUObject(this, &ALineOfSightManager::OnTraceDone);
+	CanSeePlayer.Init(false, Agents.Num());
+}
+
+void ALineOfSightManager::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// 1. Queue every trace. Async traces run together on worker threads during the frame;
+	//    the results arrive at the start of the next frame.
+	const FVector Target = Player->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+	for (int32 i = 0; i < Agents.Num(); ++i)
+	{
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(LineOfSight), false, Agents[i]);
+		Params.AddIgnoredActor(Player);
+		const FVector Eye = Agents[i]->GetActorLocation() + FVector(0.f, 0.f, 160.f);
+		GetWorld()->AsyncLineTraceByChannel(EAsyncTraceType::Single, Eye, Target, ECC_Visibility,
+			Params, FCollisionResponseParams::DefaultResponseParam, &TraceDelegate, /*UserData*/ i);
+	}
+}
+
+// 2. Read results: no blocking hit means the agent can see the player.
+void ALineOfSightManager::OnTraceDone(const FTraceHandle& Handle, FTraceDatum& Data)
+{
+	const int32 i = int32(Data.UserData);
+	if (CanSeePlayer.IsValidIndex(i))
+		CanSeePlayer[i] = !Data.OutHits.ContainsByPredicate([](const FHitResult& Hit) { return Hit.bBlockingHit; });
+}
+```
+
+:::
+
+Draw-call batching for objects that never move: merge them once at load time instead of drawing each one separately.
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
+// For level chunks spawned at runtime. Scene objects marked Static are batched at build time.
+public class LevelChunk : MonoBehaviour
+{
+    void Start() => StaticBatchingUtility.Combine(gameObject);   // children must not move afterwards
+}
+```
+
+```gdscript [Godot (GDScript)]
+# rock_scatter.gd: replaces MeshInstance3D children that share a mesh with one MultiMesh each.
+extends Node3D
+
+
+func _ready() -> void:
+	var by_mesh := {}  # Mesh -> Array of Transform3D
+	for child in get_children():
+		var mi := child as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		if not by_mesh.has(mi.mesh):
+			by_mesh[mi.mesh] = []
+		by_mesh[mi.mesh].append(mi.transform)
+		mi.queue_free()
+
+	for mesh in by_mesh:
+		var transforms: Array = by_mesh[mesh]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = transforms.size()
+		for i in transforms.size():
+			mm.set_instance_transform(i, transforms[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		add_child(mmi)
+```
+
+```cpp [Unreal (C++)]
+// RockScatter.cpp: replaces static mesh components that share a mesh with one HISM each.
+#include "RockScatter.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
+
+void ARockScatter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	TInlineComponentArray<UStaticMeshComponent*> Meshes;
+	GetComponents(Meshes);
+
+	TMap<UStaticMesh*, UHierarchicalInstancedStaticMeshComponent*> ByMesh;
+	for (UStaticMeshComponent* Component : Meshes)
+	{
+		if (Component == GetRootComponent() || Component->IsA<UInstancedStaticMeshComponent>()) continue;
+		UStaticMesh* Mesh = Component->GetStaticMesh();
+		if (!Mesh) continue;
+
+		UHierarchicalInstancedStaticMeshComponent*& Hism = ByMesh.FindOrAdd(Mesh);
+		if (!Hism)
+		{
+			Hism = NewObject<UHierarchicalInstancedStaticMeshComponent>(this);
+			Hism->SetStaticMesh(Mesh);
+			Hism->SetupAttachment(GetRootComponent());
+			Hism->RegisterComponent();
+			AddInstanceComponent(Hism);
+		}
+		Hism->AddInstance(Component->GetComponentTransform(), /*bWorldSpace*/ true);
+		Component->DestroyComponent();
+	}
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `QueryParameters` and this `RaycastCommand` constructor are Unity 2022.2+. Results are read one frame stage later (`LateUpdate`): fine for line of sight, maybe not for bullets that must resolve instantly. To see whether rendering batching works, open the **Frame Debugger** (Window → Analysis), which shows each draw call and *why* two objects were not batched together. The SRP Batcher and, in Unity 6, the GPU Resident Drawer batch many objects without code.
+- **Godot:** there is no batched raycast API; the time-sliced loop above is the usual answer. The 2D renderer batches canvas items automatically; in 3D, `MultiMeshInstance3D` is the tool, and the Monitors tab (**Rendering → Total Draw Calls**) shows the effect. The example keys by mesh only, so children with different material overrides would lose them.
+- **Unreal:** async traces (`AsyncLineTraceByChannel`, `AsyncSweepByChannel`) are Unreal's batched queries, with results one frame later. For rendering, ISM and HISM components, **Merge Actors** in the editor, and Nanite (which batches by material) reduce draw calls; `stat RHI` and Unreal Insights show the counts.
 
 ## When to use
 

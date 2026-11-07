@@ -26,11 +26,13 @@ Lazy initialisation trades **startup time and memory** for a **one-time cost at 
 
 For thread safety, .NET's `Lazy<T>` guarantees the factory runs once even with concurrent access. On Unity's main thread, a null-coalescing field is enough.
 
-## Example (Unity C#)
+## Example
 
-The basic form, plus a warm-up hook so the cost can be moved to a loading screen:
+The basic form, plus a warm-up hook so the cost can be moved to a loading screen. Check with the profiler (Unity Profiler, Godot's profiler, Unreal Insights) that the first use really hitches before adding warm-up calls:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -85,9 +87,153 @@ public class LazyPools
 }
 ```
 
-Thread-safe, with `Lazy<T>`, for data that worker threads may also request:
+```gdscript [Godot (GDScript)]
+# effect_library.gd
+extends Node
 
-```csharp
+@export var effects: Array[PackedScene] = []
+
+var _by_name := {}  # String -> PackedScene, built on first use, not in _ready()
+var _indexed := false
+
+
+# Not get() or a parameter called "name": both would shadow Node members.
+func get_effect(effect_name: String) -> PackedScene:
+	if not _indexed:
+		for scene in effects:
+			_by_name[scene.resource_path.get_file().get_basename()] = scene
+		_indexed = true
+	return _by_name.get(effect_name)
+
+
+# lazy_pools.gd: a free list per scene, created the first time that scene is requested.
+class_name LazyPools
+extends Node
+
+var _pools := {}  # PackedScene -> Array of inactive Node3D
+
+
+func acquire(scene: PackedScene) -> Node3D:
+	var pool := _pool_for(scene)
+	var node: Node3D
+	if pool.is_empty():
+		node = scene.instantiate()
+		add_child(node)
+	else:
+		node = pool.pop_back()
+	node.process_mode = Node.PROCESS_MODE_INHERIT
+	node.show()
+	return node
+
+
+func release(scene: PackedScene, node: Node3D) -> void:
+	node.hide()
+	node.process_mode = Node.PROCESS_MODE_DISABLED
+	_pool_for(scene).append(node)
+
+
+# Call during loading for effects this level is known to use: the first explosion won't hitch.
+func warm_up(scene: PackedScene, count: int) -> void:
+	var temp: Array[Node3D] = []
+	for i in count:
+		temp.append(acquire(scene))
+	for node in temp:
+		release(scene, node)
+
+
+func _pool_for(scene: PackedScene) -> Array:
+	if not _pools.has(scene):
+		_pools[scene] = []  # Arrays are references, so callers can append to it
+	return _pools[scene]
+```
+
+```cpp [Unreal (C++)]
+// EffectLibraryComponent.h: soft references, so effects load the first time they're asked for.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "EffectLibraryComponent.generated.h"
+
+class UNiagaraSystem;
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class UEffectLibraryComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UNiagaraSystem* Get(FName EffectName);
+
+	// Call during loading for effects this level is known to use: the first explosion won't hitch.
+	void WarmUp(const TArray<FName>& EffectNames);
+
+private:
+	void EnsureIndexed();
+
+	UPROPERTY(EditAnywhere)
+	TArray<TSoftObjectPtr<UNiagaraSystem>> Effects;
+
+	TMap<FName, TSoftObjectPtr<UNiagaraSystem>> ByName;   // built on first use
+	bool bIndexed = false;
+
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UNiagaraSystem>> Loaded;       // hard references keep loaded effects alive
+};
+
+// EffectLibraryComponent.cpp
+#include "EffectLibraryComponent.h"
+#include "Engine/AssetManager.h"
+#include "NiagaraSystem.h"
+
+void UEffectLibraryComponent::EnsureIndexed()
+{
+	if (bIndexed) return;
+	for (const TSoftObjectPtr<UNiagaraSystem>& Effect : Effects)
+		ByName.Add(FName(*Effect.GetAssetName()), Effect);
+	bIndexed = true;
+}
+
+UNiagaraSystem* UEffectLibraryComponent::Get(FName EffectName)
+{
+	if (TObjectPtr<UNiagaraSystem>* Found = Loaded.Find(EffectName)) return *Found;
+
+	EnsureIndexed();
+	const TSoftObjectPtr<UNiagaraSystem>* Soft = ByName.Find(EffectName);
+	if (!Soft) return nullptr;
+
+	UNiagaraSystem* System = Soft->LoadSynchronous();     // the first-use cost: a blocking load
+	Loaded.Add(EffectName, System);
+	return System;
+}
+
+void UEffectLibraryComponent::WarmUp(const TArray<FName>& EffectNames)
+{
+	EnsureIndexed();
+	TArray<FSoftObjectPath> Paths;
+	for (FName EffectName : EffectNames)
+		if (const TSoftObjectPtr<UNiagaraSystem>* Soft = ByName.Find(EffectName))
+			Paths.Add(Soft->ToSoftObjectPath());
+
+	// Loads in the background; Get() then finds them already in memory.
+	UAssetManager::GetStreamableManager().RequestAsyncLoad(Paths,
+		FStreamableDelegate::CreateWeakLambda(this, [this, EffectNames]
+		{
+			for (FName EffectName : EffectNames) Get(EffectName);
+		}));
+}
+```
+
+:::
+
+Thread-safe, for data that worker threads may also request:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using UnityEngine;
+
 public static class TerrainTables
 {
     // The factory runs exactly once, even if several threads ask at the same time.
@@ -101,6 +247,52 @@ public static class TerrainTables
     public static float[] Erosion => erosionTable.Value;
 }
 ```
+
+```gdscript [Godot (GDScript)]
+# terrain_tables.gd: static variables need Godot 4.1+. GDScript has no Lazy<T>, so a Mutex
+# makes sure only one thread builds the table.
+class_name TerrainTables
+extends RefCounted
+
+static var _erosion := PackedFloat32Array()
+static var _mutex := Mutex.new()
+
+
+static func erosion() -> PackedFloat32Array:
+	_mutex.lock()
+	if _erosion.is_empty():
+		var t := PackedFloat32Array()
+		t.resize(4096)
+		for i in t.size():
+			t[i] = pow(i / 4095.0, 2.2)
+		_erosion = t
+	_mutex.unlock()
+	return _erosion
+```
+
+```cpp [Unreal (C++)]
+// TerrainTables.h: a function-local static is initialised exactly once, even if several
+// threads call at the same time (guaranteed by C++11).
+inline const TArray<float>& GetErosionTable()
+{
+	static const TArray<float> Table = []
+	{
+		TArray<float> T;
+		T.SetNumUninitialized(4096);
+		for (int32 i = 0; i < T.Num(); ++i) T[i] = FMath::Pow(i / 4095.f, 2.2f);
+		return T;
+	}();
+	return Table;
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `Lazy<T>` defaults to `LazyThreadSafetyMode.ExecutionAndPublication`. Unity APIs inside the factory (loading assets, creating objects) must still run on the main thread. Addressables' `LoadAssetAsync` is the asset-level version of the warm-up hook.
+- **Godot:** `preload()` is eager (it loads when the script loads) and `load()` is lazy. `ResourceLoader.load_threaded_request()` loads in the background during a loading screen, and `load_threaded_get()` collects the result.
+- **Unreal:** `TSoftObjectPtr` and `TSoftClassPtr` are the engine's lazy references; hard `UPROPERTY` references load everything they point at with the owner. Keep the handle returned by `RequestAsyncLoad` if the assets must stay loaded without a hard reference.
 
 ## When to use
 

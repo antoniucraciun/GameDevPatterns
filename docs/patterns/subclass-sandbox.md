@@ -18,9 +18,13 @@ Give the base class a **toolbox of protected operations**, the **sandbox**, and 
 
 It is the opposite of [Template Method](./template-method): instead of the base class calling the subclass's steps in a fixed order, the subclass freely calls the base class's tools.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+A base class for powers provides a small set of safe operations; each power is a short subclass that uses only those.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections;
 using UnityEngine;
 
@@ -110,7 +114,236 @@ public class SkyLaunch : Power
 }
 ```
 
-`IAudio`, `SoundCue`, `IDamageable` and `DamageInfo` come from [Facade](./facade) and [Health / Damageable](./health-component). Only the base class knows about them.
+```gdscript [Godot (GDScript)]
+# power.gd: a child node of a RigidBody3D. GDScript has no "protected", so the sandbox is a
+# convention: powers call only the methods in this section.
+class_name Power
+extends Node
+
+@export var cooldown := 3.0
+var _ready_at := 0.0
+
+# ── The sandbox: the ONLY operations powers may use ──
+
+var body: RigidBody3D:
+	get:
+		return get_parent() as RigidBody3D
+
+
+func play_sound(cue: SoundCue) -> void:
+	Audio.play_sfx(cue, body.global_position)  # Audio: the facade autoload
+
+
+func spawn_effect(effect: PackedScene, at: Vector3, lifetime := 2.0) -> void:
+	var fx: Node3D = effect.instantiate()  # pooled in production
+	get_tree().current_scene.add_child(fx)
+	fx.global_position = at
+	get_tree().create_timer(lifetime).timeout.connect(fx.queue_free)
+
+
+func launch(velocity: Vector3) -> void:
+	body.linear_velocity = velocity
+
+
+func damage_in_area(center: Vector3, radius: float, damage: float) -> int:
+	var sphere := SphereShape3D.new()
+	sphere.radius = radius
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = sphere
+	query.transform = Transform3D(Basis.IDENTITY, center)
+	query.exclude = [body.get_rid()]  # never hit yourself
+	var hits := 0
+	for result in body.get_world_3d().direct_space_state.intersect_shape(query):
+		var target: Object = result.collider
+		if target.has_method("take_damage"):
+			target.take_damage(damage, body)
+			hits += 1
+	return hits
+
+
+func is_grounded() -> bool:
+	var from := body.global_position + Vector3.UP * 0.1
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 0.3, 0xFFFFFFFF, [body.get_rid()])
+	return not body.get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
+func wait(seconds: float) -> void:
+	await get_tree().create_timer(seconds).timeout
+
+
+# ── What subclasses implement (may await) ──
+func _activate() -> void:
+	pass
+
+
+func try_use() -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now < _ready_at:
+		return false
+	_ready_at = now + cooldown
+	_activate()
+	return true
+
+
+# ground_slam.gd: powers are short, readable, and touch nothing but the sandbox.
+class_name GroundSlam
+extends Power
+
+@export var jump_sound: SoundCue
+@export var slam_sound: SoundCue
+@export var shockwave: PackedScene
+
+
+func _activate() -> void:
+	play_sound(jump_sound)
+	launch(Vector3.UP * 12.0)
+	await wait(0.35)
+	launch(Vector3.DOWN * 30.0)
+	while not is_grounded():
+		await get_tree().physics_frame
+	play_sound(slam_sound)
+	spawn_effect(shockwave, body.global_position)
+	damage_in_area(body.global_position, 5.0, 40.0)
+
+
+# sky_launch.gd
+class_name SkyLaunch
+extends Power
+
+@export var whoosh: SoundCue
+@export var trail: PackedScene
+
+
+func _activate() -> void:
+	play_sound(whoosh)
+	spawn_effect(trail, body.global_position, 1.0)
+	launch(Vector3.UP * 20.0)
+```
+
+```cpp [Unreal (C++)]
+// Power.h: an abstract component on a Character. Protected functions are the sandbox.
+// C++ in Unreal has no coroutines, so sequences use timer callbacks.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "Power.generated.h"
+
+UCLASS(Abstract)
+class UPower : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Power")
+	bool TryUse()
+	{
+		const double Now = GetWorld()->GetTimeSeconds();
+		if (Now < ReadyAt) return false;
+		ReadyAt = Now + Cooldown;
+		UsePower();
+		return true;
+	}
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "Power") float Cooldown = 3.f;
+
+	// ── What subclasses implement ──
+	virtual void UsePower() PURE_VIRTUAL(UPower::UsePower, );
+
+	// ── The sandbox: the ONLY operations powers may use ──
+
+	FVector Location() const { return GetOwner()->GetActorLocation(); }
+
+	void PlaySound(USoundBase* Cue) { if (Cue) UGameplayStatics::PlaySoundAtLocation(this, Cue, Location()); }
+
+	void SpawnEffect(UNiagaraSystem* Effect, FVector At) { UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Effect, At); }
+
+	void Launch(FVector Velocity)
+	{
+		if (ACharacter* Character = Cast<ACharacter>(GetOwner())) Character->LaunchCharacter(Velocity, true, true);
+	}
+
+	int32 DamageInArea(FVector Center, float Radius, float Damage)
+	{
+		TArray<FOverlapResult> Overlaps;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(GetOwner());                                // never hit yourself
+		GetWorld()->OverlapMultiByChannel(Overlaps, Center, FQuat::Identity, ECC_Pawn,
+			FCollisionShape::MakeSphere(Radius), Params);
+		TSet<AActor*> Damaged;
+		for (const FOverlapResult& Overlap : Overlaps)
+			if (AActor* Target = Overlap.GetActor(); Target && !Damaged.Contains(Target))
+			{
+				Damaged.Add(Target);
+				UGameplayStatics::ApplyDamage(Target, Damage, nullptr, GetOwner(), nullptr);
+			}
+		return Damaged.Num();
+	}
+
+	bool IsGrounded() const
+	{
+		const ACharacter* Character = Cast<ACharacter>(GetOwner());
+		return Character && Character->GetCharacterMovement()->IsMovingOnGround();
+	}
+
+	void After(float Seconds, TFunction<void()> Then)
+	{
+		FTimerHandle Handle;
+		GetWorld()->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, MoveTemp(Then)), Seconds, false);
+	}
+
+	void WhenGrounded(TFunction<void()> Then)
+	{
+		if (IsGrounded()) { Then(); return; }
+		After(0.02f, [this, Then] { WhenGrounded(Then); });
+	}
+
+private:
+	double ReadyAt = 0.0;
+};
+
+// GroundSlam.h: powers are short, readable, and touch nothing but the sandbox.
+UCLASS(meta = (BlueprintSpawnableComponent))
+class UGroundSlam : public UPower
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Power") TObjectPtr<USoundBase> JumpSound;
+	UPROPERTY(EditAnywhere, Category = "Power") TObjectPtr<USoundBase> SlamSound;
+	UPROPERTY(EditAnywhere, Category = "Power") TObjectPtr<UNiagaraSystem> Shockwave;
+
+protected:
+	virtual void UsePower() override
+	{
+		PlaySound(JumpSound);
+		Launch(FVector::UpVector * 1200.f);
+		After(0.35f, [this]
+		{
+			Launch(FVector::DownVector * 3000.f);
+			WhenGrounded([this]
+			{
+				PlaySound(SlamSound);
+				SpawnEffect(Shockwave, Location());
+				DamageInArea(Location(), 500.f, 40.f);
+			});
+		});
+	}
+};
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `IAudio`, `SoundCue`, `IDamageable` and `DamageInfo` come from [Facade](./facade) and [Health / Damageable](./health-component). Only the base class knows about them.
+- **Godot:** with `extends Power` and no other references, a power can still reach anything through the scene tree; the sandbox is a team rule. A code review checklist or a lint rule keeps it honest.
+- **Unreal:** the **Gameplay Ability System** is this pattern at production scale: `UGameplayAbility` is the sandbox base class, and **ability tasks** (wait for a delay, wait until landed, play montage) are its operations, written as latent steps instead of nested callbacks.
 
 ## When to use
 

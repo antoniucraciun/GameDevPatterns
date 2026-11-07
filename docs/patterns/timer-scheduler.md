@@ -17,9 +17,13 @@ A **scheduler** owns all timers. Code asks it to *"call this in 3 seconds"* or *
 - Timers can have an **owner**. When the owner is destroyed, its timers are cancelled automatically, so callbacks never touch dead objects.
 - **Repeating timers** reschedule themselves from their *due time*, not from "now", so they do not drift.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+A scheduler that runs callbacks later or repeatedly, cancels them with a handle, stops them when their owner is destroyed, and can ignore pause and slow motion. Unity needs one written; Godot and Unreal mostly have it built in.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -104,9 +108,72 @@ public class Scheduler : MonoBehaviour
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# scheduler.gd: autoload named Scheduler. Godot's Timer node already does the scheduling;
+# making each timer a child of its owner means it is freed with the owner, so callbacks
+# never run on deleted objects.
+extends Node
+
+
+## Calls callback once after seconds. Cancel by calling queue_free() on the returned Timer.
+func after(seconds: float, callback: Callable, owner: Node, unscaled := false) -> Timer:
+	return _make(seconds, callback, owner, true, unscaled)
+
+
+## Calls callback every interval seconds until cancelled or the owner is freed.
+func every(interval: float, callback: Callable, owner: Node, unscaled := false) -> Timer:
+	return _make(interval, callback, owner, false, unscaled)
+
+
+func _make(seconds: float, callback: Callable, owner: Node, one_shot: bool, unscaled: bool) -> Timer:
+	var timer := Timer.new()
+	timer.wait_time = seconds
+	timer.one_shot = one_shot
+	if unscaled:
+		timer.ignore_time_scale = true                 # ignores Engine.time_scale (Godot 4.2+)
+		timer.process_mode = Node.PROCESS_MODE_ALWAYS  # keeps running while the tree is paused
+	timer.timeout.connect(callback)
+	if one_shot:
+		timer.timeout.connect(timer.queue_free)
+	owner.add_child(timer)
+	timer.start()
+	return timer
+```
+
+```cpp [Unreal (C++)]
+// Unreal's FTimerManager is this scheduler, built in: one per world, ordered by due time,
+// with handles for cancelling. Timers bound to a UObject are skipped once it is destroyed.
+// There is nothing to write; this is the whole API you need:
+
+FTimerHandle Handle;
+
+// Once, after 2 seconds:
+GetWorldTimerManager().SetTimer(Handle, this, &AMyActor::DoThing, 2.f, /*bLoop*/ false);
+
+// Every 3 seconds (the first call after 3 s, or pass a different FirstDelay):
+GetWorldTimerManager().SetTimer(Handle, this, &AMyActor::DoThing, 3.f, /*bLoop*/ true);
+
+// With a lambda that is skipped if this object has been destroyed:
+GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this] { DoThing(); }), 2.f, false);
+
+// Cancel, or check:
+GetWorldTimerManager().ClearTimer(Handle);
+bool bPending = GetWorldTimerManager().IsTimerActive(Handle);
+
+// World timers follow pause and time dilation. For real-time timers (UI while paused),
+// use the core ticker instead:
+FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float) { /* ... */ return false; }), 2.f);
+```
+
+:::
+
 Using it:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class SpikeTrap : MonoBehaviour
 {
     void Start() => Scheduler.Every(3f, Fire, owner: this);        // stops automatically when destroyed
@@ -131,7 +198,69 @@ public class Door : MonoBehaviour
 // Scheduler.After(2f, () => toast.SetActive(false), owner: toast, unscaled: true);
 ```
 
-`t.Owner is not null && t.Owner == null` uses Unity's overloaded `==` to detect a destroyed owner, while `is not null` checks for a real C# null (no owner given).
+```gdscript [Godot (GDScript)]
+# spike_trap.gd
+extends Node3D
+
+
+func _ready() -> void:
+	Scheduler.every(3.0, _fire, self)  # stops automatically when the trap is freed
+
+
+func _fire() -> void:
+	pass  # extend spikes, damage anything on top
+
+
+# door.gd
+extends Node3D
+
+var _close_timer: Timer
+
+
+func open() -> void:
+	# open...
+	if is_instance_valid(_close_timer):
+		_close_timer.queue_free()  # re-opening restarts the countdown
+	_close_timer = Scheduler.after(5.0, close, self)
+
+
+func close() -> void:
+	pass  # close
+
+
+# UI toast that disappears while the game is paused:
+#   Scheduler.after(2.0, toast.hide, toast, true)
+```
+
+```cpp [Unreal (C++)]
+// SpikeTrap.cpp
+void ASpikeTrap::BeginPlay()
+{
+	Super::BeginPlay();
+	// Bound to this actor: cleared automatically when it is destroyed.
+	GetWorldTimerManager().SetTimer(FireTimer, this, &ASpikeTrap::Fire, 3.f, /*bLoop*/ true);
+}
+
+void ASpikeTrap::Fire() { /* extend spikes, damage anything on top */ }
+
+// Door.cpp
+void ADoor::Open()
+{
+	/* open */
+	// Setting a timer on an active handle replaces it, so re-opening restarts the countdown.
+	GetWorldTimerManager().SetTimer(CloseTimer, this, &ADoor::Close, 5.f, false);
+}
+
+void ADoor::Close() { /* close */ }
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `t.Owner is not null && t.Owner == null` uses Unity's overloaded `==` to detect a destroyed owner, while `is not null` checks for a real C# null (no owner given).
+- **Godot:** for one-off waits inside a function, `await get_tree().create_timer(2.0).timeout` is shorter. Its later arguments let it run while paused or ignore the time scale, but it is not tied to an owner.
+- **Unreal:** timers are stored per world, so they reset on level change. Avoid binding lambdas that capture `this` without `CreateWeakLambda` or `CreateUObject`: a plain lambda keeps firing after the actor is gone.
 
 ## When to use
 

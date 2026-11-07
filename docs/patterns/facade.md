@@ -18,9 +18,13 @@ Put a **facade** in front of the subsystem: a small, task-oriented interface tha
 
 A facade does not stop advanced code from using the subsystem directly when it really needs to. It makes the **common case simple and correct**.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+An audio facade: one small API for gameplay (play a sound here, play this music, duck the music) over pooling, mixer routing, variation, spatialisation and crossfades.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -112,11 +116,161 @@ public class AudioFacade : MonoBehaviour, IAudio
 }
 
 // Gameplay code: one line, always correct.
-// audio.PlaySfx(footstepCue, transform.position);
-// audio.PlayMusic(bossTheme);
+//   audio.PlaySfx(footstepCue, transform.position);
+//   audio.PlayMusic(bossTheme);
 ```
 
-Callers depend on `IAudio`, obtained through a [Service Locator](./service-locator) or [Dependency Injection](./dependency-injection). Replacing Unity audio with FMOD means writing an `FmodAudioFacade : IAudio`, and nothing else changes.
+```gdscript [Godot (GDScript)]
+# sound_cue.gd: data, what a sound is, not how to play it.
+class_name SoundCue
+extends Resource
+
+@export var variants: Array[AudioStream] = []
+@export var bus := &"SFX"
+@export_range(-40.0, 6.0) var volume_db := 0.0
+@export_range(0.0, 0.3) var pitch_variation := 0.05
+@export var spatial := true
+
+
+# audio.gd: autoload named Audio. The facade over players, buses, variation and crossfades.
+extends Node
+
+const POOL_SIZE := 32
+
+var _pool_3d: Array[AudioStreamPlayer3D] = []
+var _pool_ui: Array[AudioStreamPlayer] = []
+var _music_a := AudioStreamPlayer.new()
+var _music_b := AudioStreamPlayer.new()
+var _current_music: AudioStreamPlayer
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS  # music and UI sounds keep playing while paused
+	for i in POOL_SIZE:
+		var p3 := AudioStreamPlayer3D.new()
+		add_child(p3)
+		_pool_3d.append(p3)
+		var p := AudioStreamPlayer.new()
+		add_child(p)
+		_pool_ui.append(p)
+	for m in [_music_a, _music_b]:
+		m.bus = &"Music"
+		add_child(m)
+	_current_music = _music_a
+
+
+func play_sfx(cue: SoundCue, position: Vector3) -> void:
+	if cue.variants.is_empty():
+		return
+	var player := _free_player(_pool_3d) as AudioStreamPlayer3D
+	if player == null:
+		return  # all voices busy: drop the sound rather than cut another
+	player.global_position = position
+	_start(player, cue)
+
+
+func play_ui(cue: SoundCue) -> void:
+	var player := _free_player(_pool_ui) as AudioStreamPlayer
+	if player and not cue.variants.is_empty():
+		_start(player, cue)
+
+
+func play_music(track: AudioStream, fade_seconds := 1.5) -> void:
+	var next := _music_b if _current_music == _music_a else _music_a
+	next.stream = track
+	next.volume_db = -80.0
+	next.play()
+	var tween := create_tween().set_parallel()
+	tween.tween_property(next, "volume_db", 0.0, fade_seconds)
+	tween.tween_property(_current_music, "volume_db", -80.0, fade_seconds)
+	tween.chain().tween_callback(_current_music.stop)
+	_current_music = next
+
+
+func duck_music(duck: bool) -> void:
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index(&"Music"), -10.0 if duck else 0.0)
+
+
+func _start(player: Node, cue: SoundCue) -> void:
+	player.stream = cue.variants.pick_random()
+	player.bus = cue.bus
+	player.volume_db = cue.volume_db
+	player.pitch_scale = 1.0 + randf_range(-cue.pitch_variation, cue.pitch_variation)
+	player.play()
+
+
+func _free_player(pool: Array) -> Node:
+	for p in pool:
+		if not p.playing:
+			return p
+	return null
+
+# Gameplay code: one line, always correct.
+#   Audio.play_sfx(footstep_cue, global_position)
+#   Audio.play_music(boss_theme)
+```
+
+```cpp [Unreal (C++)]
+// AudioFacadeSubsystem.h: Unreal already has variation (Sound Cues / MetaSounds), mixing
+// (Sound Classes, Submixes) and fades (UAudioComponent). The facade hides those choices behind
+// four calls so gameplay never sees them.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundMix.h"
+#include "AudioFacadeSubsystem.generated.h"
+
+UCLASS()
+class UAudioFacadeSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	// Concurrency settings on the sound asset limit voices, like a pool size.
+	void PlaySfx(USoundBase* Sound, const FVector& Location)
+	{
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), Sound, Location);
+	}
+
+	void PlayUi(USoundBase* Sound) { UGameplayStatics::PlaySound2D(GetWorld(), Sound); }
+
+	void PlayMusic(USoundBase* Track, float FadeSeconds = 1.5f)
+	{
+		if (CurrentMusic) CurrentMusic->FadeOut(FadeSeconds, 0.f);   // the old track stops when faded out
+		CurrentMusic = UGameplayStatics::CreateSound2D(GetGameInstance(), Track, 1.f, 1.f, 0.f, nullptr,
+			/*bPersistAcrossLevelTransition*/ true);
+		CurrentMusic->FadeIn(FadeSeconds);
+	}
+
+	void DuckMusic(bool bDuck)
+	{
+		// A Sound Mix that lowers the Music sound class, authored in the editor.
+		if (bDuck) UGameplayStatics::PushSoundMixModifier(GetWorld(), DuckMix);
+		else UGameplayStatics::PopSoundMixModifier(GetWorld(), DuckMix);
+	}
+
+	UPROPERTY() TObjectPtr<USoundMix> DuckMix;   // assigned from project settings or a data asset
+
+private:
+	UPROPERTY() TObjectPtr<UAudioComponent> CurrentMusic;
+};
+
+// Gameplay code: one line, always correct.
+//   GetGameInstance()->GetSubsystem<UAudioFacadeSubsystem>()->PlaySfx(FootstepSound, GetActorLocation());
+```
+
+:::
+
+Callers depend on the facade (in Unity through `IAudio`, obtained via a [Service Locator](./service-locator) or [Dependency Injection](./dependency-injection)). Replacing the engine's audio with FMOD or Wwise means writing a new facade, and nothing else changes.
+
+**Engine notes**
+
+- **Unity:** the mixer's `MusicVolume` must be an **exposed parameter** on the mixer for `SetFloat` to work.
+- **Godot:** set up the `SFX` and `Music` buses in the Audio panel. `AudioStreamRandomizer` can also handle variants and pitch inside a single stream.
+- **Unreal:** most of what the Unity and Godot facades implement is configuration in Unreal (Sound Cues or MetaSounds for variation, Sound Concurrency for voice limits, Sound Mixes for ducking). The facade's value is the small, stable API in front of it.
 
 ## When to use
 

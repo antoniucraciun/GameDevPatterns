@@ -21,9 +21,13 @@ Add an AI that controls **the game**, not a character. The director **observes**
 
 The result is a rhythm: tension, release, tension. It adapts to skill, because skilled players spend less time at high intensity, so they get more frequent build-ups. Every session plays out differently.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+An intensity meter fed by stress signals, a build-up / peak / relax cycle, and a spawn budget that follows the cycle. The director only decides *how much* pressure to apply; a spawner (left to the reader in each tab) decides what to spawn and where.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using UnityEngine;
 
 public class AIDirector : MonoBehaviour
@@ -103,6 +107,214 @@ public class AIDirector : MonoBehaviour
 // (cheap fodder vs. expensive specials) at off-screen spawn points and returns what it spent,
 // MaybeDropSupplies(...) places health or ammo near the player if they are low.
 ```
+
+```gdscript [Godot (GDScript)]
+# ai_director.gd
+class_name AIDirector
+extends Node
+
+enum Phase { BUILD_UP, PEAK, RELAX }
+
+@export_group("Intensity")
+@export var decay_per_second := 0.05  # slow calm-down
+@export var peak_threshold := 0.8
+
+@export_group("Pacing (seconds)")
+@export var peak_duration := 6.0
+@export var relax_duration := 25.0
+
+@export_group("Spawning")
+@export var max_spawn_budget_per_second := 3.0  # threat points per second at full pressure
+
+@export_group("")
+@export var player: PlayerHealth       # your health node on the player: damaged(amount), max_health, fraction()
+@export var spawner: DirectorSpawner   # your spawner: enemies_near(), spend_budget(), maybe_drop_supplies()
+
+var intensity := 0.0  # 0..1
+var _phase := Phase.BUILD_UP
+var _phase_time_left := 0.0
+var _pressure := 0.0  # 0..1, rises during build-up
+var _budget := 0.0
+
+
+func _ready() -> void:
+	player.damaged.connect(_on_player_damaged)
+
+
+# Stress signals push intensity up quickly.
+func _on_player_damaged(amount: float) -> void:
+	_bump(amount / player.max_health * 2.0)
+
+
+func on_enemy_killed_near_player() -> void:
+	_bump(0.03)
+
+
+func _bump(amount: float) -> void:
+	intensity = clampf(intensity + amount, 0.0, 1.0)
+
+
+func _process(delta: float) -> void:
+	# Continuous signals: low health and many nearby enemies keep intensity up.
+	var health_stress := 1.0 - player.fraction()
+	var crowd_stress := clampf(spawner.enemies_near(player.global_position, 15.0) / 12.0, 0.0, 1.0)
+	intensity = clampf(maxf(intensity - decay_per_second * delta, 0.5 * health_stress + 0.4 * crowd_stress), 0.0, 1.0)
+
+	_phase_time_left -= delta
+	match _phase:
+		Phase.BUILD_UP:
+			_pressure = minf(1.0, _pressure + delta / 40.0)  # ramp up over ~40 s
+			if intensity >= peak_threshold:
+				_enter(Phase.PEAK, peak_duration)
+		Phase.PEAK:
+			_pressure = 1.0  # hold the climax briefly
+			if _phase_time_left <= 0.0:
+				_enter(Phase.RELAX, relax_duration)
+		Phase.RELAX:
+			_pressure = 0.0  # no new spawns: breathing room
+			if _phase_time_left <= 0.0 and intensity < 0.3:
+				_enter(Phase.BUILD_UP, 0.0)
+
+	# Spend a spawn budget proportional to pressure; the spawner decides what and where.
+	_budget += _pressure * max_spawn_budget_per_second * delta
+	_budget -= spawner.spend_budget(_budget)
+
+
+func _enter(next: Phase, duration: float) -> void:
+	_phase = next
+	_phase_time_left = duration
+	if next == Phase.RELAX:
+		spawner.maybe_drop_supplies(player.global_position)  # reward surviving the peak
+	if next == Phase.BUILD_UP:
+		_pressure = 0.2
+```
+
+```cpp [Unreal (C++)]
+// AIDirector.h: placed once in the level. In multiplayer, run it on the server only (or own it
+// from the GameMode, which only exists there).
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "AIDirector.generated.h"
+
+class ADirectorSpawner;   // yours: EnemiesNear(), SpendBudget(), MaybeDropSupplies()
+class UHealthComponent;   // yours: GetFraction(), GetMax()
+
+UCLASS()
+class AAIDirector : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AAIDirector() { PrimaryActorTick.bCanEverTick = true; }
+
+	float GetIntensity() const { return Intensity; }   // 0..1
+	void OnEnemyKilledNearPlayer() { Bump(0.03f); }
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "Intensity") float DecayPerSecond = 0.05f;   // slow calm-down
+	UPROPERTY(EditAnywhere, Category = "Intensity") float PeakThreshold = 0.8f;
+	UPROPERTY(EditAnywhere, Category = "Pacing") float PeakDuration = 6.f;
+	UPROPERTY(EditAnywhere, Category = "Pacing") float RelaxDuration = 25.f;
+	UPROPERTY(EditAnywhere, Category = "Spawning") float MaxSpawnBudgetPerSecond = 3.f;
+	UPROPERTY(EditAnywhere, Category = "Spawning") TObjectPtr<ADirectorSpawner> Spawner;
+
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
+
+private:
+	enum class EPhase : uint8 { BuildUp, Peak, Relax };   // internal only, so no UENUM
+
+	// Bound to the player's built-in OnTakeAnyDamage delegate.
+	UFUNCTION()
+	void OnPlayerDamaged(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
+		AController* InstigatedBy, AActor* DamageCauser);
+
+	void Bump(float Amount) { Intensity = FMath::Clamp(Intensity + Amount, 0.f, 1.f); }
+	void Enter(EPhase Next, float Duration);
+
+	UPROPERTY() TObjectPtr<APawn> Player;
+	UPROPERTY() TObjectPtr<UHealthComponent> PlayerHealth;
+
+	float Intensity = 0.f;
+	EPhase Phase = EPhase::BuildUp;
+	float PhaseUntil = 0.f;
+	float Pressure = 0.f;                       // 0..1, rises during build-up
+	float Budget = 0.f;
+};
+
+// AIDirector.cpp
+#include "AIDirector.h"
+#include "DirectorSpawner.h"
+#include "HealthComponent.h"
+#include "Kismet/GameplayStatics.h"
+
+void AAIDirector::BeginPlay()
+{
+	Super::BeginPlay();
+	// Single-player sketch: rebind here too if the player pawn respawns.
+	Player = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!Player) return;
+	PlayerHealth = Player->FindComponentByClass<UHealthComponent>();
+	Player->OnTakeAnyDamage.AddDynamic(this, &AAIDirector::OnPlayerDamaged);
+}
+
+// Stress signals push intensity up quickly.
+void AAIDirector::OnPlayerDamaged(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
+	AController* InstigatedBy, AActor* DamageCauser)
+{
+	if (PlayerHealth) Bump(Damage / PlayerHealth->GetMax() * 2.f);
+}
+
+void AAIDirector::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (!Player || !PlayerHealth || !Spawner) return;
+	const float Now = GetWorld()->GetTimeSeconds();
+
+	// Continuous signals: low health and many nearby enemies keep intensity up.
+	const float HealthStress = 1.f - PlayerHealth->GetFraction();
+	const float CrowdStress = FMath::Clamp(Spawner->EnemiesNear(Player->GetActorLocation(), 1500.f) / 12.f, 0.f, 1.f);
+	Intensity = FMath::Clamp(FMath::Max(Intensity - DecayPerSecond * DeltaSeconds, 0.5f * HealthStress + 0.4f * CrowdStress), 0.f, 1.f);
+
+	switch (Phase)
+	{
+	case EPhase::BuildUp:
+		Pressure = FMath::Min(1.f, Pressure + DeltaSeconds / 40.f);      // ramp up over ~40 s
+		if (Intensity >= PeakThreshold) Enter(EPhase::Peak, PeakDuration);
+		break;
+	case EPhase::Peak:
+		Pressure = 1.f;                                                   // hold the climax briefly
+		if (Now >= PhaseUntil) Enter(EPhase::Relax, RelaxDuration);
+		break;
+	case EPhase::Relax:
+		Pressure = 0.f;                                                   // no new spawns: breathing room
+		if (Now >= PhaseUntil && Intensity < 0.3f) Enter(EPhase::BuildUp, 0.f);
+		break;
+	}
+
+	// Spend a spawn budget proportional to pressure; the spawner decides what and where.
+	Budget += Pressure * MaxSpawnBudgetPerSecond * DeltaSeconds;
+	Budget -= Spawner->SpendBudget(Budget);
+}
+
+void AAIDirector::Enter(EPhase Next, float Duration)
+{
+	Phase = Next;
+	PhaseUntil = GetWorld()->GetTimeSeconds() + Duration;
+	if (Next == EPhase::Relax) Spawner->MaybeDropSupplies(Player->GetActorLocation());   // reward surviving the peak
+	if (Next == EPhase::BuildUp) Pressure = 0.2f;
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** a single director per scene suits a `MonoBehaviour`; expose `Intensity` to a debug graph (or the Profiler's custom counters) while tuning, because pacing problems are invisible in a single frame.
+- **Godot:** making the director an autoload lets any enemy call `on_enemy_killed_near_player()` without a reference being wired up. `PlayerHealth` and `DirectorSpawner` stand for your own scripts.
+- **Unreal:** `OnTakeAnyDamage` is every actor's built-in damage delegate, fed by `UGameplayStatics::ApplyDamage`; with the Gameplay Ability System, listen to the health attribute's change delegate instead. The spawner can ask the **Environment Query System** for off-screen spawn points (score candidates by distance to the player and by not being visible to them).
 
 ## When to use
 

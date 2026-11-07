@@ -40,3 +40,7 @@ features:
 ::: warning Keep it simple
 Patterns solve specific problems. Using one where plain code would do adds complexity without benefit. Start simple and add a pattern only when the problem is real. [Read the guidance →](./keep-it-simple)
 :::
+
+::: info AI-assisted and still being proofread
+This site was written with AI assistance and is still being proofread, so it may contain mistakes. The Godot and Unreal code examples in particular have not been compiled yet. Found a mistake? Please [open an issue](https://github.com/antoniucraciun/GameDevPatterns/issues), or see [Contributing](./contributing#found-a-mistake) to fix it yourself.
+:::

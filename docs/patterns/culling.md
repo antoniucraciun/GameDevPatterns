@@ -22,11 +22,13 @@ Find out early, and cheaply, what does **not** need processing, and skip it. Sev
 
 Engine culling handles rendering automatically. **Logic culling** is up to you, and is often where the big wins are. Unity's **`CullingGroup`** API efficiently tells you, for thousands of bounding spheres, which are visible and which distance band each is in, and **notifies you when that changes**, so you do not have to poll.
 
-## Example (Unity C#)
+## Example
 
-Logic culling for many ambient creatures with `CullingGroup`: animate and update only those that are visible, and switch them off completely when far away.
+Logic culling for many ambient creatures: animate and update only those that are visible, and switch them off completely when far away. Rendering is already culled by every engine; what this adds is culling the *work* attached to invisible objects. Confirm that work shows up in the profiler (Unity Profiler, Godot's profiler, Unreal Insights) before building it.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using UnityEngine;
 
 public class AmbientCreatureCulling : MonoBehaviour
@@ -81,7 +83,131 @@ public class AmbientCreatureCulling : MonoBehaviour
 // SetSoundEnabled toggles its AudioSource. Radius is its bounding radius.
 ```
 
-`CullingGroup` does the visibility tests in the engine's native code, in bulk, and reports only *changes*. For static objects, never update the spheres at all.
+```gdscript [Godot (GDScript)]
+# ambient_creature.gd: each creature has a VisibleOnScreenNotifier3D child sized to its bounds,
+# which reports when it enters or leaves the camera view.
+class_name AmbientCreature
+extends Node3D
+
+@onready var _notifier: VisibleOnScreenNotifier3D = $VisibleOnScreenNotifier3D
+@onready var _anim: AnimationPlayer = $AnimationPlayer
+@onready var _sound: AudioStreamPlayer3D = $Sound
+
+var _band := 0  # set by the manager below
+
+
+func _ready() -> void:
+	_notifier.screen_entered.connect(_refresh)
+	_notifier.screen_exited.connect(_refresh)
+	_refresh()
+
+
+func set_band(band: int) -> void:
+	if band != _band:
+		_band = band
+		_refresh()
+
+
+func _refresh() -> void:
+	var on_screen := _notifier.is_on_screen()  # not "visible": that is a Node3D property
+	set_physics_process(_band < 3)  # beyond the last band: no logic at all
+	_anim.process_mode = PROCESS_MODE_INHERIT if on_screen and _band <= 1 else PROCESS_MODE_DISABLED
+	_sound.stream_paused = _band != 0  # audible only up close
+
+
+# creature_culling.gd: distance bands for every child creature, checked a few times per second.
+extends Node3D
+
+@export var bands := PackedFloat32Array([20.0, 60.0, 150.0])  # band 0: <20 m, 1: <60, 2: <150, 3: beyond
+@export var check_interval := 0.25
+
+var _until_check := 0.0
+
+
+func _process(delta: float) -> void:
+	_until_check -= delta
+	if _until_check > 0.0:
+		return
+	_until_check = check_interval
+
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	for child in get_children():
+		var creature := child as AmbientCreature
+		var d := cam.global_position.distance_to(creature.global_position)
+		creature.set_band(bands.bsearch(d, false))  # index of the first band beyond d
+```
+
+```cpp [Unreal (C++)]
+// The Significance Manager (enable the SignificanceManager plugin and add the module dependency)
+// scores registered objects against the viewpoints you give it, and calls back when a score changes.
+
+// AmbientCreature.cpp: Mesh is a USkeletalMeshComponent, Sound a UAudioComponent.
+#include "AmbientCreature.h"
+#include "SignificanceManager.h"
+#include "Components/AudioComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+
+AAmbientCreature::AAmbientCreature()
+{
+	// ...create Mesh and Sound...
+	// "Animate only visible creatures" is built in: skip the pose when the mesh isn't rendered.
+	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+}
+
+void AAmbientCreature::BeginPlay()
+{
+	Super::BeginPlay();
+	USignificanceManager* Significance = FSignificanceManagerModule::Get(GetWorld());
+	if (!Significance) return;
+
+	Significance->RegisterObject(this, TEXT("AmbientCreature"),
+		[](USignificanceManager::FManagedObjectInfo* Info, const FTransform& Viewpoint)
+		{
+			const AActor* Self = CastChecked<AActor>(Info->GetObject());
+			const float D = FVector::Dist(Self->GetActorLocation(), Viewpoint.GetLocation());
+			const int32 Band = D < 2000.f ? 0 : D < 6000.f ? 1 : D < 15000.f ? 2 : 3;
+			return float(3 - Band);                         // higher means more significant
+		},
+		USignificanceManager::EPostSignificanceType::Sequential,
+		[](USignificanceManager::FManagedObjectInfo* Info, float OldSignificance, float Significance, bool bFinal)
+		{
+			if (Significance != OldSignificance)
+				CastChecked<AAmbientCreature>(Info->GetObject())->ApplyBand(3 - int32(Significance));
+		});
+}
+
+void AAmbientCreature::EndPlay(const EEndPlayReason::Type Reason)
+{
+	if (USignificanceManager* Significance = FSignificanceManagerModule::Get(GetWorld()))
+		Significance->UnregisterObject(this);
+	Super::EndPlay(Reason);
+}
+
+void AAmbientCreature::ApplyBand(int32 Band)
+{
+	SetActorTickEnabled(Band < 3);                          // beyond the last band: no logic at all
+	Mesh->SetComponentTickEnabled(Band <= 1);               // animate only fairly close creatures
+	Sound->SetPaused(Band != 0);                            // audible only up close
+}
+
+// The game drives the update once per frame, e.g. from the player controller's Tick:
+//   if (USignificanceManager* S = FSignificanceManagerModule::Get(GetWorld()))
+//   {
+//       const TArray<FTransform> Viewpoints = { FTransform(PlayerCameraManager->GetCameraRotation(),
+//                                                          PlayerCameraManager->GetCameraLocation()) };
+//       S->Update(Viewpoints);
+//   }
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `CullingGroup` does the visibility tests in the engine's native code, in bulk, and reports only *changes*. For static objects, never update the spheres at all. Occlusion culling for rendering is baked in the **Occlusion Culling** window; per-layer cull distances are set with `Camera.layerCullDistances`.
+- **Godot:** `VisibleOnScreenEnabler3D` is a ready-made variant that disables a target node's processing while it's off screen. Rendering occlusion culling needs **Use Occlusion Culling** in the project settings plus baked `OccluderInstance3D` nodes; distance culling is the `visibility_range_end` of each `GeometryInstance3D`.
+- **Unreal:** the Significance Manager is a plugin and does not update itself: the game calls `Update` with the viewpoints. For rendering, **Cull Distance Volumes** (and each primitive's `LDMaxDrawDistance`) remove small objects at a distance, and **precomputed visibility** bakes occlusion for static scenes; dynamic occlusion culling is on by default. `AActor::WasRecentlyRendered()` tells logic whether an actor was drawn in the last frames.
 
 ## When to use
 

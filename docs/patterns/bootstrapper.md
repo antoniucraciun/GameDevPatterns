@@ -17,9 +17,13 @@ Have **one place** that runs first and initialises everything the game needs, in
 - **Persistent services.** Create services under one `DontDestroyOnLoad` root, or in a persistent scene, and register them with the [Service Locator](./service-locator) or DI container. This is the composition root from [Dependency Injection](./dependency-injection).
 - **A "ready" signal.** Gameplay waits for the bootstrapper to finish, instead of each system checking whether its dependencies happen to exist.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+Ordered boot steps that run before the first level, whichever level you start from, with a way for gameplay to wait until boot has finished.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -91,11 +95,8 @@ public class LoadSettingsStep : IBootStep
 
     static string SettingsPath => System.IO.Path.Combine(Application.persistentDataPath, "settings.json");
 }
-```
 
-Gameplay that needs services waits for boot:
-
-```csharp
+// Gameplay that needs services waits for boot:
 public class LevelStart : MonoBehaviour
 {
     async void Start()
@@ -107,7 +108,154 @@ public class LevelStart : MonoBehaviour
 }
 ```
 
-`Services` is the locator from [Service Locator](./service-locator). `PlatformStep`, `AnalyticsStep` and `LoadSaveStep` follow the same shape as `LoadSettingsStep`. `Awaitable.BackgroundThreadAsync` and `MainThreadAsync` are Unity 6 APIs.
+```gdscript [Godot (GDScript)]
+# boot_step.gd: base class for steps. GDScript has no exceptions, so steps report failure in `ok`.
+class_name BootStep
+extends RefCounted
+
+var step_name := "Step"
+var ok := true
+
+
+func run() -> void:  # may await
+	pass
+
+
+# load_settings_step.gd
+class_name LoadSettingsStep
+extends BootStep
+
+func _init() -> void:
+	step_name = "Settings"
+
+
+func run() -> void:
+	var path := "user://settings.json"
+	var text := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else "{}"
+	var data = JSON.parse_string(text)
+	ok = data is Dictionary
+	Services.register(&"settings", GameSettings.from_dict(data if ok else {}))
+
+
+# boot.gd: autoload named Boot, listed FIRST in Project Settings → Globals. Autoloads are created
+# in list order before any scene, so boot runs whichever scene you press Play in.
+extends Node
+
+signal finished
+
+var is_ready := false
+
+
+func _ready() -> void:
+	_boot()
+
+
+func _boot() -> void:
+	# Ordered steps: each may depend on the ones before it.
+	var steps: Array[BootStep] = [
+		LoadSettingsStep.new(),
+		PlatformStep.new(),   # console/mobile SDK, sign-in
+		AnalyticsStep.new(),  # needs the platform user id
+		LoadSaveStep.new(),   # needs settings (slot) and platform (cloud saves)
+	]
+	for step in steps:
+		var start := Time.get_ticks_msec()
+		await step.run()
+		if not step.ok:
+			push_error("Boot step '%s' failed; continuing in degraded mode." % step.step_name)
+		print("[Boot] %s (%d ms)" % [step.step_name, Time.get_ticks_msec() - start])
+	is_ready = true
+	finished.emit()
+
+
+# Lets gameplay wait for boot without polling.
+func wait_until_ready() -> void:
+	if not is_ready:
+		await finished
+
+
+# level_start.gd: gameplay that needs services waits for boot.
+extends Node
+
+func _ready() -> void:
+	await Boot.wait_until_ready()
+	var settings: GameSettings = Services.locate(&"settings")
+	# ... start the level
+```
+
+```cpp [Unreal (C++)]
+// Unreal boots services as subsystems. The game instance creates them before the first
+// level loads, and InitializeDependency guarantees ordering between them.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Async/Async.h"
+#include "Misc/FileHelper.h"
+#include "BootSubsystems.generated.h"
+
+UCLASS()
+class USettingsSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override
+	{
+		Super::Initialize(Collection);
+		// File IO off the game thread, then back to the game thread to publish the result.
+		const FString Path = FPaths::ProjectSavedDir() / TEXT("settings.json");
+		Async(EAsyncExecution::ThreadPool, [WeakThis = TWeakObjectPtr<USettingsSubsystem>(this), Path]
+		{
+			FString Json;
+			if (!FFileHelper::LoadFileToString(Json, *Path)) Json = TEXT("{}");
+			AsyncTask(ENamedThreads::GameThread, [WeakThis, Json]
+			{
+				if (USettingsSubsystem* Self = WeakThis.Get()) Self->Apply(Json);
+			});
+		});
+	}
+
+	bool IsLoaded() const { return bLoaded; }
+	FSimpleMulticastDelegate OnLoaded;
+
+private:
+	void Apply(const FString& Json) { /* parse into settings */ bLoaded = true; OnLoaded.Broadcast(); }
+	bool bLoaded = false;
+};
+
+UCLASS()
+class UAnalyticsSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override
+	{
+		// Ordered steps: the platform subsystem (sign-in, user id) initialises first.
+		Collection.InitializeDependency<UPlatformSubsystem>();
+		Super::Initialize(Collection);
+		/* start a session with the platform user id */
+	}
+};
+
+// LevelStart.cpp: gameplay that needs a service waits for it without polling.
+void ALevelStart::BeginPlay()
+{
+	Super::BeginPlay();
+	USettingsSubsystem* Settings = GetGameInstance()->GetSubsystem<USettingsSubsystem>();
+	if (Settings->IsLoaded()) StartLevel();
+	else Settings->OnLoaded.AddUObject(this, &ALevelStart::StartLevel);
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `Services` is the locator from [Service Locator](./service-locator). `PlatformStep`, `AnalyticsStep` and `LoadSaveStep` follow the same shape as `LoadSettingsStep`. `Awaitable.BackgroundThreadAsync` and `MainThreadAsync` are Unity 6 APIs.
+- **Godot:** autoload order *is* boot order, so put the boot autoload first. For heavy work, `WorkerThreadPool.add_task` moves it off the main thread; keep scene-tree access on the main thread.
+- **Unreal:** `UGameInstance::Init` runs before the first level and is the classic place for boot code; subsystems with `InitializeDependency` are the modular version. Platform sign-in and other online calls are asynchronous with completion delegates, so a step "finishes" when its delegate fires.
 
 ## When to use
 

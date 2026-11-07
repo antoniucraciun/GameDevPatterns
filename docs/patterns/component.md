@@ -12,11 +12,15 @@ Inheritance hierarchies for game objects collapse under real requirements. You s
 
 An entity becomes a thin container. Each capability (movement, health, shooting, rendering) is a separate **component** that does one job. You build a new kind of entity by choosing which components to attach. Components can find their siblings on the same entity when they need to cooperate. Prefer interfaces or events for that, so components do not depend on concrete sibling types.
 
-## Example (Unity C#)
+## Example
 
-Unity's GameObject/MonoBehaviour model is this pattern. Keep each component focused:
+Each engine's object model is this pattern: an entity is a container, and behaviour comes from small, focused components attached to it.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class Health : MonoBehaviour
 {
     [SerializeField] int max = 100;
@@ -48,7 +52,140 @@ public class DestroyOnDeath : MonoBehaviour
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# health.gd: a child node of the entity.
+class_name Health
+extends Node
+
+signal died
+
+@export var max_health := 100
+var current: int
+
+
+func _ready() -> void:
+	current = max_health
+
+
+func take_damage(amount: int) -> void:
+	if current <= 0:
+		return
+	current = maxi(0, current - amount)
+	if current == 0:
+		died.emit()
+
+
+# drop_loot_on_death.gd: another child node, wired to its sibling Health in the inspector.
+extends Node
+
+@export var health: Health
+@export var loot_scene: PackedScene
+
+
+func _ready() -> void:
+	health.died.connect(_on_died)
+
+
+func _on_died() -> void:
+	var loot: Node3D = loot_scene.instantiate()
+	get_tree().current_scene.add_child(loot)
+	loot.global_position = (owner as Node3D).global_position
+
+
+# destroy_on_death.gd
+extends Node
+
+@export var health: Health
+
+
+func _ready() -> void:
+	health.died.connect(owner.queue_free)  # owner = the root of the entity's scene
+```
+
+```cpp [Unreal (C++)]
+// HealthComponent.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "HealthComponent.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDied);
+
+UCLASS(ClassGroup = (Gameplay), meta = (BlueprintSpawnableComponent))
+class UHealthComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Health") int32 Max = 100;
+	UPROPERTY(BlueprintReadOnly, Category = "Health") int32 Current = 0;
+	UPROPERTY(BlueprintAssignable, Category = "Health") FOnDied OnDied;
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void ApplyDamage(int32 Amount)
+	{
+		if (Current <= 0) return;
+		Current = FMath::Max(0, Current - Amount);
+		if (Current == 0) OnDied.Broadcast();
+	}
+
+protected:
+	virtual void BeginPlay() override { Super::BeginPlay(); Current = Max; }
+};
+
+// DropLootOnDeathComponent.h
+UCLASS(ClassGroup = (Gameplay), meta = (BlueprintSpawnableComponent))
+class UDropLootOnDeathComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Loot") TSubclassOf<AActor> LootClass;
+
+protected:
+	virtual void BeginPlay() override
+	{
+		Super::BeginPlay();
+		if (UHealthComponent* Health = GetOwner()->FindComponentByClass<UHealthComponent>())
+			Health->OnDied.AddDynamic(this, &UDropLootOnDeathComponent::HandleDied);
+	}
+
+private:
+	UFUNCTION() void HandleDied()
+	{
+		GetWorld()->SpawnActor<AActor>(LootClass, GetOwner()->GetActorTransform());
+	}
+};
+
+// DestroyOnDeathComponent.h
+UCLASS(ClassGroup = (Gameplay), meta = (BlueprintSpawnableComponent))
+class UDestroyOnDeathComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void BeginPlay() override
+	{
+		Super::BeginPlay();
+		if (UHealthComponent* Health = GetOwner()->FindComponentByClass<UHealthComponent>())
+			Health->OnDied.AddDynamic(this, &UDestroyOnDeathComponent::HandleDied);
+	}
+
+private:
+	UFUNCTION() void HandleDied() { GetOwner()->Destroy(); }
+};
+```
+
+:::
+
 A crate is `Health + DropLootOnDeath + DestroyOnDeath`. An enemy reuses the same three components and adds `Patrol` and `Shooter`. You never have to choose a base class.
+
+**Engine notes**
+
+- **Unity:** `[RequireComponent]` adds dependencies automatically when a component is added in the editor; `TryGetComponent` avoids allocations when a component may be missing.
+- **Godot:** the "components" are child nodes. Wire siblings with `@export` (as above) or `%UniqueName` references rather than fragile `get_node("../Health")` paths. Godot's own nodes (`Area3D`, `AnimationPlayer`, `NavigationAgent3D`) are composed the same way.
+- **Unreal:** use `UActorComponent` for logic only and `USceneComponent` when it needs a transform. Each component class needs its own header (with its own `.generated.h`); they are shown together here for brevity.
 
 ## When to use
 

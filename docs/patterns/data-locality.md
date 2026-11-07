@@ -22,11 +22,18 @@ Techniques, roughly from simplest to most involved:
 | **Structure of Arrays (SoA)** | Separate arrays per field (`positions[]`, `velocities[]`), so a loop that needs only positions touches only positions. Ideal for SIMD. |
 | **Sort by access** | Process items grouped by type or material, so branches are predictable and shared data stays cached. |
 
-## Example (Unity C#)
+## Example
+
+Measure before and after: the Unity Profiler (or a `Stopwatch` around the loop), Godot's profiler, or Unreal Insights with a `TRACE_CPUPROFILER_EVENT_SCOPE` around the update. Layout changes that don't show up in a measurement aren't worth their complexity.
 
 **Before:** one object per particle, scattered on the heap, with fields the update loop never reads:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections.Generic;
+using UnityEngine;
+
 class ParticleObject                    // reference type: each instance lives somewhere on the heap
 {
     public Vector3 Position, Velocity;
@@ -35,22 +42,85 @@ class ParticleObject                    // reference type: each instance lives s
     public Color StartColor, EndColor;
 }
 
-List<ParticleObject> particles;         // a list of pointers
-
-void Tick(float dt)
+class ParticlesAoS
 {
-    foreach (var p in particles)        // each p: pointer chase, likely cache miss
+    List<ParticleObject> particles = new();   // a list of pointers
+
+    void Tick(float dt)
     {
-        p.Velocity += Physics.gravity * dt;
-        p.Position += p.Velocity * dt;
-        p.Life -= dt;
+        foreach (var p in particles)    // each p: pointer chase, likely cache miss
+        {
+            p.Velocity += Physics.gravity * dt;
+            p.Position += p.Velocity * dt;
+            p.Life -= dt;
+        }
     }
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# particles_aos.gd
+extends RefCounted
+
+const GRAVITY := Vector3(0.0, -9.8, 0.0)
+
+
+class ParticleObject:  # each instance is a separate heap object
+	var position: Vector3
+	var velocity: Vector3
+	var life: float
+	var debug_name: String  # cold data next to the hot data
+	var start_color: Color
+	var end_color: Color
+
+
+var particles: Array[ParticleObject] = []  # an array of references
+
+
+func tick(dt: float) -> void:
+	for p in particles:  # each p: a pointer chase plus a property lookup
+		p.velocity += GRAVITY * dt
+		p.position += p.velocity * dt
+		p.life -= dt
+```
+
+```cpp [Unreal (C++)]
+// ParticlesAoS.h
+struct FParticleObject                 // each one allocated separately
+{
+	FVector Position, Velocity;
+	float Life = 0.f;
+	FString DebugName;                 // cold data dragged into the cache with the hot data
+	FLinearColor StartColor, EndColor;
+};
+
+class FParticlesAoS
+{
+public:
+	void Tick(float Dt, const FVector& Gravity)
+	{
+		for (const TUniquePtr<FParticleObject>& P : Particles)   // pointer chase, likely cache miss
+		{
+			P->Velocity += Gravity * Dt;
+			P->Position += P->Velocity * Dt;
+			P->Life -= Dt;
+		}
+	}
+
+private:
+	TArray<TUniquePtr<FParticleObject>> Particles;               // an array of pointers
+};
+```
+
+:::
+
 **After:** structure of arrays. Each array is contiguous and dense, and the hot loop reads only what it needs:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class ParticleSystemSoA
 {
     // Hot data, one contiguous array per field.
@@ -98,7 +168,110 @@ public class ParticleSystemSoA
 }
 ```
 
-In Unity, the next steps are `NativeArray<T>` with the [Job System](./job-system) and Burst, which vectorises loops like this automatically. Unity's ECS (Entities) stores components in contiguous chunks by design, so this pattern is built in.
+```gdscript [Godot (GDScript)]
+# particles_soa.gd: packed arrays store their elements contiguously, unboxed.
+class_name ParticlesSoA
+extends RefCounted
+
+const GRAVITY := Vector3(0.0, -9.8, 0.0)
+
+# Hot data, one contiguous array per field.
+var _position := PackedVector3Array()
+var _velocity := PackedVector3Array()
+var _life := PackedFloat32Array()
+
+# Cold data, read only when spawning or rendering.
+var _start_color := PackedColorArray()
+var _end_color := PackedColorArray()
+
+var _count := 0
+
+
+func _init(capacity: int) -> void:
+	_position.resize(capacity)
+	_velocity.resize(capacity)
+	_life.resize(capacity)
+	_start_color.resize(capacity)
+	_end_color.resize(capacity)
+
+
+func tick(dt: float) -> void:
+	var g := GRAVITY * dt
+	for i in _count:
+		_velocity[i] += g
+		_position[i] += _velocity[i] * dt
+		_life[i] -= dt
+
+	var j := 0
+	while j < _count:  # remove dead particles, keeping arrays dense
+		if _life[j] > 0.0:
+			j += 1
+			continue
+		_count -= 1
+		_position[j] = _position[_count]
+		_velocity[j] = _velocity[_count]
+		_life[j] = _life[_count]
+		_start_color[j] = _start_color[_count]
+		_end_color[j] = _end_color[_count]
+```
+
+```cpp [Unreal (C++)]
+// ParticlesSoA.h
+class FParticlesSoA
+{
+public:
+	explicit FParticlesSoA(int32 Capacity)
+	{
+		Position.SetNumZeroed(Capacity);
+		Velocity.SetNumZeroed(Capacity);
+		Life.SetNumZeroed(Capacity);
+		StartColor.SetNumZeroed(Capacity);
+		EndColor.SetNumZeroed(Capacity);
+	}
+
+	void Tick(float Dt, const FVector& Gravity)
+	{
+		const FVector G = Gravity * Dt;
+		for (int32 i = 0; i < Count; ++i)          // sequential: the prefetcher keeps up
+		{
+			Velocity[i] += G;
+			Position[i] += Velocity[i] * Dt;
+			Life[i] -= Dt;
+		}
+
+		for (int32 i = 0; i < Count; )             // remove dead particles, keeping arrays dense
+		{
+			if (Life[i] > 0.f) { ++i; continue; }
+			const int32 Last = --Count;
+			Position[i] = Position[Last];
+			Velocity[i] = Velocity[Last];
+			Life[i] = Life[Last];
+			StartColor[i] = StartColor[Last];
+			EndColor[i] = EndColor[Last];
+		}
+	}
+
+private:
+	// Hot data, one contiguous array per field.
+	TArray<FVector> Position;
+	TArray<FVector> Velocity;
+	TArray<float> Life;
+
+	// Cold data, read only when spawning or rendering.
+	TArray<FLinearColor> StartColor;
+	TArray<FLinearColor> EndColor;
+
+	int32 Count = 0;
+};
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** the next steps are `NativeArray<T>` with the [Job System](./job-system) and Burst, which vectorises loops like this automatically. Unity's ECS (Entities) stores components in contiguous chunks by design, so this pattern is built in.
+- **Godot:** in GDScript, interpreter overhead per line dwarfs cache effects, so the SoA version is mainly a memory win. The speed win comes from handing whole packed arrays to the engine in one call (for example `MultiMesh.buffer`, a `PackedFloat32Array`), from moving the loop to C# or a GDExtension in C++, or from `GPUParticles3D`, which simulates on the GPU.
+- **Unreal:** a `TArray` of structs is already contiguous, so `TArray<FParticle>` (array of structs) is often good enough; split into SoA when the loop reads only a few fields. **Mass** (the MassEntity plugin) stores fragments in archetype chunks, the engine's built-in version of this layout. `ParallelFor` splits loops like this across cores.
 
 ## When to use
 

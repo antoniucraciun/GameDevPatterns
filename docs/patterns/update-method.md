@@ -12,11 +12,15 @@ A world holds dozens of independent things: a patrolling guard, a spinning picku
 
 Give every active object an `Update(dt)` method that advances it by one frame. The game keeps a collection of active objects and calls `Update` on each of them once per frame. Each object keeps whatever state it needs between calls, such as the patrol waypoint index or how far the door has closed.
 
-## Example (Unity C#)
+## Example
 
-`MonoBehaviour.Update` *is* this pattern. Unity keeps the list and calls it for you:
+Every engine has this pattern built in: you override one method and the engine calls it every frame.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class Patrol : MonoBehaviour
 {
     [SerializeField] Transform[] waypoints;
@@ -33,9 +37,67 @@ public class Patrol : MonoBehaviour
 }
 ```
 
-With thousands of objects, the per-call overhead of the engine-to-script boundary adds up. A common optimisation is a single manager that holds a plain list and calls a method on each object:
+```gdscript [Godot (GDScript)]
+# patrol.gd
+extends Node3D
 
-```csharp
+@export var waypoints: Array[Node3D] = []
+@export var speed := 3.0
+var _index := 0
+
+
+func _process(delta: float) -> void:
+	var target := waypoints[_index].global_position
+	global_position = global_position.move_toward(target, speed * delta)
+	if global_position.is_equal_approx(target):
+		_index = (_index + 1) % waypoints.size()
+```
+
+```cpp [Unreal (C++)]
+// PatrolActor.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "PatrolActor.generated.h"
+
+UCLASS()
+class APatrolActor : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	APatrolActor() { PrimaryActorTick.bCanEverTick = true; }
+
+	UPROPERTY(EditAnywhere, Category = "Patrol") TArray<TObjectPtr<AActor>> Waypoints;
+	UPROPERTY(EditAnywhere, Category = "Patrol") float Speed = 300.f;   // cm/s
+
+	virtual void Tick(float DeltaSeconds) override
+	{
+		Super::Tick(DeltaSeconds);
+		if (Waypoints.IsEmpty()) return;
+
+		const FVector Target = Waypoints[Index]->GetActorLocation();
+		const FVector Next = FMath::VInterpConstantTo(GetActorLocation(), Target, DeltaSeconds, Speed);
+		SetActorLocation(Next);
+		if (Next.Equals(Target)) Index = (Index + 1) % Waypoints.Num();
+	}
+
+private:
+	int32 Index = 0;
+};
+```
+
+:::
+
+With thousands of objects, the per-object call overhead adds up. A common optimisation is one manager that holds a plain list and calls a method on each object:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections.Generic;
+using UnityEngine;
+
 public interface ITickable { void Tick(float dt); }
 
 public class TickManager : MonoBehaviour
@@ -53,6 +115,77 @@ public class TickManager : MonoBehaviour
     }
 }
 ```
+
+```gdscript [Godot (GDScript)]
+# tick_manager.gd: autoload named TickManager. Ticked objects can be plain RefCounted
+# objects (no node, no scene tree) as long as they have a tick(dt) method.
+extends Node
+
+var _tickables: Array = []
+
+
+func register(obj: Object) -> void:
+	_tickables.append(obj)
+
+
+func unregister(obj: Object) -> void:
+	_tickables.erase(obj)
+
+
+func _process(delta: float) -> void:
+	# Iterate backwards so objects can unregister themselves during tick.
+	for i in range(_tickables.size() - 1, -1, -1):
+		_tickables[i].tick(delta)
+```
+
+```cpp [Unreal (C++)]
+// TickManagerSubsystem.h: ticks plain C++ objects with one virtual call each.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "TickManagerSubsystem.generated.h"
+
+class IManagedTick
+{
+public:
+	virtual ~IManagedTick() = default;
+	virtual void ManagedTick(float DeltaTime) = 0;
+};
+
+UCLASS()
+class UTickManagerSubsystem : public UTickableWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	void Register(IManagedTick* Obj) { Tickables.Add(Obj); }
+	void Unregister(IManagedTick* Obj) { Tickables.Remove(Obj); }
+
+	virtual void Tick(float DeltaTime) override
+	{
+		// Iterate backwards so objects can unregister themselves during ManagedTick.
+		for (int32 I = Tickables.Num() - 1; I >= 0; --I)
+			Tickables[I]->ManagedTick(DeltaTime);
+	}
+
+	virtual TStatId GetStatId() const override
+	{
+		RETURN_QUICK_DECLARE_CYCLE_STAT(UTickManagerSubsystem, STATGROUP_Tickables);
+	}
+
+private:
+	TArray<IManagedTick*> Tickables;   // owners must Unregister before they are destroyed
+};
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `Update`, `FixedUpdate` and `LateUpdate` are all update methods. The engine-to-script call per `MonoBehaviour` is the overhead the manager avoids.
+- **Godot:** `_process` and `_physics_process` run only while processing is enabled; `set_process(false)` turns an idle node off for free.
+- **Unreal:** actors and components only tick if `bCanEverTick` is set. Lower `PrimaryActorTick.TickInterval` for things that don't need every frame, and turn ticking off with `SetActorTickEnabled(false)` when idle.
 
 ## When to use
 

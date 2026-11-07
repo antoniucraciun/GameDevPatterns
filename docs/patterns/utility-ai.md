@@ -28,11 +28,15 @@ Sleep = curve(tiredness) × curve(is night) × curve(1 − threat)
 
 Designers tune behaviour by editing curves rather than adding rules.
 
-## Example (Unity C#)
+## Example
 
-Considerations and actions as data, using `AnimationCurve` for visual curve editing:
+Considerations and actions as data assets, each consideration shaping one input with a curve the designer edits visually: `AnimationCurve` in Unity, `Curve` in Godot, `FRuntimeFloatCurve` in Unreal.
 
-```csharp
+### Considerations and actions
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -79,9 +83,158 @@ public class UtilityAction : ScriptableObject
 }
 ```
 
-The reasoner picks the best action, with hysteresis so the agent does not flip between near-equal options:
+```gdscript [Godot (GDScript)]
+# agent_context.gd: inputs, each normalised to 0..1.
+class_name AgentContext
+extends RefCounted
 
-```csharp
+enum Factor { HUNGER, TIREDNESS, THREAT, HEALTH, FOOD_NEARBY, IS_NIGHT }
+
+var _values := PackedFloat32Array()
+
+
+func _init() -> void:
+	_values.resize(Factor.size())
+	_values.fill(0.0)
+
+
+func get_value(factor: Factor) -> float:
+	return _values[factor]
+
+
+func set_value(factor: Factor, value: float) -> void:
+	_values[factor] = clampf(value, 0.0, 1.0)
+
+
+# consideration.gd
+class_name Consideration
+extends Resource
+
+@export var factor: AgentContext.Factor
+@export var curve: Curve  # edit visually in the inspector; empty means linear
+
+
+func score(ctx: AgentContext) -> float:
+	var x := ctx.get_value(factor)
+	return clampf(curve.sample(x) if curve else x, 0.0, 1.0)
+
+
+# utility_action.gd: create one .tres per action in the FileSystem dock.
+class_name UtilityAction
+extends Resource
+
+@export var action_name: String
+@export_range(0.0, 2.0) var weight := 1.0  # designer bias, e.g. 1.2 for "prefers this"
+@export var considerations: Array[Consideration] = []
+
+
+func score(ctx: AgentContext) -> float:
+	if considerations.is_empty():
+		return 0.0
+	var result := 1.0
+	for c: Consideration in considerations:
+		result *= c.score(ctx)
+		if result <= 0.0:
+			return 0.0  # early out: vetoed
+
+	# Compensation: undo the penalty for having many considerations.
+	var modification := 1.0 - 1.0 / considerations.size()
+	result += (1.0 - result) * modification * result
+	return result * weight
+```
+
+```cpp [Unreal (C++)]
+// UtilityAction.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Curves/CurveFloat.h"
+#include "Engine/DataAsset.h"
+#include "UtilityAction.generated.h"
+
+UENUM(BlueprintType)
+enum class EUtilityInput : uint8 { Hunger, Tiredness, Threat, Health, FoodNearby, IsNight, Count UMETA(Hidden) };
+
+// Inputs, each normalised to 0..1. Plain C++: it is rebuilt from game state, never saved or edited.
+struct FAgentContext
+{
+	float Get(EUtilityInput Input) const { return Values[static_cast<int32>(Input)]; }
+	void Set(EUtilityInput Input, float Value) { Values[static_cast<int32>(Input)] = FMath::Clamp(Value, 0.f, 1.f); }
+
+private:
+	float Values[static_cast<int32>(EUtilityInput::Count)] = {};
+};
+
+USTRUCT(BlueprintType)
+struct FUtilityConsideration
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Utility")
+	EUtilityInput Input = EUtilityInput::Hunger;
+
+	UPROPERTY(EditAnywhere, Category = "Utility")
+	FRuntimeFloatCurve Curve;                   // edit visually in the details panel; empty means linear
+
+	float Score(const FAgentContext& Ctx) const;
+};
+
+UCLASS(BlueprintType)
+class UUtilityAction : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Utility", meta = (ClampMin = "0", ClampMax = "2"))
+	float Weight = 1.f;                         // designer bias, e.g. 1.2 for "prefers this"
+
+	UPROPERTY(EditAnywhere, Category = "Utility")
+	TArray<FUtilityConsideration> Considerations;
+
+	float Score(const FAgentContext& Ctx) const;
+};
+
+// UtilityAction.cpp
+#include "UtilityAction.h"
+
+float FUtilityConsideration::Score(const FAgentContext& Ctx) const
+{
+	const float X = Ctx.Get(Input);
+	const FRichCurve* Rich = Curve.GetRichCurveConst();
+	const float Y = Rich && Rich->GetNumKeys() > 0 ? Rich->Eval(X) : X;
+	return FMath::Clamp(Y, 0.f, 1.f);
+}
+
+float UUtilityAction::Score(const FAgentContext& Ctx) const
+{
+	if (Considerations.Num() == 0) return 0.f;
+	float Result = 1.f;
+	for (const FUtilityConsideration& C : Considerations)
+	{
+		Result *= C.Score(Ctx);
+		if (Result <= 0.f) return 0.f;          // early out: vetoed
+	}
+
+	// Compensation: undo the penalty for having many considerations.
+	const float Modification = 1.f - 1.f / Considerations.Num();
+	Result += (1.f - Result) * Modification * Result;
+	return Result * Weight;
+}
+```
+
+:::
+
+### The reasoner
+
+It picks the best action on a fixed interval, with hysteresis so the agent does not flip between near-equal options:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
 public class UtilityReasoner : MonoBehaviour
 {
     [SerializeField] List<UtilityAction> actions;
@@ -121,7 +274,133 @@ public class UtilityReasoner : MonoBehaviour
 // reasoner.Context[UtilityInput.Threat] = 1f - Mathf.Clamp01(distanceToNearestEnemy / 20f);
 ```
 
+```gdscript [Godot (GDScript)]
+# utility_reasoner.gd
+class_name UtilityReasoner
+extends Node
+
+signal decided(action: UtilityAction)  # start the matching behaviour (move, eat, sleep…)
+
+@export var actions: Array[UtilityAction] = []
+@export var decision_interval := 0.25
+@export var commitment_bonus := 0.1  # stickiness for the current action
+
+var current: UtilityAction
+var context := AgentContext.new()
+var _time_to_decide := 0.0
+
+
+func _process(delta: float) -> void:
+	_time_to_decide -= delta
+	if _time_to_decide > 0.0:
+		return
+	_time_to_decide = decision_interval
+
+	var best: UtilityAction = null
+	var best_score := 0.0
+	for a: UtilityAction in actions:
+		var s := a.score(context)
+		if a == current:
+			s += commitment_bonus  # hysteresis
+		if s > best_score:
+			best = a
+			best_score = s
+
+	if best != current:
+		current = best
+		decided.emit(best)
+
+# Each frame (or from perception), keep the inputs current:
+# reasoner.context.set_value(AgentContext.Factor.HUNGER, needs.hunger / 100.0)
+# reasoner.context.set_value(AgentContext.Factor.THREAT, 1.0 - clampf(distance_to_enemy / 20.0, 0.0, 1.0))
+```
+
+```cpp [Unreal (C++)]
+// UtilityReasonerComponent.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "UtilityAction.h"
+#include "UtilityReasonerComponent.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUtilityDecided, UUtilityAction*, Action);
+
+UCLASS(ClassGroup = (AI), meta = (BlueprintSpawnableComponent))
+class UUtilityReasonerComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(BlueprintAssignable, Category = "Utility")
+	FOnUtilityDecided OnDecided;                // start the matching behaviour (move, eat, sleep…)
+
+	FAgentContext Context;                      // owners write inputs here, e.g. from perception
+
+	UUtilityAction* GetCurrent() const { return Current; }
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "Utility")
+	TArray<TObjectPtr<UUtilityAction>> Actions;
+
+	UPROPERTY(EditAnywhere, Category = "Utility")
+	float DecisionInterval = 0.25f;
+
+	UPROPERTY(EditAnywhere, Category = "Utility")
+	float CommitmentBonus = 0.1f;               // stickiness for the current action
+
+	virtual void BeginPlay() override;
+
+private:
+	void Decide();
+
+	UPROPERTY()
+	TObjectPtr<UUtilityAction> Current;
+
+	FTimerHandle DecisionTimer;
+};
+
+// UtilityReasonerComponent.cpp
+#include "UtilityReasonerComponent.h"
+#include "TimerManager.h"
+
+void UUtilityReasonerComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	// A looping timer instead of TickComponent: deciding four times a second is plenty.
+	GetWorld()->GetTimerManager().SetTimer(DecisionTimer, this, &UUtilityReasonerComponent::Decide,
+		DecisionInterval, /*bLoop=*/true);
+}
+
+void UUtilityReasonerComponent::Decide()
+{
+	UUtilityAction* Best = nullptr;
+	float BestScore = 0.f;
+	for (UUtilityAction* Action : Actions)
+	{
+		if (!Action) continue;
+		float Score = Action->Score(Context);
+		if (Action == Current) Score += CommitmentBonus;   // hysteresis
+		if (Score > BestScore) { Best = Action; BestScore = Score; }
+	}
+
+	if (Best != Current)
+	{
+		Current = Best;
+		OnDecided.Broadcast(Best);
+	}
+}
+```
+
+:::
+
 In a debug view, show every action's score per decision. Utility AI is only tunable if you can see *why* it chose what it did.
+
+**Engine notes**
+
+- **Unity:** `AnimationCurve` gives designers a curve editor for free, and `ScriptableObject` actions can be shared between agent types.
+- **Godot:** `Curve.sample()` is the Godot 4 name (it was `interpolate()` in Godot 3). Resources loaded from the same file are shared, so keep per-agent state in the reasoner, not in the action.
+- **Unreal:** the **Environment Query System** is built-in utility scoring for *positions and actors*: it generates candidates (points around the agent, cover spots, pickups), scores each with weighted tests such as distance, line of sight and pathfinding cost, and returns the best. Use it for "where" questions and a reasoner like this one for "what" questions. `FRuntimeFloatCurve` can also point at a shared `UCurveFloat` asset instead of an inline curve.
 
 ## When to use
 

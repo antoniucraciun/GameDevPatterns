@@ -5,6 +5,8 @@ import PatternCatalog from './PatternCatalog.vue'
 import RecipeCatalog from './RecipeCatalog.vue'
 import PageRelations from './PageRelations.vue'
 import SidebarResizer from './SidebarResizer.vue'
+import EngineTabs from './EngineTabs.vue'
+import AiDisclaimer from './AiDisclaimer.vue'
 import FixedTimestepViz from './viz/FixedTimestepViz.vue'
 import SpatialPartitionViz from './viz/SpatialPartitionViz.vue'
 import AStarViz from './viz/AStarViz.vue'
@@ -21,8 +23,10 @@ export default {
   extends: DefaultTheme,
   Layout: () =>
     h(DefaultTheme.Layout, null, {
+      'home-hero-before': () => h(AiDisclaimer, { home: true }),
+      'doc-before': () => h(AiDisclaimer),
       'doc-footer-before': () => h(PageRelations),
-      'layout-bottom': () => h(SidebarResizer),
+      'layout-bottom': () => [h(SidebarResizer), h(EngineTabs)],
     }),
   enhanceApp({ app }) {
     app.component('PatternCatalog', PatternCatalog)

@@ -19,11 +19,13 @@ In Unity this pattern is everywhere:
 - **`Instantiate(anyGameObject)`** clones a *runtime* object in its current state, including changes made during play.
 - For **plain C# data**, a `Clone()` method copies configured objects. The critical question is how deep the copy goes.
 
-## Example (Unity C#)
+## Example
 
 Spawning copies of a runtime-modified prototype, such as "this wave's buffed enemy":
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using UnityEngine;
 
 public class EliteWaveSpawner : MonoBehaviour
@@ -51,9 +53,76 @@ public class EliteWaveSpawner : MonoBehaviour
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# elite_wave_spawner.gd
+extends Node3D
+
+@export var base_scene: PackedScene
+var _elite_prototype: Enemy  # configured once, cloned many times; never added to the tree
+
+
+func prepare_elite_wave(health_bonus: float, elite_material: Material) -> void:
+	if _elite_prototype:
+		_elite_prototype.free()
+	# Build the prototype once, from the scene, then customise it at runtime.
+	_elite_prototype = base_scene.instantiate()
+	_elite_prototype.max_health *= 1.0 + health_bonus
+	_elite_prototype.get_node("Mesh").material_override = elite_material
+	_elite_prototype.add_child(EliteAura.new())
+
+
+func spawn_elite(position: Vector3) -> Enemy:
+	# Node.duplicate copies the node, its children, scripts and their *exported* property values,
+	# so max_health must be an @export var for the bonus to carry over.
+	var e: Enemy = _elite_prototype.duplicate()
+	add_child(e)
+	e.global_position = position
+	return e
+
+
+func _exit_tree() -> void:
+	if _elite_prototype:
+		_elite_prototype.free()  # nodes outside the tree must be freed by hand
+```
+
+```cpp [Unreal (C++)]
+// EliteWaveSpawner.cpp: SpawnActor can copy every property from an existing actor through
+// FActorSpawnParameters::Template, which is the Prototype pattern built into the engine.
+void AEliteWaveSpawner::PrepareEliteWave(float HealthBonus, UMaterialInterface* EliteMaterial)
+{
+	if (ElitePrototype) ElitePrototype->Destroy();
+
+	// Build the prototype once, from the base class, then customise it at runtime.
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ElitePrototype = GetWorld()->SpawnActor<AEnemy>(BaseClass, FTransform::Identity, Params);
+	ElitePrototype->SetActorHiddenInGame(true);              // a template, not part of the game
+	ElitePrototype->SetActorEnableCollision(false);
+	ElitePrototype->SetActorTickEnabled(false);
+	ElitePrototype->MaxHealth *= 1.f + HealthBonus;
+	ElitePrototype->GetMesh()->SetMaterial(0, EliteMaterial);
+}
+
+AEnemy* AEliteWaveSpawner::SpawnElite(const FVector& Location)
+{
+	// Clone the configured prototype: its property values come along.
+	FActorSpawnParameters Params;
+	Params.Template = ElitePrototype;
+	AEnemy* Enemy = GetWorld()->SpawnActor<AEnemy>(BaseClass, FTransform(Location), Params);
+	Enemy->SetActorHiddenInGame(false);
+	Enemy->SetActorEnableCollision(true);
+	Enemy->SetActorTickEnabled(true);
+	return Enemy;
+}
+```
+
+:::
+
 Plain data prototypes, with an explicit deep copy:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 
 public class CharacterLoadout
@@ -74,11 +143,56 @@ public class CharacterLoadout
 }
 
 // Templates the player can start from, cloned and then customised:
-// var warrior = presets["Warrior"].Clone();
-// warrior.Items.Add("lucky_charm");          // presets["Warrior"] is unchanged
+//   var warrior = presets["Warrior"].Clone();
+//   warrior.Items.Add("lucky_charm");          // presets["Warrior"] is unchanged
 ```
 
-`MemberwiseClone()` makes a **shallow** copy: value fields are copied, but reference fields (lists, dictionaries, other objects) are *shared* between the original and the clone. That is the most common prototype bug.
+```gdscript [Godot (GDScript)]
+# character_loadout.gd
+class_name CharacterLoadout
+extends Resource
+
+@export var class_title := ""
+@export var level := 1
+@export var items: Array[String] = []
+@export var skills: Dictionary = {}
+
+# Templates the player can start from, cloned and then customised:
+#   var warrior: CharacterLoadout = presets["Warrior"].duplicate(true)  # true = deep
+#   warrior.items.append("lucky_charm")                                  # the preset is unchanged
+```
+
+```cpp [Unreal (C++)]
+// CharacterLoadout.h: a USTRUCT is copied by value, and TArray / TMap members copy their
+// contents, so a plain assignment is already a deep copy of this data.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "CharacterLoadout.generated.h"
+
+USTRUCT(BlueprintType)
+struct FCharacterLoadout
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere) FName ClassName;
+	UPROPERTY(EditAnywhere) int32 Level = 1;
+	UPROPERTY(EditAnywhere) TArray<FName> Items;
+	UPROPERTY(EditAnywhere) TMap<FName, int32> Skills;
+};
+
+// Templates the player can start from, cloned and then customised:
+//   FCharacterLoadout Warrior = Presets.FindChecked("Warrior");   // a copy
+//   Warrior.Items.Add("LuckyCharm");                              // the preset is unchanged
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `MemberwiseClone()` makes a **shallow** copy: value fields are copied, but reference fields (lists, dictionaries, other objects) are *shared* between the original and the clone. That is the most common prototype bug.
+- **Godot:** `Resource.duplicate()` is shallow by default; pass `true` to also duplicate sub-resources, arrays and dictionaries. `Node.duplicate()` copies stored (exported) properties only, so state kept in plain `var`s is not cloned.
+- **Unreal:** `Template` copies `UPROPERTY` values, so runtime changes to non-`UPROPERTY` members don't carry over, and the template must be the same class as the actor being spawned. The shallow-copy trap applies to `UObject*` members: copying a struct copies the pointer, not the object; duplicate owned objects with `DuplicateObject`.
 
 ## When to use
 
