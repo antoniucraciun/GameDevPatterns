@@ -25,9 +25,15 @@ Useful extras:
 | **Timestamps** | "Last seen 4 s ago" lets behaviour fade from *chase* to *search* to *give up*. |
 | **Parent blackboard** | A squad or global blackboard that agents fall back to for shared facts. |
 
-## Example (Unity C#)
+## Example
 
-```csharp
+A guard's memory: the target, where it was last seen, where a noise came from, all with timestamps so the tree can ask "how fresh is this?". Unreal has blackboards built in (`UBlackboardComponent` plus a Blackboard asset), so its tabs use those; Unity and Godot get a small class.
+
+### The blackboard
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -90,9 +96,148 @@ public class Blackboard
 }
 ```
 
-Reusable behavior-tree nodes that only know about keys:
+```gdscript [Godot (GDScript)]
+# blackboard.gd
+class_name Blackboard
+extends RefCounted
 
-```csharp
+signal changed(key: StringName)
+
+# Keys as StringName constants, shared by every script: a typo is a parse error, not a silent miss.
+# GDScript has no generics, so unlike typed keys these don't check the value's type.
+const TARGET := &"target"
+const LAST_KNOWN_POSITION := &"last_known_position"
+const NOISE_LOCATION := &"noise_location"
+const PATROL_INDEX := &"patrol_index"
+
+var parent: Blackboard  # e.g. the squad's shared blackboard
+var _values := {}
+var _times := {}
+
+
+func _init(p_parent: Blackboard = null) -> void:
+	parent = p_parent
+
+
+func set_value(key: StringName, value: Variant) -> void:
+	var old: Variant = _values.get(key)
+	var same := _values.has(key) and typeof(old) == typeof(value) and old == value
+	_values[key] = value
+	_times[key] = _now()  # refresh timestamp
+	if not same:
+		changed.emit(key)
+
+
+func get_value(key: StringName, fallback: Variant = null) -> Variant:
+	if _values.has(key):
+		return _values[key]
+	return parent.get_value(key, fallback) if parent else fallback
+
+
+func has(key: StringName) -> bool:
+	return _values.has(key) or (parent != null and parent.has(key))
+
+
+## Seconds since the fact was last written; INF if unknown.
+func age(key: StringName) -> float:
+	if _times.has(key):
+		return _now() - _times[key]
+	return parent.age(key) if parent else INF
+
+
+func erase(key: StringName) -> void:
+	if _values.erase(key):
+		_times.erase(key)
+		changed.emit(key)
+
+
+static func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0  # real time; ignores Engine.time_scale
+```
+
+```cpp [Unreal (C++)]
+// The blackboard is a Blackboard asset (BB_Guard) with typed keys:
+//   Target (Object, base class Actor), LastKnownPosition (Vector), LastSeenTime (Float),
+//   NoiseLocation (Vector), NoiseTime (Float), PatrolIndex (Int).
+// Unreal stores no timestamps, so "when" is a key of its own. Ticking "Instance Synced" on a key
+// shares its value between every agent using BB_Guard: a squad blackboard with no extra code.
+
+// GuardAIController.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "AIController.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "GuardAIController.generated.h"
+
+UCLASS()
+class AGuardAIController : public AAIController
+{
+	GENERATED_BODY()
+
+public:
+	void OnPlayerSeen(AActor* Player);          // called by perception
+	void OnNoiseHeard(const FVector& Location);
+
+protected:
+	virtual void OnPossess(APawn* InPawn) override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "AI")
+	TObjectPtr<class UBehaviorTree> BehaviorTree;
+
+private:
+	EBlackboardNotificationResult OnTargetChanged(const UBlackboardComponent& BB, FBlackboard::FKey Key);
+};
+
+// GuardAIController.cpp
+#include "GuardAIController.h"
+#include "BehaviorTree/BehaviorTree.h"
+
+void AGuardAIController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	RunBehaviorTree(BehaviorTree);              // creates the blackboard from the tree's BB_Guard
+
+	// Observers fire when a key's value changes, like the Changed event in the other tabs.
+	UBlackboardComponent* BB = GetBlackboardComponent();
+	BB->RegisterObserver(BB->GetKeyID(TEXT("Target")), this,
+		FOnBlackboardChangeNotification::CreateUObject(this, &AGuardAIController::OnTargetChanged));
+}
+
+void AGuardAIController::OnPlayerSeen(AActor* Player)
+{
+	UBlackboardComponent* BB = GetBlackboardComponent();
+	BB->SetValueAsObject(TEXT("Target"), Player);
+	BB->SetValueAsVector(TEXT("LastKnownPosition"), Player->GetActorLocation());
+	BB->SetValueAsFloat(TEXT("LastSeenTime"), GetWorld()->GetTimeSeconds());
+}
+
+void AGuardAIController::OnNoiseHeard(const FVector& Location)
+{
+	UBlackboardComponent* BB = GetBlackboardComponent();
+	BB->SetValueAsVector(TEXT("NoiseLocation"), Location);
+	BB->SetValueAsFloat(TEXT("NoiseTime"), GetWorld()->GetTimeSeconds());
+}
+
+EBlackboardNotificationResult AGuardAIController::OnTargetChanged(const UBlackboardComponent& BB, FBlackboard::FKey Key)
+{
+	// e.g. play an "I see you!" bark when a target appears
+	return EBlackboardNotificationResult::ContinueObserving;
+}
+```
+
+:::
+
+### Nodes that only know about keys
+
+Reusable behaviour-tree nodes read the blackboard by key, so the same node serves the chase, the search and the noise check:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+using UnityEngine.AI;
+
 public class HasRecent<T> : Node                         // Node/Status from the Behavior Tree pattern
 {
     readonly Blackboard bb; readonly BlackboardKey<T> key; readonly float maxAge;
@@ -102,8 +247,8 @@ public class HasRecent<T> : Node                         // Node/Status from the
 
 public class MoveToKey : Node
 {
-    readonly Blackboard bb; readonly BlackboardKey<Vector3> key; readonly UnityEngine.AI.NavMeshAgent agent;
-    public MoveToKey(Blackboard bb, BlackboardKey<Vector3> key, UnityEngine.AI.NavMeshAgent agent) { this.bb = bb; this.key = key; this.agent = agent; }
+    readonly Blackboard bb; readonly BlackboardKey<Vector3> key; readonly NavMeshAgent agent;
+    public MoveToKey(Blackboard bb, BlackboardKey<Vector3> key, NavMeshAgent agent) { this.bb = bb; this.key = key; this.agent = agent; }
 
     public override Status Tick()
     {
@@ -121,7 +266,112 @@ public class MoveToKey : Node
 //     new ActionNode(Patrol));
 ```
 
-Squad sharing: give every guard `new Blackboard(parent: squadBlackboard)`. When one guard sees the player, its perception writes `LastKnownPosition` to the *squad* blackboard, and every guard's tree reads it through the parent chain.
+```gdscript [Godot (GDScript)]
+# blackboard_nodes.gd: BT nodes from the Behavior Tree pattern, reading only keys.
+class_name BlackboardNodes
+extends RefCounted
+
+
+class HasRecent extends BT.BTNode:
+	var _bb: Blackboard
+	var _key: StringName
+	var _max_age: float
+
+	func _init(bb: Blackboard, key: StringName, max_age: float) -> void:
+		_bb = bb
+		_key = key
+		_max_age = max_age
+
+	func tick() -> BT.Status:
+		return BT.Status.SUCCESS if _bb.age(_key) <= _max_age else BT.Status.FAILURE
+
+
+class MoveToKey extends BT.BTNode:
+	var _bb: Blackboard
+	var _key: StringName
+	var _agent: NavigationAgent3D  # the body follows agent.get_next_path_position() each physics frame
+
+	func _init(bb: Blackboard, key: StringName, agent: NavigationAgent3D) -> void:
+		_bb = bb
+		_key = key
+		_agent = agent
+
+	func tick() -> BT.Status:
+		if not _bb.has(_key):
+			return BT.Status.FAILURE
+		var destination: Vector3 = _bb.get_value(_key)
+		if not _agent.target_position.is_equal_approx(destination):
+			_agent.target_position = destination  # each change requests a new path, so only on change
+		return BT.Status.SUCCESS if _agent.is_navigation_finished() else BT.Status.RUNNING
+
+# Guard tree: chase while the sighting is fresh, then search where it was last seen, then patrol.
+# _root = BT.Selector.new([
+# 	BT.Sequence.new([BlackboardNodes.HasRecent.new(bb, Blackboard.LAST_KNOWN_POSITION, 1.0), BT.Action.new(_chase)]),
+# 	BT.Sequence.new([BlackboardNodes.HasRecent.new(bb, Blackboard.LAST_KNOWN_POSITION, 10.0),
+# 			BlackboardNodes.MoveToKey.new(bb, Blackboard.LAST_KNOWN_POSITION, agent)]),
+# 	BT.Sequence.new([BlackboardNodes.HasRecent.new(bb, Blackboard.NOISE_LOCATION, 8.0),
+# 			BlackboardNodes.MoveToKey.new(bb, Blackboard.NOISE_LOCATION, agent)]),
+# 	BT.Action.new(_patrol),
+# ])
+```
+
+```cpp [Unreal (C++)]
+// Move To is built in (BTTask_MoveTo takes a Vector or Actor key), so only "how fresh" needs code.
+
+// BTDecorator_HasRecent.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "BehaviorTree/BTDecorator.h"
+#include "BTDecorator_HasRecent.generated.h"
+
+UCLASS()
+class UBTDecorator_HasRecent : public UBTDecorator
+{
+	GENERATED_BODY()
+
+public:
+	UBTDecorator_HasRecent() { NodeName = TEXT("Has Recent"); }
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "Blackboard")
+	FBlackboardKeySelector TimeKey;             // Float key holding when the fact was written
+
+	UPROPERTY(EditAnywhere, Category = "Condition")
+	float MaxAge = 10.f;
+
+	virtual bool CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const override;
+};
+
+// BTDecorator_HasRecent.cpp
+#include "BTDecorator_HasRecent.h"
+#include "BehaviorTree/BlackboardComponent.h"
+
+bool UBTDecorator_HasRecent::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
+{
+	const UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
+	if (!BB) return false;
+	const float WrittenAt = BB->GetValueAsFloat(TimeKey.SelectedKeyName);   // 0 if never written
+	return WrittenAt > 0.f && OwnerComp.GetWorld()->GetTimeSeconds() - WrittenAt <= MaxAge;
+}
+
+// Guard tree:
+//   Selector
+//   ├─ Sequence [Has Recent: LastSeenTime, 1 s]   → Chase (Move To: Target)
+//   ├─ Sequence [Has Recent: LastSeenTime, 10 s]  → Move To: LastKnownPosition
+//   ├─ Sequence [Has Recent: NoiseTime, 8 s]      → Move To: NoiseLocation
+//   └─ Patrol
+```
+
+:::
+
+Squad sharing: give every guard `new Blackboard(parent: squadBlackboard)` (Godot: `Blackboard.new(squad_blackboard)`). When one guard sees the player, its perception writes `LastKnownPosition` to the *squad* blackboard, and every guard's tree reads it through the parent chain. In Unreal, mark the shared keys **Instance Synced** instead.
+
+**Engine notes**
+
+- **Unity:** the **Behavior** package (Unity 6) has its own blackboard with typed variables, shared through *Blackboard assets*. The class above keeps typed keys without it; `NavMeshAgent` needs the AI Navigation package and a baked navmesh.
+- **Godot:** no built-in blackboard; LimboAI ships one (`Blackboard` with scoped parents) if you use that add-on. `Time.get_ticks_msec()` ignores `Engine.time_scale`, so ages keep counting during slow motion; track your own scaled clock if that matters.
+- **Unreal:** a time-based condition like **Has Recent** changes without its key changing, so it won't trigger **Observer aborts** on its own; it is checked when the selector reaches it. Blackboard observers (`RegisterObserver`) are how C++ reacts to a key change outside the tree; remove them with `UnregisterObserversFrom(this)` if the controller outlives the tree.
 
 ## When to use
 
