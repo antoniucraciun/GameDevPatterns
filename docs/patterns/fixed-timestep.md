@@ -22,6 +22,8 @@ alpha = accumulator / step
 render(lerp(previous, current, alpha))
 ```
 
+<FixedTimestepViz />
+
 ## Example (Unity C#)
 
 Unity implements the accumulator for you. `FixedUpdate` runs at `Time.fixedDeltaTime` (Project Settings → Time). Put physics and force application there, and read input in `Update`:

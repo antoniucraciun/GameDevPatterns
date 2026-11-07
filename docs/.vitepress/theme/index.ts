@@ -5,6 +5,9 @@ import PatternCatalog from './PatternCatalog.vue'
 import RecipeCatalog from './RecipeCatalog.vue'
 import PageRelations from './PageRelations.vue'
 import SidebarResizer from './SidebarResizer.vue'
+import FixedTimestepViz from './viz/FixedTimestepViz.vue'
+import SpatialPartitionViz from './viz/SpatialPartitionViz.vue'
+import AStarViz from './viz/AStarViz.vue'
 import './custom.css'
 
 export default {
@@ -17,5 +20,9 @@ export default {
   enhanceApp({ app }) {
     app.component('PatternCatalog', PatternCatalog)
     app.component('RecipeCatalog', RecipeCatalog)
+    // Interactive visualizers, placed in pattern pages as <FixedTimestepViz /> etc.
+    app.component('FixedTimestepViz', FixedTimestepViz)
+    app.component('SpatialPartitionViz', SpatialPartitionViz)
+    app.component('AStarViz', AStarViz)
   },
 } satisfies Theme

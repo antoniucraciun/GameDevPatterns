@@ -19,6 +19,8 @@ Store objects in a data structure organised by **location**. A query then visits
 | **BVH** (bounding volume hierarchy) | Ray casts, varied object sizes | Used by physics engines and ray tracers. |
 | **k-d tree** | Static points, nearest-neighbour queries | Rebuild when the data changes. |
 
+<SpatialPartitionViz />
+
 ## Example (Unity C#)
 
 A spatial hash grid for proximity queries:
