@@ -386,3 +386,4 @@ When a strategy needs no parameters and no inspector support, a plain interface 
 - [Type Object](./type-object) — a type asset can reference strategy assets to vary behaviour per kind.
 - [ScriptableObject Architecture](./scriptable-object-architecture) — strategies as assets.
 - [Template Method](./template-method) — varies steps of one algorithm through inheritance, rather than swapping the whole algorithm.
+- [Bridge](./bridge) — when the object holding the strategy has its own subclasses too, the two hierarchies form a bridge.

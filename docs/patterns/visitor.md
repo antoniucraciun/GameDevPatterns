@@ -423,3 +423,4 @@ Modern C# offers a lightweight alternative, **pattern matching**: `switch (e) { 
 - [Interpreter](./interpreter) — evaluating, printing or optimising an expression tree are classic visitors.
 - [Debug Draw](./debug-draw) and [Automated Playtesting](./automated-playtesting) — validation and gizmo visitors are tooling.
 - [Data-Driven Design](./data-driven-design) — validating content data before it ships.
+- [Iterator](./iterator) — lets the caller pull elements one by one. A visitor pushes an operation to every element.

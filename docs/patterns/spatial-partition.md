@@ -342,3 +342,4 @@ int32 USensorComponent::Scan()
 
 - [Interest Management](./interest-management), [Flocking](./flocking) and [Culling](./culling) are the main consumers.
 - [Data Locality](./data-locality) — store cell contents contiguously for cache-friendly queries.
+- [Iterator](./iterator) — a query can yield results cell by cell instead of filling a list.

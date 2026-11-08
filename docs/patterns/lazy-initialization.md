@@ -321,3 +321,4 @@ inline const TArray<float>& GetErosionTable()
 - [Bootstrapper](./bootstrapper) — decides what is created eagerly at startup.
 - [Memoization / Caching](./memoization) and [Dirty Flag](./dirty-flag) — also compute on demand and keep the result.
 - [Singleton](./singleton) — lazy creation of the single instance is common, with the same pitfalls.
+- [Proxy](./proxy) — a virtual proxy wraps lazy initialization in a stand-in with the real object's interface, so callers don't know it is lazy.

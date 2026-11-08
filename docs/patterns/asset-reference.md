@@ -333,3 +333,4 @@ Instances created with `Instantiate` from a loaded prefab do not hold their own 
 - [Lazy Initialization](./lazy-initialization) — load when first needed, at the cost of a delay on first use.
 - [Object Pool](./object-pool) — pools of instances created from a loaded prefab, scene or class.
 - [Save System](./save-system) — saves store asset keys, never asset references.
+- [Proxy](./proxy) — soft references and load handles are built-in virtual proxies; a proxy class hides the loading from callers entirely.

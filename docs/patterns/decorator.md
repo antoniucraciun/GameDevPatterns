@@ -319,3 +319,4 @@ Order matters, and that is a feature: `DoubleShot(DamageBoost(gun))` and `Damage
 - [Strategy](./strategy) — swaps the whole behaviour. A decorator adds to it.
 - [Adapter](./adapter) — wraps to change an interface. A decorator keeps the interface.
 - [Chain of Responsibility](./chain-of-responsibility) — a related chain of handlers that may stop the request.
+- [Proxy](./proxy) — same interface and same wrapping, but controls access (lazy loading, permissions) instead of adding behaviour.

@@ -574,3 +574,4 @@ For saving, convert each slot to `{ definitionId, count, durability }` and look 
 - [MVC / MVP / MVVM](./mvp-mvvm) — a full inventory screen built on top of this.
 - [Save System](./save-system) — persisting containers as plain data.
 - [Weighted Random & Loot Tables](./weighted-random) — where items come from.
+- [Iterator](./iterator) — lets the UI, crafting and saving walk the items without depending on how slots are stored.

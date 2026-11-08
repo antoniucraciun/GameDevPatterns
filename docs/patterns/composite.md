@@ -285,3 +285,4 @@ The engines' own hierarchies (Unity's Transform tree, Godot's scene tree, Unreal
 - [Command](./command) — commands issued to a composite fan out to its leaves.
 - [Visitor](./visitor) — performs operations over a composite structure without changing its classes.
 - [Dirty Flag](./dirty-flag) — caches expensive aggregates.
+- [Iterator](./iterator) — walks a composite tree depth-first or breadth-first without exposing its structure.
