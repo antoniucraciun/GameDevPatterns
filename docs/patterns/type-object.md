@@ -19,6 +19,47 @@ New kinds become new data, not new code. Type objects can also **inherit from ot
 
 This differs from [Flyweight](./flyweight), even though the structure looks alike. Flyweight is about *sharing memory*. Type Object is about *defining kinds as data*. In practice, a type object is usually a flyweight too.
 
+## Pseudocode
+
+```text
+// The kind: one data instance per kind of enemy, not one class.
+EnemyType:
+    parent                 // another EnemyType, or none
+    display_name, max_health, move_speed, template, loot
+                           // "unset" (0 or none) means "inherit"
+
+    resolve(field):        // walk up the parent chain until a value is set
+        if this.field is set: return this.field
+        if parent exists:     return parent.resolve(field)
+        return the default for field
+
+    spawn(position):       // the type creates its typed objects
+        enemy ← new instance of resolve(template) at position
+        enemy.init(this)
+        return enemy
+
+// The individual: a reference to its kind, plus its own state.
+Enemy:
+    type
+    health
+
+    init(t):
+        type ← t
+        health ← t.resolve(max_health)
+        name ← t.resolve(display_name)
+
+    take_damage(amount):
+        health ← health - amount
+        if health ≤ 0:
+            drop loot from type.resolve(loot)
+            destroy this
+
+// New kinds are new data. An Elite Orc overrides one value, inherits the rest.
+orc       ← EnemyType(max_health 40, with its speed, template and loot)
+elite_orc ← EnemyType(parent orc, max_health 120)
+elite_orc.spawn(position)    // 120 health; the orc's speed, template and loot
+```
+
 ## Example
 
 Enemy kinds as data assets, with inheritance between kinds, and an individual enemy that holds its kind plus its own state.

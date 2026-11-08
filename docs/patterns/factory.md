@@ -20,6 +20,40 @@ Common variations:
 | **Registry factory** | A map from IDs to creation recipes, filled from data | Spawn anything by ID from a spreadsheet or the debug console |
 | **[Abstract factory](./abstract-factory)** | An interface for creating *families* of related objects, with one implementation per family | `IUiFactory` with "fantasy" and "sci-fi" skins, or "console" and "mobile" layouts |
 
+## Pseudocode
+
+```text
+// One object owns every step of creating, and removing, an enemy.
+EnemyFactory:
+    types          // type id → EnemyType (the data for each kind)
+    pools          // EnemyType → inactive enemies ready for reuse
+    analytics      // a dependency the enemies need
+    difficulty
+
+    create(type_id, position):
+        type ← types[type_id]
+        if there is no such type:
+            report "unknown enemy type"
+            return none
+        if pools[type] is not empty: enemy ← take one out of pools[type]
+        else:                        enemy ← new instance of type's template
+        enemy.init(type, difficulty.health_multiplier)   // stats from data, scaled
+        enemy.construct(analytics)                        // inject dependencies
+        place enemy at position and activate it
+        EnemyRegistry.add(enemy)                          // minimap, director, quests
+        return enemy
+
+    despawn(enemy):                  // the only way to remove one
+        EnemyRegistry.remove(enemy)
+        deactivate enemy
+        put enemy into pools[enemy.type]
+
+// Every caller creates enemies the same way.
+factory.create("goblin", spawn point)        // wave spawner
+factory.create("skeleton", boss position)    // boss summon
+factory.create(typed id, near the player)    // debug console
+```
+
 ## Example
 
 A registry factory that combines [Type Object](./type-object), [Object Pool](./object-pool) and [Dependency Injection](./dependency-injection) behind one call:

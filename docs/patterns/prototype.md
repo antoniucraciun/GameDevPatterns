@@ -19,6 +19,45 @@ Game engines use this pattern everywhere:
 - **Runtime clones.** Unity's `Instantiate(anyGameObject)`, Godot's `Node.duplicate()` and Unreal's `SpawnActor` with a `Template` actor clone an object that already exists in the game, including changes made during play.
 - For **plain data**, a `Clone()` method copies configured objects. The critical question is how deep the copy goes.
 
+## Pseudocode
+
+```text
+// Runtime prototype: configure one object, then clone it.
+EliteWaveSpawner:
+    base_template            // the designer-made enemy (prefab, scene, Blueprint)
+    elite_prototype ← none   // configured once, cloned many times
+
+    prepare_elite_wave(health_bonus, elite_material):
+        if elite_prototype exists: destroy it
+        elite_prototype ← new instance of base_template
+        keep elite_prototype out of the game   // inactive, hidden, not in the tree
+        elite_prototype.max_health ← elite_prototype.max_health × (1 + health_bonus)
+        elite_prototype.material ← elite_material
+        attach an EliteAura to elite_prototype
+
+    spawn_elite(position):
+        enemy ← clone of elite_prototype      // every customisation comes along
+        put enemy into the game at position
+        return enemy
+
+// Plain data prototype: the clone must not share collections with it.
+CharacterLoadout:
+    class_name, level
+    items                    // list
+    skills                   // skill name → level
+
+    clone():                 // a deep copy
+        copy ← new CharacterLoadout
+        copy.class_name ← class_name
+        copy.level ← level
+        copy.items ← a new list with the same entries as items
+        copy.skills ← a new map with the same entries as skills
+        return copy
+
+warrior ← presets["Warrior"].clone()
+add "lucky_charm" to warrior.items           // the preset is unchanged
+```
+
 ## Example
 
 Spawning copies of a runtime-modified prototype, such as "this wave's buffed enemy":
@@ -35,6 +74,8 @@ public class EliteWaveSpawner : MonoBehaviour
 
     public void PrepareEliteWave(float healthBonus, Material eliteMaterial)
     {
+        if (elitePrototype) Destroy(elitePrototype.gameObject);
+
         // Build the prototype once, from the prefab, then customise it at runtime.
         elitePrototype = Instantiate(basePrefab, transform);
         elitePrototype.gameObject.SetActive(false);          // a template, not part of the game

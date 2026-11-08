@@ -30,6 +30,47 @@ The startup code picks **one** factory, and every product comes from it, so a ki
 
 Compared with the [Factory](./factory) page: a plain factory decides *how* to create one kind of thing. An abstract factory decides *which family* every related thing comes from.
 
+## Pseudocode
+
+```text
+// Abstract products: the only types the game sees.
+SaveStorage:    write(slot, data), read(slot)
+Achievements:   unlock(id)
+ButtonPrompts:  label(action)          // "[Space]" or "(A)"
+
+// Abstract factory: one creation method per product.
+PlatformFactory:
+    create_save_storage()
+    create_achievements()
+    create_button_prompts()
+
+// Families: each one creates a set that is known to fit together.
+DesktopPlatform is a PlatformFactory:
+    create_save_storage():   return FileSaveStorage(profile folder)
+    create_achievements():   return LocalAchievements(FileSaveStorage(profile folder))
+    create_button_prompts(): return KeyboardPrompts
+
+KioskPlatform is a PlatformFactory:     // nothing outlives the visitor
+    create_save_storage():   return MemorySaveStorage
+    create_achievements():   return LocalAchievements(MemorySaveStorage)
+    create_button_prompts(): return GamepadPrompts
+
+InMemoryPlatform is a PlatformFactory:  // for tests
+    storage ← one MemorySaveStorage     // shared, so a test can inspect it
+    create_save_storage():   return storage
+    create_achievements():   return LocalAchievements(storage)
+    create_button_prompts(): return GamepadPrompts
+
+// Startup picks one family, and every product comes from it.
+use(family):
+    saves        ← family.create_save_storage()
+    achievements ← family.create_achievements()
+    prompts      ← family.create_button_prompts()
+
+use(KioskPlatform if this is the kiosk build, else DesktopPlatform)
+show prompts.label(Jump) + " Jump"      // "[Space] Jump" or "(A) Jump"
+```
+
 ## Example
 
 Platform services for a desktop build, a trade-show kiosk build and tests. The **core** is plain code with no engine types: the product interfaces, the factory interface and three families. The **engine wiring** chooses a family at startup and uses one of its products in the UI.
