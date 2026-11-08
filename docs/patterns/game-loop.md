@@ -4,6 +4,10 @@
 
 **Category:** Game Loop & Timing
 
+## Overview
+
+The game loop is the heartbeat of a real-time game: every frame it reads input, advances the simulation and draws the result, whether or not the player does anything. Unity, Godot and Unreal already run this loop for you. This page shows how each frame is ordered, how the loop keeps game time independent of the machine's speed, and where your own code can run inside it.
+
 ## Problem
 
 A desktop application waits for the user: nothing happens until a click arrives. A game cannot work that way. Enemies keep moving, timers keep ticking and animations keep playing whether or not the player presses anything. Time also has to advance at the same rate on a fast gaming PC and on a five-year-old phone.
@@ -23,6 +27,8 @@ The key decision is how the loop measures and spends time:
 | Uncapped, fixed step | Update by a constant step every iteration | Game speed depends on the machine |
 | Variable step | Update by the real elapsed time (`deltaTime`) | Simple, but physics becomes non-deterministic and unstable on long frames |
 | Fixed update, variable render | Accumulate real time; run as many fixed updates as fit; render once | Stable and reproducible. Rendering may need interpolation. See [Fixed Timestep](./fixed-timestep). |
+
+Both of the last two variants give you **frame rate independence**: because the simulation advances by the real time that has passed, not by a fixed amount per frame, the game runs at the same speed at 30 FPS and at 144 FPS.
 
 ## Pseudocode
 
@@ -66,6 +72,8 @@ using UnityEngine.PlayerLoop;
 // Inserts a custom step into Unity's PlayerLoop, next to MonoBehaviour.Update.
 public static class CustomLoop
 {
+    // An empty marker type. The PlayerLoop identifies each step by a type:
+    // this one names the step in the Profiler, and lets you find or remove it later.
     public struct GameSystemsUpdate { }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -77,12 +85,11 @@ public static class CustomLoop
             if (loop.subSystemList[i].type != typeof(Update)) continue;
 
             var update = loop.subSystemList[i];
-            var systems = new List<PlayerLoopSystem>(update.subSystemList)
-            {
-                new PlayerLoopSystem { type = typeof(GameSystemsUpdate), updateDelegate = Tick }
-            };
+            var systems = new List<PlayerLoopSystem>(update.subSystemList);
+            systems.RemoveAll(s => s.type == typeof(GameSystemsUpdate)); // never insert it twice
+            systems.Add(new PlayerLoopSystem { type = typeof(GameSystemsUpdate), updateDelegate = Tick });
             update.subSystemList = systems.ToArray();
-            loop.subSystemList[i] = update;
+            loop.subSystemList[i] = update; // PlayerLoopSystem is a struct: write the copy back
         }
         PlayerLoop.SetPlayerLoop(loop);
     }
@@ -159,9 +166,9 @@ while running:
 
 **Engine notes**
 
-- **Unity:** per frame, input is polled, `FixedUpdate` runs zero or more times, then `Update`, `LateUpdate`, then rendering. Script execution order (Project Settings) orders scripts within each phase.
-- **Godot:** input events are handled first, then `_physics_process` runs zero or more times at the physics tick rate, then `_process`, then rendering. `process_priority` and `process_physics_priority` order nodes within each.
-- **Unreal:** actors and components tick in **tick groups** (`TG_PrePhysics`, `TG_DuringPhysics`, `TG_PostPhysics`, `TG_PostUpdateWork`). Set `PrimaryActorTick.TickGroup`, or add tick prerequisites, to order them.
+- **Unity:** per frame, input is polled, `FixedUpdate` runs zero or more times, then `Update`, `LateUpdate`, then rendering. Script execution order (Project Settings) orders scripts within each phase. The runnable Unity sample differs from the code above in one way: it installs the step from a component in its scene (`OnEnable`) and removes it again (`OnDisable`), so it doesn't run in other samples. A real game installs it once at startup, as shown here. Docs: [Event function execution order](https://docs.unity3d.com/Manual/execution-order.html), [PlayerLoop](https://docs.unity3d.com/ScriptReference/LowLevel.PlayerLoop.html), [PlayerLoopSystem](https://docs.unity3d.com/ScriptReference/LowLevel.PlayerLoopSystem.html), [RuntimeInitializeOnLoadMethod](https://docs.unity3d.com/ScriptReference/RuntimeInitializeOnLoadMethodAttribute.html), [Time settings](https://docs.unity3d.com/Manual/class-TimeManager.html) (Fixed Timestep, Maximum Allowed Timestep), [Domain reloading](https://docs.unity3d.com/Manual/domain-reloading.html).
+- **Godot:** input events are handled first, then `_physics_process` runs zero or more times at the physics tick rate, then `_process`, then rendering. `process_priority` and `process_physics_priority` order nodes within each. Docs: [Idle and physics processing](https://docs.godotengine.org/en/stable/tutorials/scripting/idle_and_physics_processing.html), [SceneTree](https://docs.godotengine.org/en/stable/classes/class_scenetree.html) (`process_frame`, `physics_frame`), [Singletons (Autoload)](https://docs.godotengine.org/en/stable/tutorials/scripting/singletons_autoload.html), [Node](https://docs.godotengine.org/en/stable/classes/class_node.html) (`process_priority`).
+- **Unreal:** actors and components tick in **tick groups** (`TG_PrePhysics`, `TG_DuringPhysics`, `TG_PostPhysics`, `TG_PostUpdateWork`). Set `PrimaryActorTick.TickGroup`, or add tick prerequisites, to order them. Docs: [Actor Ticking](https://dev.epicgames.com/documentation/en-us/unreal-engine/actor-ticking-in-unreal-engine), [Programming Subsystems](https://dev.epicgames.com/documentation/en-us/unreal-engine/programming-subsystems-in-unreal-engine).
 
 ## When to use
 
@@ -177,6 +184,8 @@ while running:
 - **Spiral of death:** if an update takes longer than the time it simulates, the loop falls further behind every frame. Clamp the elapsed time to a maximum.
 - **Busy-waiting** burns battery on mobile. Let vsync or the platform throttle the frame rate.
 - **Mixing time bases.** Use the frame delta in per-frame code and the fixed step in fixed-step code (`Time.deltaTime` / `Time.fixedDeltaTime` in Unity, the `delta` passed to `_process` / `_physics_process` in Godot, `DeltaSeconds` in Unreal's `Tick`), and never cache one for use in the other.
+- **Changing a copy of the Unity PlayerLoop.** `PlayerLoopSystem` is a struct, so `loop.subSystemList[i]` gives you a copy. After changing a phase's `subSystemList`, write it back with `loop.subSystemList[i] = update` before calling `PlayerLoop.SetPlayerLoop(loop)`. Otherwise Unity receives the unchanged loop: an insert silently does nothing, and a removal step never removes anything, so your step piles up across Play sessions.
+- **Inserting a Unity PlayerLoop step twice.** With [Domain Reload](https://docs.unity3d.com/Manual/domain-reloading.html) disabled (Enter Play Mode Options), the modified PlayerLoop may survive from one Play session to the next, and a startup `Install` would then add a second copy of the step. Remove any existing entry of your marker type before inserting it, as the example does.
 
 ## Related
 

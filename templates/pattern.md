@@ -4,6 +4,10 @@
 
 **Also known as:** Alias, Other Alias · **Category:** Category name
 
+## Overview
+
+Two to four sentences: what the pattern is, and what this page covers, so the reader knows what to expect.
+
 ## Problem
 
 What goes wrong without this pattern? Describe a concrete game situation.
@@ -70,9 +74,9 @@ One line on what the example builds. If it has an engine-free core, split it int
 
 **Engine notes**
 
-- **Unity:** built-in features that already do this, version requirements, gotchas.
-- **Godot:** the same for Godot.
-- **Unreal:** the same for Unreal.
+- **Unity:** built-in features that already do this, version requirements, gotchas. Docs: [Official page](https://docs.unity3d.com/Manual/index.html).
+- **Godot:** the same for Godot. Docs: [Official page](https://docs.godotengine.org/en/stable/).
+- **Unreal:** the same for Unreal. Docs: [Official page](https://dev.epicgames.com/documentation/en-us/unreal-engine).
 
 ## When to use
 

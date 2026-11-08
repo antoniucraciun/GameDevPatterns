@@ -58,6 +58,7 @@ Every pattern page uses the same sections, in this order:
 | Section | Purpose |
 | --- | --- |
 | Intent (quote under the title) | One sentence on what the pattern lets you do. |
+| Overview | Two to four sentences on what the pattern is and what the page covers, so readers know what to expect. Being added one page at a time. |
 | Problem | A concrete game situation that hurts without the pattern. |
 | Solution | The idea, its participants, and how they interact. |
 | Pseudocode | A language-neutral outline of the core mechanism that readers could implement in any language or engine. See [Pseudocode](#pseudocode). |
@@ -104,7 +105,7 @@ The build fails if a pattern page has no `## Example` heading, or if any `::: co
 - **Core and Engine wiring.** When the pattern has logic that doesn't need the engine (a pathfinder, a stat calculator, a state machine), put it in a **Core** tab group with no scene types, and the code that connects it to the engine in an **Engine wiring** group. Readers can then lift the core into tests or another engine. If the pattern *is* the engine integration (camera smoothing, trigger volumes), use a single tab group.
 - **Idiomatic per engine.** Write each tab the way that engine's developers would: `MonoBehaviour` and `[SerializeField]` in Unity, nodes, `@export` and signals in Godot 4, `UCLASS`/`UPROPERTY` actors and components in Unreal Engine 5. Don't transliterate C# into the other languages.
 - **Engine-specific patterns.** When a pattern is built on one engine's feature (ScriptableObject Architecture, Coroutines, the Job System), show each engine's closest equivalent, such as Godot `Resource`s and Unreal Data Assets. If an engine has no real equivalent, say so in **Engine notes** instead of forcing code.
-- **Engine notes.** End the example with a short list: built-in features that already solve it in each engine, minimum versions, and gotchas.
+- **Engine notes.** End the example with a short list: built-in features that already solve it in each engine, minimum versions, and gotchas. End each engine's bullet with `Docs:` and links to that engine's official documentation for the APIs and settings the example uses (being added one page at a time). If the runnable sample differs from the page's code, say how in that engine's bullet.
 - **Versions.** Unity tabs must compile with C# 9 (Unity's language version). Godot tabs target Godot 4. Unreal tabs target Unreal Engine 5; note anything that needs a specific 5.x version.
 
 ## Interactive visualizers

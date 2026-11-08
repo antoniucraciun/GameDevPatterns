@@ -39,7 +39,7 @@ export const categories: Category[] = [
 
 export const patterns: Pattern[] = [
   // ── Game Loop & Timing ─────────────────────────────────────────────
-  { slug: 'game-loop', name: 'Game Loop', category: 'loop', summary: 'Decouple the progression of game time from user input and processor speed.' },
+  { slug: 'game-loop', name: 'Game Loop', category: 'loop', summary: 'Decouple the progression of game time from user input and processor speed.', samples: { unity: { folder: 'Assets/Patterns/GameLoopAndTiming/GameLoop' } } },
   { slug: 'update-method', name: 'Update Method', category: 'loop', summary: 'Let every object simulate one frame of its own behaviour when asked.' },
   { slug: 'fixed-timestep', name: 'Fixed Timestep', category: 'loop', summary: 'Advance the simulation in constant increments for stable, reproducible physics.', aka: ['Fixed Update', 'Accumulator'] },
   { slug: 'double-buffer', name: 'Double Buffer', category: 'loop', summary: 'Keep a current and a next state so readers never see a half-written update.' },
