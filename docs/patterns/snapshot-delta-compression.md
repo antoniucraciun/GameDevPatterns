@@ -18,6 +18,47 @@ Combine three techniques:
 
 Together, these typically reduce traffic by 5–20×.
 
+## Pseudocode
+
+```text
+// ── Shared: one schema, so writer and reader agree on every bit ──
+fields:  position  3 × 21 bits   // each axis over a 2048 m map, ≈ 1 mm steps
+         yaw       10 bits       // ≈ 0.35°
+         health    7 bits        // 0..100
+         ammo      8 bits        // 0..255
+quantise(v, min, range, bits) = round((v - min) / range × (2^bits - 1))
+
+write delta(baseline, current):
+    mask ← the fields whose QUANTISED values differ from baseline
+    write 1 bit: mask is not empty     // an unchanged entity costs 1 bit
+    if mask is empty: return
+    write mask in 4 bits
+    for each field in mask, in schema order: write it with its bit count
+
+read delta(baseline):
+    s ← copy of baseline               // start from what the client already has
+    if the 1-bit flag is 0: return s
+    mask ← read 4 bits
+    for each field in mask, in schema order: s.field ← read and dequantise it
+    return s
+
+// ── Server ──
+snapshots ← the last N world states, by snapshot id   // about 1 s
+each tick, for each client:
+    baseline ← snapshots[client's last acked id],
+               or an all-zero state if none or too old
+    write header (this snapshot id, baseline id)
+    for each entity the client needs: write delta(baseline[entity], current[entity])
+    send the bits unreliably
+
+on ack (client, id): client's last acked id ← id     // the client surely has it
+
+// ── Client ──
+on snapshot (id, baseline id, bits):
+    for each entity: state ← read delta(ITS stored copy of baseline id[entity])
+    store the result as snapshot id;  send ack(id)
+```
+
 ## Example
 
 A bit writer and reader. Unity and Godot need their own; Unreal already has `FBitWriter` and `FBitReader`, which its replication system uses:

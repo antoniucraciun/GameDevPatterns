@@ -20,6 +20,43 @@ Prediction requires the movement simulation to be **deterministic enough**. Give
 
 <NetSyncViz mode="prediction" />
 
+## Pseudocode
+
+```text
+// ── Shared: the SAME code runs on client and server ──
+step ← 1/60 s
+simulate(state, input):              // returns a new state
+    state.velocity ← input.move × speed
+    state.position ← state.position + state.velocity × step
+    return state
+
+// ── Owning client ──
+state
+pending ← empty list                 // inputs sent but not yet confirmed
+next sequence ← 0
+
+every fixed step:
+    input ← (next sequence, the move keys held now)
+    next sequence ← next sequence + 1
+    state ← simulate(state, input)   // 1. predict immediately
+    add input to pending             //    remember it for reconciliation
+    send input to the server         //    and tell the server
+    show state.position
+
+on server state (server state, last processed sequence):
+    state ← server state             // 2. accept the truth
+    remove from pending every input with sequence ≤ last processed sequence   // 3.
+    for each input in pending, oldest first:                                  // 4. replay
+        state ← simulate(state, input)
+    show state.position
+
+// ── Server (applies each input as it arrives here;
+//    Server Reconciliation queues them one per tick) ──
+on input from the owning client:
+    state ← simulate(state, input)
+    send (state, input.sequence) back to that client
+```
+
 ## Example
 
 Transport-agnostic in Unity (`Send` stands in for your networking library); Godot and Unreal use their built-in RPCs. The **core** is the shared simulation, which client and server must both run. The **engine wiring** predicts with it and reconciles when the server answers.

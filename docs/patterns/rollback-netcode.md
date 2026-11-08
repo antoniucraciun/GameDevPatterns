@@ -24,6 +24,51 @@ A small **input delay** (1–3 frames) is often combined with rollback. It reduc
 
 Requirements: a fully **deterministic** simulation, **cheap state saving and restoring**, and a simulation **fast enough to resimulate** several frames within one rendered frame.
 
+## Pseudocode
+
+Both players run the same session; each sees the other as "remote".
+
+```text
+max rollback ← 8 frames
+state                         // plain data, so saving is a copy; state.frame is its frame
+saved[f]                      // the state at the START of frame f (ring buffer)
+inputs[f][player]             // real local; remote is real once confirmed, else predicted
+confirmed[f]                  // has the REAL remote input for f arrived?
+last confirmed ← -1;  last remote input ← "nothing pressed"
+rollback from ← none          // earliest frame with a wrong prediction
+
+on remote input (frame f, input):
+    if confirmed[f]: ignore it                       // duplicate packet
+    if f < state.frame and inputs[f][remote] ≠ input:
+        rollback from ← the earlier of rollback from and f   // we guessed wrong
+    inputs[f][remote] ← input;  confirmed[f] ← true
+    if f > last confirmed:
+        last confirmed ← f;  last remote input ← input        // basis for guesses
+
+every fixed frame (60 Hz), with the local input:
+    if state.frame - last confirmed > max rollback: return    // too far ahead: wait
+    // 1. Correct the past.
+    if rollback from is set:
+        now ← state.frame
+        state ← copy of saved[rollback from]                 // restore
+        while state.frame < now: advance()                    // resimulate, corrected
+        rollback from ← none
+    // 2. This frame's inputs: real local, predicted remote unless already known.
+    inputs[state.frame][local] ← local input
+    if not confirmed[state.frame]:
+        inputs[state.frame][remote] ← last remote input       // "they kept holding it"
+    send (state.frame, local input) to the other player       // with the last few frames
+    // 3. Simulate the new frame.
+    advance()
+
+advance():
+    saved[state.frame] ← copy of state                        // save BEFORE stepping
+    state ← step(state, inputs[state.frame][0], inputs[state.frame][1])   // deterministic
+
+// Render state; play sounds only from changes between rendered states,
+// so resimulated frames never repeat them.
+```
+
 ## Example
 
 A two-player rollback session, engine-free in every tab. `Simulation.Step` is the deterministic, pure game update (see [Determinism](./determinism)); the network layer delivers each side's inputs, unreliably and redundantly (the last few frames in every packet).
