@@ -28,9 +28,13 @@ const groups = data.recipeGroups
           <template v-else>{{ r.name }} <span class="badge">planned</span></template>
         </h3>
         <p class="summary">{{ r.summary }}</p>
-        <p v-if="r.demo || r.sampleUrl" class="sample-links">
-          <a v-if="r.demo" :href="r.demo" target="_blank" rel="noopener">▶ Play</a>
-          <a v-if="r.sampleUrl" :href="r.sampleUrl" target="_blank" rel="noopener">Unity sample</a>
+        <p v-if="r.sampleLinks.length" class="sample-links">
+          <span class="label">See it in action:</span>
+          <template v-for="(s, i) in r.sampleLinks" :key="s.engine">
+            <span v-if="i > 0" class="sep" aria-hidden="true">·</span>
+            <a :href="s.code ?? s.demo!" target="_blank" rel="noopener" :title="s.code ? `Open the ${s.name} sample` : `Play the ${s.name} demo`">{{ s.name }}</a>
+            <a v-if="s.code && s.demo" :href="s.demo" target="_blank" rel="noopener" :title="`Play the ${s.name} demo`" :aria-label="`Play the ${s.name} demo`">▶</a>
+          </template>
         </p>
         <ul class="chips" aria-label="Patterns used">
           <li v-for="slug in r.patterns" :key="slug">
@@ -66,8 +70,9 @@ const groups = data.recipeGroups
 .recipe h3 { margin: 0 0 6px; font-size: 17px; border: 0; padding: 0; }
 .recipe h3 a { text-decoration: none; }
 .summary { margin: 0 0 12px; color: var(--vp-c-text-2); font-size: 14px; line-height: 1.5; }
-.sample-links { display: flex; gap: 12px; margin: -4px 0 12px; font-size: 13px; font-weight: 500; }
+.sample-links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: -4px 0 12px; font-size: 13px; font-weight: 500; }
 .sample-links a { text-decoration: none; }
+.sample-links .label, .sample-links .sep { color: var(--vp-c-text-2); }
 .chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chips li { margin: 0; }
 .chip {

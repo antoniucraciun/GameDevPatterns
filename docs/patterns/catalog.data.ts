@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { categories, patterns } from '../.vitepress/catalog'
-import { recipeGroups, recipes, samplesRepo } from '../.vitepress/recipes'
+import { recipeGroups, recipes } from '../.vitepress/recipes'
+import { resolveSamples, type ResolvedSample } from '../.vitepress/samples'
 
 const patternsDir = fileURLToPath(new URL('./', import.meta.url))
 const recipesDir = fileURLToPath(new URL('../recipes/', import.meta.url))
@@ -68,9 +69,9 @@ function pseudocodeProblem(markdown: string): string | null {
 
 export interface CatalogData {
   categories: typeof categories
-  patterns: (WithWritten<(typeof patterns)[number]> & { interactive: boolean })[]
+  patterns: (WithWritten<(typeof patterns)[number]> & { interactive: boolean; sampleLinks: ResolvedSample[] })[]
   recipeGroups: typeof recipeGroups
-  recipes: (WithWritten<(typeof recipes)[number]> & { sampleUrl: string | null })[]
+  recipes: (WithWritten<(typeof recipes)[number]> & { sampleLinks: ResolvedSample[] })[]
 }
 
 declare const data: CatalogData
@@ -120,10 +121,6 @@ export default {
       const unknown = r.patterns.filter((slug) => !known.has(slug))
       if (unknown.length) throw new Error(`Recipe "${r.slug}" uses unknown pattern(s): ${unknown.join(', ')}`)
       if (!groups.has(r.group)) throw new Error(`Recipe "${r.slug}" has unknown group "${r.group}"`)
-      if (r.sample !== undefined && !/^[\w.-]+(\/[\w.-]+)*$/.test(r.sample))
-        throw new Error(`Recipe "${r.slug}" has invalid sample path "${r.sample}" (expected e.g. Assets/Recipes/MyRecipe)`)
-      if (r.demo !== undefined && !/^https?:\/\//.test(r.demo))
-        throw new Error(`Recipe "${r.slug}" has invalid demo URL "${r.demo}"`)
     }
 
     return {
@@ -131,13 +128,18 @@ export default {
       patterns: patterns.map((p) => {
         const file = `${patternsDir}${p.slug}.md`
         const written = existsSync(file)
-        return { ...p, written, interactive: written && VIZ_TAG.test(readFileSync(file, 'utf8')) }
+        return {
+          ...p,
+          written,
+          interactive: written && VIZ_TAG.test(readFileSync(file, 'utf8')),
+          sampleLinks: resolveSamples(`Pattern "${p.slug}"`, p.samples),
+        }
       }),
       recipeGroups,
       recipes: recipes.map((r) => ({
         ...r,
         written: existsSync(`${recipesDir}${r.slug}.md`),
-        sampleUrl: r.sample ? `${samplesRepo.url}/tree/${samplesRepo.ref}/${r.sample}` : null,
+        sampleLinks: resolveSamples(`Recipe "${r.slug}"`, r.samples),
       })),
     }
   },
