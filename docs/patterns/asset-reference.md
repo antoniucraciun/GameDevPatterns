@@ -6,7 +6,7 @@
 
 ## Problem
 
-A level-select menu has direct inspector references to all 40 level backgrounds. Because Unity loads everything a scene references, all 40 textures (800 MB) load the moment the menu opens. The enemy spawner references every enemy prefab, so all their meshes, textures and sounds sit in memory for the whole game. Shipping a new costume means shipping a new build. Loading content from a `Resources` folder by string name breaks silently when files are renamed, and bloats startup.
+A level-select menu has direct references to all 40 level backgrounds. Because the engine loads everything a loaded object hard-references, all 40 textures (800 MB) load the moment the menu opens. The enemy spawner references every enemy prefab, so all their meshes, textures and sounds sit in memory for the whole game. Shipping a new costume means shipping a new build. Loading content by hand-typed path or name breaks silently when files are renamed, and Unity's `Resources` folder also bloats startup.
 
 ## Solution
 
@@ -17,7 +17,11 @@ Separate **referring to an asset** from **loading it**:
 - Code **releases** the handle when done. The system counts references and unloads the asset (and its dependencies) when nothing uses it.
 - Assets are packed into **bundles** that can ship with the game or be **downloaded later** (new content without a new build).
 
-In Unity, the **Addressables** package implements this: `AssetReference` fields in the inspector, `LoadAssetAsync`, `Release`, labels for loading groups ("all level 3 enemies"), and local or remote hosting.
+Each engine implements this:
+
+- **Unity:** the **Addressables** package, with `AssetReference` fields in the inspector, `LoadAssetAsync`, `Release`, labels for loading groups ("all level 3 enemies"), and local or remote hosting.
+- **Godot:** a path or `uid://` string is the soft reference, loaded with `ResourceLoader.load_threaded_request()`. Resources are reference counted, so they are freed when the last reference goes.
+- **Unreal:** `TSoftObjectPtr` and `TSoftClassPtr` properties, loaded with `FStreamableManager::RequestAsyncLoad`, which returns a handle that keeps the asset loaded.
 
 ## Example
 
@@ -305,27 +309,28 @@ Instances created with `Instantiate` from a loaded prefab do not hold their own 
 - Large or optional content: levels, characters, cosmetics, audio banks, localised voice-over.
 - Memory-constrained platforms (mobile, Switch), where only the current level's content should be in memory.
 - Live games that download new content without app-store updates.
-- Replacing `Resources.Load`, which is slow at startup and has no memory control.
+- Replacing hard references or path-based loading (such as Unity's `Resources.Load`) that give no control over what is in memory.
 
 ## When not to use
 
 - Small games that fit in memory. Direct references are simpler and load with the scene.
 - Assets that are always needed, such as the player or the HUD. Loading them on demand adds delay and failure cases.
-- Before you need downloadable or optional content. Addressables add build and loading complexity.
+- Before you need downloadable or optional content. Soft references and asynchronous loading add build and loading complexity.
 
 ## Pitfalls
 
-- **Leaks from missing `Release`.** Every successful load needs exactly one release. Track handles in one owner per lifetime (level, screen), and release in `OnDestroy`.
-- **Releasing too early.** Releasing a prefab handle while instances still exist can unload their materials, leaving pink or invisible objects. Release after the last instance is gone.
+- **Leaks from missing releases.** In Unity, every successful load needs exactly one `Release`; in Unreal, a stored streamable handle keeps its assets loaded until you release or drop it; in Godot, any lingering reference keeps a resource alive. Track handles and references in one owner per lifetime (level, screen), and release them when the owner is destroyed.
+- **Releasing too early (Unity).** Releasing a prefab handle while instances still exist can unload their materials, leaving pink or invisible objects. Release after the last instance is gone. Godot and Unreal keep an asset loaded while instances still reference it.
 - **Hitches from synchronous loads.** `WaitForCompletion()` blocks the main thread until loading finishes. Preload behind a loading screen instead.
-- **Duplicated dependencies.** A texture used by assets in two bundles, but not addressable itself, is copied into both. Use the Addressables Analyze tool, and make shared assets explicitly addressable.
+- **Duplicated dependencies.** A texture used by assets in two bundles, but not addressable itself, is copied into both. Check with Unity's Addressables Analyze tool or Unreal's Asset Audit window, and make shared assets explicitly part of one group or chunk.
 - **String keys.** Loading by address string brings back typos and silent breakage. Prefer `AssetReference` fields, which survive renames.
 - **Remote content versioning.** A remote catalog update must match the client's code. Version catalogs, and test updates against old clients.
 
 ## Related
 
 - [Data-Driven Design](./data-driven-design) — data refers to content by key.
-- [Scene / Level Management](./scene-management) — scenes can also be addressable, loaded and released the same way.
+- [Scene / Level Management](./scene-management) — scenes and levels can be soft references too, loaded and released the same way.
 - [Lazy Initialization](./lazy-initialization) — load when first needed, at the cost of a delay on first use.
-- [Object Pool](./object-pool) — pools of instances created from a loaded prefab.
+- [Object Pool](./object-pool) — pools of instances created from a loaded prefab, scene or class.
 - [Save System](./save-system) — saves store asset keys, never asset references.
+- [Proxy](./proxy) — soft references and load handles are built-in virtual proxies; a proxy class hides the loading from callers entirely.

@@ -326,14 +326,14 @@ void UHudWidget::NativeDestruct()
 
 - A few values that change every frame, such as a speedometer. Update the label directly.
 - Static text that never changes after the screen opens.
-- Hand-rolling a binding framework. UI Toolkit has runtime binding built in; use it if you're on UI Toolkit.
+- Hand-rolling a binding framework where the engine has one: Unity's UI Toolkit has runtime binding, and Unreal's UMG has the Viewmodel (MVVM) plugin. Godot has no built-in data binding, so signals are the usual approach there.
 
 ## Pitfalls
 
 - **Forgetting to dispose.** Bindings subscribe to data that usually outlives the UI. Without disposal, destroyed labels keep receiving updates and throw `MissingReferenceException`.
 - **Feedback loops in two-way bindings.** A slider updating the property updates the slider, which updates the property… Use `SetValueWithoutNotify` and the equality check, as above.
 - **Binding values that change every frame.** A timer or position bound through events fires every frame anyway. Plain polling in `Update` is simpler and cheaper for continuously changing values.
-- **Allocation in converters.** String formatting allocates. That is fine on change, but expensive if the value changes every frame. Cache strings for small ranges, or use TextMeshPro's `SetText` with number arguments.
+- **Allocation in converters.** String formatting allocates. That is fine on change, but expensive if the value changes every frame. Cache strings for small ranges, or use a non-allocating number setter where one exists (TextMeshPro's `SetText` with number arguments in Unity).
 - **Mutating collections inside an observable.** Adding to a `List` inside `Observable<List<T>>` does not raise `Changed`. Use an observable collection, or replace the list.
 
 ## Related

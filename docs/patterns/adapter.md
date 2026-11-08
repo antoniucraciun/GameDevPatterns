@@ -226,3 +226,6 @@ Adapters also help *inside* a project. Wrap a legacy system, or a third-party pa
 - [Bootstrapper](./bootstrapper) — chooses and initialises adapters per platform.
 - [Input Abstraction](./input-abstraction) — devices adapted to game actions.
 - [Decorator](./decorator) — wraps an object with the *same* interface to add behaviour. An adapter changes the interface.
+- [Bridge](./bridge) — also separates an interface from its implementations, but is designed up front so both sides can vary; an adapter is added after the fact.
+- [Proxy](./proxy) — wraps an object with the *same* interface to control access to it. An adapter changes the interface.
+- [Abstract Factory](./abstract-factory) — creates a matching set of adapters per platform.

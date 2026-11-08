@@ -14,7 +14,7 @@ Distribute the work, and make the format robust:
 
 - **Saveable components.** Anything with persistent state implements `ISaveable`: *capture my state as plain data* and *restore from that data*. The save system does not know what a chest or a door is.
 - **Stable IDs.** Each saveable object has a unique, persistent ID (a GUID generated in the editor), so it can be matched on load regardless of name or hierarchy.
-- **Plain data only.** Saved state contains values and IDs, never object references. "The chest contains item `iron_sword`", not a reference to a ScriptableObject instance.
+- **Plain data only.** Saved state contains values and IDs, never object references. "The chest contains item `iron_sword`", not a reference to an item asset.
 - **A versioned envelope.** The file records a format version. On load, **migrations** upgrade old data step by step to the current version.
 - **Safe writes.** Write to a temporary file, then replace the old save in one step, keeping a backup. A crash can never leave a half-written save.
 
@@ -427,13 +427,13 @@ Objects created at runtime (dropped items, spawned enemies) have no editor-assig
 
 ## When not to use
 
-- Arcade games that only store a high score. `PlayerPrefs` is enough.
+- Arcade games that only store a high score. The engine's simple storage is enough: `PlayerPrefs` in Unity, a `ConfigFile` in Godot, a small `USaveGame` in Unreal.
 - Saving the whole scene with reflection or binary serialization of objects. It breaks between versions; save explicit, versioned data.
 - Short games with no persistence beyond settings.
 
 ## Pitfalls
 
-- **Saving references.** `JsonUtility` stores Unity object references as instance IDs that are meaningless in the next session. Save IDs and look the objects up on load.
+- **Saving references.** Engine object references do not survive into the next session (Unity's `JsonUtility`, for example, stores them as instance IDs). Save IDs and look the objects up on load.
 - **No versioning from day one.** Adding a version field later means guessing the format of unversioned files. Start at version 1 in the first build.
 - **Non-atomic writes.** Writing directly over the save corrupts it if the game crashes or the device powers off mid-write. Always write to a temp file, then replace.
 - **Duplicated IDs.** Copy-pasting objects in the editor duplicates their IDs, so two chests share a state. Detect and regenerate duplicates in the editor, as `SaveId` does.

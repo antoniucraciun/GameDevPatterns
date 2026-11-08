@@ -391,7 +391,7 @@ A full player update shrinks from about 60 bytes to about 9 when moving, and 1 b
 
 ## When not to use
 
-- Netcode libraries that already do it, such as Netcode for GameObjects or Mirror. Configure them instead of rolling your own.
+- Netcode libraries that already do it, such as Unity's Netcode for GameObjects or Mirror, Godot's `MultiplayerSynchronizer`, or Unreal's property replication. Configure them instead of rolling your own.
 - Low player counts with little state. Full snapshots fit in the bandwidth.
 - Lockstep games. They send inputs, not state.
 

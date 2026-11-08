@@ -16,7 +16,7 @@ Pull each algorithm out into its own object behind a common interface: the **str
 - Strategies can be swapped at runtime, for example from a UI dropdown.
 - Each algorithm is small and testable on its own.
 
-In Unity, strategies are often **ScriptableObject assets**. Designers then pick a strategy in the inspector, and tune its parameters per asset ("nearest, but ignore targets beyond 15 m").
+Strategies are often **data assets**: ScriptableObjects in Unity, `Resource`s in Godot, Data Assets or instanced objects in Unreal. Designers then pick a strategy in the editor, and tune its parameters per asset ("nearest, but ignore targets beyond 15 m").
 
 ## Example
 
@@ -376,9 +376,9 @@ When a strategy needs no parameters and no inspector support, a plain interface 
 ## Pitfalls
 
 - **Strategies that need too much context.** If a strategy needs ten parameters from the context, the interface is wrong. Pass a small context object, or reconsider the split.
-- **State in shared assets.** A ScriptableObject strategy is shared by every turret that uses it. Storing per-turret state in it (such as "the last target") mixes turrets up. Keep strategies stateless, and keep state in the context.
+- **State in shared assets.** A strategy asset is shared by every turret that uses it. Storing per-turret state in it (such as "the last target") mixes turrets up. Keep strategies stateless, and keep state in the context.
 - **Over-engineering.** Two fixed options that will never change are clearer as an `if`. Introduce strategies when the variation is real.
-- **Allocation per call.** LINQ in strategies (`inRange.OrderBy(...)`) allocates every frame. Write the loops by hand in hot paths.
+- **Allocation per call.** Collection helpers in strategies (LINQ's `OrderBy` in C#, `filter` and `map` in GDScript) allocate every frame. Write the loops by hand in hot paths.
 
 ## Related
 
@@ -386,3 +386,4 @@ When a strategy needs no parameters and no inspector support, a plain interface 
 - [Type Object](./type-object) — a type asset can reference strategy assets to vary behaviour per kind.
 - [ScriptableObject Architecture](./scriptable-object-architecture) — strategies as assets.
 - [Template Method](./template-method) — varies steps of one algorithm through inheritance, rather than swapping the whole algorithm.
+- [Bridge](./bridge) — when the object holding the strategy has its own subclasses too, the two hierarchies form a bridge.

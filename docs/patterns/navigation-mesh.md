@@ -23,7 +23,11 @@ Extras that real games need:
 - **Dynamic obstacles** that carve holes into the mesh at runtime (a parked car, a closed door).
 - **Agent types:** different bakes for small, large and flying units.
 
-In Unity, the **AI Navigation** package provides `NavMeshSurface` (baking, including at runtime), `NavMeshAgent`, `NavMeshObstacle` (carving), `NavMeshLink` and area costs.
+All three engines have one built in:
+
+- **Unity:** the **AI Navigation** package provides `NavMeshSurface` (baking, including at runtime), `NavMeshAgent`, `NavMeshObstacle` (carving), `NavMeshLink` and area costs.
+- **Godot:** `NavigationRegion3D` (baking), `NavigationAgent3D`, `NavigationObstacle3D`, `NavigationLink3D`, and region `enter_cost` and `travel_cost`, all backed by `NavigationServer3D`.
+- **Unreal:** a **Nav Mesh Bounds Volume** builds a Recast navmesh; nav areas and `UNavModifierComponent` set costs, **Nav Link Proxy** actors add jumps, and `AAIController::MoveTo` follows paths.
 
 ## Example
 

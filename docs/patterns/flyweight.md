@@ -209,3 +209,4 @@ void AForest::BeginPlay()
 
 - [Object Pool](./object-pool) — reuses instances. A flyweight shares data between them.
 - [Type Object](./type-object) — uses shared definitions to create new *kinds* of things as data.
+- [Proxy](./proxy) — controls access to one heavy object (often loading it lazily). A flyweight shares one between many users.

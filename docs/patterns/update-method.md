@@ -200,7 +200,7 @@ private:
 
 ## Pitfalls
 
-- **Update order is undefined between objects.** If A reads B's position, A may see this frame's value or last frame's. Use `LateUpdate`, explicit system ordering or a [Double Buffer](./double-buffer).
+- **Update order is undefined between objects.** If A reads B's position, A may see this frame's value or last frame's. Use a later update phase (`LateUpdate`, `process_priority`, tick groups), explicit system ordering or a [Double Buffer](./double-buffer).
 - **Modifying the collection while iterating it**, for example spawning or destroying objects during `Update`. Defer the changes, or iterate a copy or backwards.
 - **Empty `Update` methods still cost a call.** Disable components that have nothing to do, or switch to events.
 - **Polling things that rarely change.** Prefer [Observer](./observer) when something only matters at the moment it changes.

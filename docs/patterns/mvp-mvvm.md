@@ -6,7 +6,7 @@
 
 ## Problem
 
-The inventory screen's MonoBehaviour does everything. It reads the player's items, sorts them, calculates the total weight, decides which buttons are enabled, formats "12.5 / 40 kg", handles clicks, plays sounds and talks to the save system. Changing the layout breaks the logic. Testing "you cannot equip a two-handed sword with a shield" requires a scene with a Canvas. Building a controller-friendly version of the same screen means copying all of it.
+The inventory screen's script does everything. It reads the player's items, sorts them, calculates the total weight, decides which buttons are enabled, formats "12.5 / 40 kg", handles clicks, plays sounds and talks to the save system. Changing the layout breaks the logic. Testing "you cannot equip a two-handed sword with a shield" requires a scene with the UI in it. Building a controller-friendly version of the same screen means copying all of it.
 
 ## Solution
 
@@ -15,14 +15,14 @@ Split each screen into roles:
 | Role | Knows about | Responsibility |
 | --- | --- | --- |
 | **Model** | Nothing about UI | Game data and rules: the inventory, items, "can equip?". Raises events when it changes. |
-| **View** | Unity UI components only | Displays what it is told, and reports user actions ("slot 3 clicked"). No decisions. |
+| **View** | Engine UI widgets only (uGUI or UI Toolkit, Control nodes, UMG) | Displays what it is told, and reports user actions ("slot 3 clicked"). No decisions. |
 | **Presenter** (MVP) / **ViewModel** (MVVM) | Model, and the view through an interface | Turns model state into display state (text, enabled flags), and user actions into model calls. |
 
 The variants differ in how the middle layer talks to the view:
 
 - **MVC:** the controller handles input, and the view reads the model directly. Common on the web, less common in games.
-- **MVP:** the presenter *pushes* to a passive view through an interface (`view.SetWeight("12.5 / 40 kg")`). It is easy to test with a fake view, and it is the most common choice in Unity.
-- **MVVM:** the view model exposes *observable properties*, and the view *binds* to them, so updates flow automatically. It suits Unity's UI Toolkit runtime binding. See [Data Binding](./data-binding).
+- **MVP:** the presenter *pushes* to a passive view through an interface (`view.SetWeight("12.5 / 40 kg")`). It is easy to test with a fake view, and works with any UI system.
+- **MVVM:** the view model exposes *observable properties*, and the view *binds* to them, so updates flow automatically. It suits UI systems with binding built in: Unity's UI Toolkit runtime binding and Unreal's UMG Viewmodel plugin. Godot has no built-in binding, so MVVM there is wired by hand with signals. See [Data Binding](./data-binding).
 
 ## Example
 
@@ -579,7 +579,7 @@ Testing the presenter needs no scene. Pass a `FakeInventoryView` that records wh
 ## Pitfalls
 
 - **Ceremony for trivial UI.** A label showing the score does not need three classes. Use the split where there is logic to separate.
-- **Presenters that touch Unity UI types.** Once a presenter references `Button` or `TMP_Text`, it can no longer be tested without a scene. Keep Unity UI types behind the view interface.
+- **Presenters that touch engine UI types.** Once a presenter references a widget type (`Button`, `TMP_Text`, `Label`, `UTextBlock`), it can no longer be tested without a scene. Keep engine UI types behind the view interface.
 - **Full refresh on every change.** Rebuilding every row on any change is simple and usually fine. For long lists, diff the rows, or use a pooled, virtualised list view.
 - **Leaked subscriptions.** The presenter subscribes to the model, so dispose it when the screen closes, or the model keeps calling into a destroyed view.
 

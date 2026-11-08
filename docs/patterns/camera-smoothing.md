@@ -21,7 +21,7 @@ Treat the camera as a small system with several deliberate behaviours:
 | **Bounds** | Clamp to level limits, so the camera never shows outside the level. |
 | **Separation from effects** | Shake and zoom punches apply to a child transform, so they never disturb the follow logic. |
 
-Run the camera in `LateUpdate`, after all movement for the frame has finished. For Rigidbody targets, enable interpolation, so the camera follows a smooth position.
+Run the camera after all movement for the frame has finished: in `LateUpdate` in Unity, with a higher `process_priority` than the target in Godot, and in a late tick group (or the camera manager) in Unreal. For physics-driven targets, enable interpolation where the engine offers it (Unity's Rigidbody interpolation, Godot 4.3+ physics interpolation), so the camera follows a smooth position.
 
 ## Example
 
@@ -262,13 +262,13 @@ Put the [Screen Shake](./screen-shake) on a child of the camera, or on the camer
 ## When not to use
 
 - First-person cameras. Smoothing the view causes nausea; keep it locked to the head.
-- When Cinemachine already provides it. Configure it instead of writing your own.
+- When the engine's camera tools already provide it: Cinemachine in Unity, `Camera2D` smoothing and limits in Godot, the spring arm's camera lag in Unreal. Configure them instead of writing your own.
 - Competitive games where any camera lag hurts aiming.
 
 ## Pitfalls
 
 - **`Lerp` with a constant factor.** It depends on the frame rate and never fully arrives. Use `SmoothDamp` or exponential damping with `deltaTime`.
-- **Following in `Update`.** If the camera updates before the player moves, it lags one frame, which causes jitter. Use `LateUpdate`, and interpolate Rigidbody targets.
+- **Following too early.** If the camera updates before the player moves, it lags one frame, which causes jitter. Update it after movement, as above, and interpolate physics-driven targets.
 - **Smoothing too much.** A floaty camera feels laggy and loses fast players. Keep horizontal damping tight in fast games, and use look-ahead rather than more smoothing.
 - **Look-ahead flipping.** Quick direction changes swing the camera back and forth. Smooth the look-ahead separately and more slowly, and only change it above a velocity threshold, as above.
 - **Pixel art shimmer.** Sub-pixel camera positions make pixel art crawl. Snap the final position to the pixel grid, or use the Pixel Perfect Camera.

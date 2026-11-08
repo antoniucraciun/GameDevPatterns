@@ -496,7 +496,7 @@ void ADungeonActor::BeginPlay()
 
 - Organic spaces such as caves or forests. Use [Cellular Automata](./cellular-automata) or [Noise](./noise-generation).
 - Open-world terrain.
-- Dungeons that need non-rectangular or hand-crafted rooms. Place authored room prefabs instead.
+- Dungeons that need non-rectangular or hand-crafted rooms. Place authored room templates (prefabs or scenes) instead.
 
 ## Pitfalls
 

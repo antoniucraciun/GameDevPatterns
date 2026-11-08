@@ -6,11 +6,11 @@
 
 ## Problem
 
-Creating an enemy properly takes more than `Instantiate(prefab)`. The prefab must be looked up, an instance taken from a pool, stats applied from its [type](./type-object), services injected, it must be registered with the AI director and the minimap, and it must be scaled for difficulty. The spawner, the boss's summon ability, the debug console and the tutorial each do this slightly differently, and each forgets a different step. Changing how enemies are created means finding every place that creates them.
+Creating an enemy properly takes more than instancing a template (`Instantiate`, `instantiate()`, `SpawnActor`). The template must be looked up, an instance taken from a pool, stats applied from its [type](./type-object), services injected, it must be registered with the AI director and the minimap, and it must be scaled for difficulty. The spawner, the boss's summon ability, the debug console and the tutorial each do this slightly differently, and each forgets a different step. Changing how enemies are created means finding every place that creates them.
 
 ## Solution
 
-Put creation in **one object whose job is creating things**: a factory. Callers say *what* they want ("a goblin at this position"), and the factory decides *how*: which prefab, pooled or new, which dependencies, which registrations.
+Put creation in **one object whose job is creating things**: a factory. Callers say *what* they want ("a goblin at this position"), and the factory decides *how*: which template (prefab, scene or Blueprint), pooled or new, which dependencies, which registrations.
 
 Common variations:
 
@@ -18,7 +18,7 @@ Common variations:
 | --- | --- | --- |
 | **Factory method** | A method that returns a new object, often chosen by a key or type | `EnemyFactory.Create("goblin", pos)` |
 | **Registry factory** | A map from IDs to creation recipes, filled from data | Spawn anything by ID from a spreadsheet or the debug console |
-| **Abstract factory** | An interface for creating *families* of related objects, with one implementation per family | `IUiFactory` with "fantasy" and "sci-fi" skins, or "console" and "mobile" layouts |
+| **[Abstract factory](./abstract-factory)** | An interface for creating *families* of related objects, with one implementation per family | `IUiFactory` with "fantasy" and "sci-fi" skins, or "console" and "mobile" layouts |
 
 ## Example
 
@@ -217,53 +217,7 @@ private:
 
 :::
 
-An abstract factory for a family of related objects, chosen once at startup:
-
-::: code-group
-
-```csharp [Unity (C#)]
-using UnityEngine;
-
-public interface IUiFactory
-{
-    Button CreateButton(string label, Transform parent);
-    Panel CreatePanel(Transform parent);
-}
-
-// MobileUiFactory makes large touch targets; DesktopUiFactory makes compact, hover-enabled ones.
-// The bootstrapper registers the right one; menus never check the platform themselves.
-```
-
-```gdscript [Godot (GDScript)]
-# ui_factory.gd: base class; MobileUiFactory and DesktopUiFactory override both methods.
-class_name UiFactory
-extends RefCounted
-
-func create_button(_label: String, _parent: Control) -> Button:
-	return null
-
-func create_panel(_parent: Control) -> PanelContainer:
-	return null
-
-# The boot autoload picks one:
-#   var ui: UiFactory = MobileUiFactory.new() if OS.has_feature("mobile") else DesktopUiFactory.new()
-```
-
-```cpp [Unreal (C++)]
-// UiFactory.h: MobileUiFactory makes large touch targets; DesktopUiFactory compact, hover-enabled ones.
-class IUiFactory
-{
-public:
-	virtual ~IUiFactory() = default;
-	virtual UButton* CreateButton(const FText& Label, UPanelWidget* Parent) = 0;
-	virtual UPanelWidget* CreatePanel(UPanelWidget* Parent) = 0;
-};
-
-// The game instance picks one at startup:
-//   UiFactory = PLATFORM_ANDROID || PLATFORM_IOS ? MakeShared<FMobileUiFactory>() : MakeShared<FDesktopUiFactory>();
-```
-
-:::
+When a whole *family* of related objects must be swapped together (platform services, UI kits), group their creation methods into one interface with one implementation per family: see [Abstract Factory](./abstract-factory).
 
 Callers depend on the factory interface, so tests can pass a fake factory that records what was created.
 
@@ -275,20 +229,20 @@ Callers depend on the factory interface, so tests can pass a fake factory that r
 
 ## When to use
 
-- Creation involves more than `new` or `Instantiate`: pooling, data lookup, injection, registration.
+- Creation involves more than `new` or the engine's spawn call: pooling, data lookup, injection, registration.
 - Many places create the same kinds of objects.
 - Objects are chosen by ID from data, the network or the console.
-- Families of objects must be swapped together (platforms, themes, difficulty sets).
+- Families of objects must be swapped together (platforms, themes, difficulty sets). That is an [Abstract Factory](./abstract-factory).
 
 ## When not to use
 
-- Creation that is just `new` or `Instantiate` with no extra steps. A factory class adds a layer with nothing in it.
+- Creation that is just `new` or the engine's spawn call with no extra steps. A factory class adds a layer with nothing in it.
 - A single place that creates the object. Keep the creation code there until a second caller appears.
 - When the "factory" would be a giant `switch` on a type ID that grows with every new kind. Use [Type Object](./type-object) or a registry instead.
 
 ## Pitfalls
 
-- **Factories for trivial objects.** A factory that wraps a single `new Vector3(...)` is ceremony. Introduce one when creation has real steps.
+- **Factories for trivial objects.** A factory that wraps a single constructor call is ceremony. Introduce one when creation has real steps.
 - **God factories.** One factory that creates enemies, items, UI and effects grows huge. Use one factory per family of objects.
 - **Destruction not going through the factory.** If creation registers and pools, destruction must unregister and release. Pair `Create` with `Despawn` in the same class, and make it the only way to remove objects.
 - **Stringly-typed IDs.** A typo in `"gobiln"` fails at runtime. Validate IDs at load time, or prefer references to type assets in serialised data.
@@ -298,5 +252,6 @@ Callers depend on the factory interface, so tests can pass a fake factory that r
 - [Type Object](./type-object) — what the factory reads to configure each object.
 - [Object Pool](./object-pool) — where the factory gets instances from.
 - [Dependency Injection](./dependency-injection) — the factory passes dependencies to runtime-created objects.
+- [Abstract Factory](./abstract-factory) — groups several factory methods so a whole family of objects is chosen at once.
 - [Prototype](./prototype) and [Builder](./builder) — other ways to create objects.
 - [Spawner / Wave System](./spawner) — a typical caller.

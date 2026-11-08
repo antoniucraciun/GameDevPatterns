@@ -280,7 +280,7 @@ private:
 
 ## When not to use
 
-- Code that isn't a hot path in the Profiler. Restructuring data for cache efficiency makes code harder to read.
+- Code that isn't a hot path in a profiler. Restructuring data for cache efficiency makes code harder to read.
 - Objects with very different data and behaviour. Packing them into parallel arrays fights the design.
 - When the bottleneck is GPU, I/O or the algorithm itself. Better memory layout won't help.
 

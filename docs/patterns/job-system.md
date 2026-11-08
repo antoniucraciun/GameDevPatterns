@@ -6,16 +6,20 @@
 
 ## Problem
 
-Modern CPUs have 6–16 cores, but gameplay code runs on one: the main thread. Updating 10,000 boids, sampling noise for terrain, or raycasting for 500 agents uses one core at 100% while the others idle, and the frame takes too long. Writing your own threads is risky. Race conditions, locks and crashes appear only on some machines, and Unity's API is not thread-safe.
+Modern CPUs have 6–16 cores, but gameplay code runs on one: the main thread. Updating 10,000 boids, sampling noise for terrain, or raycasting for 500 agents uses one core at 100% while the others idle, and the frame takes too long. Writing your own threads is risky. Race conditions, locks and crashes appear only on some machines, and most engine APIs are not thread-safe: Unity's API, Godot's scene tree and Unreal's UObjects may only be used from the main (game) thread.
 
 ## Solution
 
 Describe work as **jobs**: small structs that process plain data (no references to managed objects), with declared inputs and outputs. A **scheduler** runs them on worker threads, splits large jobs into batches across cores, and orders dependent jobs.
 
+Each engine has one. Unity's **C# Job System** is the fullest version:
+
 - **Data in native containers** (`NativeArray<T>`, `NativeList<T>`) that live outside the garbage-collected heap and can be safely shared with worker threads.
 - **Safety checks** (in the editor) detect two jobs writing the same data, or the main thread reading data a job is still writing. Race conditions become clear errors instead of rare crashes.
 - **Dependencies:** `jobB.Schedule(jobA)` runs B after A, without blocking the main thread.
 - **Burst** compiles jobs to highly optimised native code with SIMD, often 10–50× faster than the same C# on the main thread.
+
+Godot has `WorkerThreadPool` (4.0+) for tasks and group tasks, and Unreal has `ParallelFor` and `UE::Tasks` (5.0+) with prerequisites. Neither has Burst or Unity's safety checks, so keeping job data separate is up to you.
 
 The pattern of use: **schedule early, do other work, complete late**. Start jobs at the beginning of the frame, and wait for their results only when you need them.
 
@@ -313,20 +317,20 @@ UE::Tasks::FTask BuildHeightmap(TSharedRef<TArray<float>> Heights, int32 Width, 
 
 - The same operation applied to thousands of elements: movement, flocking, noise, mesh generation, visibility, pathfinding batches.
 - Heavy computations that can run in the background while the main thread continues: procedural generation, navigation data, simulations.
-- Hot loops where Burst's speed matters even on one thread.
+- Hot loops where compiled native speed matters even on one thread: Burst in Unity, C# or GDExtension instead of GDScript in Godot. Unreal C++ is already native.
 
 ## When not to use
 
 - Small workloads. Scheduling jobs has overhead; a plain loop over a few hundred items is often faster.
-- Code that needs managed objects, GameObjects or most Unity APIs. Jobs only take unmanaged data.
-- Before profiling. Jobs and Burst add complexity; use them on proven hot loops.
+- Code that needs scene objects or most engine APIs (GameObjects, nodes, UObjects), which are main-thread only. Unity jobs also take only unmanaged data.
+- Before profiling. Jobs add complexity; use them on proven hot loops.
 
 ## Pitfalls
 
-- **Completing immediately.** `Schedule(...).Complete()` on the same line blocks the main thread until the job finishes. You get Burst's speed, but no parallelism with the main thread. Leave time between scheduling and completing.
-- **Leaking native memory.** Native containers are not garbage collected. Every `Allocator.Persistent` or `TempJob` allocation needs a `Dispose`, and the editor reports leaks.
+- **Completing immediately.** Waiting right after scheduling (Unity's `Schedule(...).Complete()` on one line, Godot's `wait_for_task_completion` straight after `add_task`, waiting on an Unreal task as soon as it is launched) blocks the main thread until the job finishes. The work may run faster, but not in parallel with the main thread. Leave time between scheduling and completing.
+- **Leaking native memory (Unity).** Native containers are not garbage collected. Every `Allocator.Persistent` or `TempJob` allocation needs a `Dispose`, and the editor reports leaks.
 - **Managed data in jobs.** Jobs cannot use classes, strings, `List<T>` or UnityEngine objects (except through special types like `TransformAccess`). Copy what you need into native containers first.
-- **Copying costs.** Copying 10,000 positions into a `NativeArray` and back each frame can cost more than the job saves. Keep data in native containers permanently, as in [Data Locality](./data-locality).
+- **Copying costs.** Copying 10,000 positions into the job's own buffers (a `NativeArray`, a packed array) and back each frame can cost more than the job saves. Keep data in native containers permanently, as in [Data Locality](./data-locality).
 - **Batch size.** Tiny batches (`Schedule(n, 1)`) add scheduling overhead. Huge ones leave cores idle. Start around 32–256 for cheap per-element work.
 - **Determinism.** Parallel jobs that combine results in a variable order break determinism. Write results to fixed indices, never "whoever finishes first".
 

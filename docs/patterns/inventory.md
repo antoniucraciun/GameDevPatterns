@@ -6,7 +6,7 @@
 
 ## Problem
 
-The first inventory is a `List<GameObject>`. Then potions need to stack to 20, swords must not stack, a sword needs its own durability, the chest and the player's bag need to share logic, dragging an item onto a full stack should split the overflow, and the whole thing needs saving. Every one of these hits a different shortcut, and the "inventory" becomes a tangle of special cases for each item kind.
+The first inventory is a list of scene objects. Then potions need to stack to 20, swords must not stack, a sword needs its own durability, the chest and the player's bag need to share logic, dragging an item onto a full stack should split the overflow, and the whole thing needs saving. Every one of these hits a different shortcut, and the "inventory" becomes a tangle of special cases for each item kind.
 
 ## Solution
 
@@ -574,3 +574,4 @@ For saving, convert each slot to `{ definitionId, count, durability }` and look 
 - [MVC / MVP / MVVM](./mvp-mvvm) — a full inventory screen built on top of this.
 - [Save System](./save-system) — persisting containers as plain data.
 - [Weighted Random & Loot Tables](./weighted-random) — where items come from.
+- [Iterator](./iterator) — lets the UI, crafting and saving walk the items without depending on how slots are stored.

@@ -17,8 +17,8 @@ Three ways to inject:
 | Style | How | Use for |
 | --- | --- | --- |
 | **Constructor injection** | Dependencies are constructor parameters | Plain C# classes: the default |
-| **Method injection** | A `Construct(...)` / `Init(...)` method called right after creation | MonoBehaviours, which Unity creates, so you cannot use their constructors |
-| **Inspector injection** | `[SerializeField]` references assigned in the editor | Scene-local wiring. This is DI too, done by hand. |
+| **Method injection** | A `Construct(...)` / `Init(...)` method called right after creation | Engine-created objects (MonoBehaviours, nodes instanced from scenes, actors), whose constructors you don't call with arguments |
+| **Editor injection** | References assigned in the editor (`[SerializeField]`, `@export`, `UPROPERTY(EditAnywhere)`) | Scene-local wiring. This is DI too, done by hand. |
 
 Dependencies are usually **interfaces** (`ISaveService`), so the composition root decides which implementation each object gets. Tests pass in fakes.
 
@@ -312,15 +312,15 @@ bool FShopFailsWithoutGoldTest::RunTest(const FString& Parameters)
 
 ## When not to use
 
-- Prototypes, game jams and small projects. Serialized fields and `GetComponent` are dependency injection already, done by the editor.
+- Prototypes, game jams and small projects. Editor-assigned references and component lookups are dependency injection already, done by the editor.
 - Adopting a DI framework (Zenject, VContainer) on a team that doesn't know it. Plain constructor injection gives most of the benefit with no framework to learn.
-- Wiring scene objects that designers set up. Inspector references are clearer to them than a container's bindings.
+- Wiring scene objects that designers set up. Editor-assigned references are clearer to them than a container's bindings.
 
 ## Pitfalls
 
 - **Wiring sprawl.** Hand-written composition roots grow with the project. Split them per scene or feature, or adopt a container.
 - **Containers hide the graph.** Container "magic" can make it as hard to see what depends on what as singletons did. Keep registrations in one obvious place.
-- **Using objects before injection.** A MonoBehaviour's `Awake` runs *before* `Construct` is called. Do dependency-related setup in `Construct` or `Start`, never in `Awake`.
+- **Using objects before injection.** Engine startup callbacks can run *before* `Construct` is called: Unity runs `Awake` inside `Instantiate`, and Unreal runs `BeginPlay` inside `SpawnActor` (use `SpawnActorDeferred` to inject first). Godot runs `_ready` only when the node enters the tree, so call `construct` before `add_child`. Do dependency-related setup in `Construct` or a later callback.
 - **Injecting everything.** Value objects, math helpers and data do not need injection. Inject *services*, meaning things with behaviour you might want to replace.
 - **Too many parameters.** A constructor with eight dependencies usually means the class does too much. Split it.
 

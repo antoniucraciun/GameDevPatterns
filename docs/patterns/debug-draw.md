@@ -20,7 +20,7 @@ DebugDraw.Text(transform.position + Vector3.up * 2, state.Name);
 
 It is **immediate mode**: the call queues a shape, the shape renders, and it expires after its duration. There is no object to create, manage or destroy.
 
-Unity has three built-in levels, and you often add a fourth:
+Every engine has built-in debug drawing. Godot draws in 2D with `draw_line` and friends in `_draw()`, and its *Debug* menu shows collision shapes and navigation; 3D needs `ImmediateMesh` or an add-on. Unreal's `DrawDebugLine`, `DrawDebugSphere` and friends work in the editor and development builds, and the **Visual Logger** records them per actor. Unity has three built-in levels, and you often add a fourth:
 
 | Tool | Where it shows | Use for |
 | --- | --- | --- |
@@ -326,7 +326,7 @@ void AGuard::LookForPlayer(const FVector& Target)
 
 - **Debug code in release builds.** String formatting and draw calls cost time even when nothing is shown. `[Conditional]` removes the calls and their arguments entirely. `#if` around implementations alone does not.
 - **Noise.** Every system drawing everything makes the view unreadable. Draw only for selected objects, or put categories behind toggles ("ai", "nav", "physics").
-- **Wrong lifetime.** Lines drawn from `FixedUpdate` with zero duration flicker, because they appear on some rendered frames and not others. Use a duration of about one physics step for fixed-step code.
+- **Wrong lifetime.** Lines drawn from fixed-step code (Unity's `FixedUpdate`, Godot's `_physics_process`) with zero duration flicker, because they appear on some rendered frames and not others. Use a duration of about one physics step for fixed-step code.
 - **Depth.** Lines hidden inside geometry are useless. Draw on top (`ZTest Always`), or use two passes with dimmed occluded lines.
 - **Allocation.** Debug draws in hot loops can allocate (closures, strings). Keep them out of shipping code paths with `[Conditional]`.
 

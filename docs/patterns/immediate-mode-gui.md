@@ -6,7 +6,7 @@
 
 ## Problem
 
-You need a quick debug panel: show the player's state, a few sliders for tuning, buttons to spawn enemies. With a retained-mode UI (uGUI, UI Toolkit), that means creating a canvas, laying out widgets, wiring each button to a callback, and writing code to keep labels in sync with changing values. Twenty minutes for a panel that will change tomorrow. Editor tools have the same problem: every inspector and window needs widgets that mirror data.
+You need a quick debug panel: show the player's state, a few sliders for tuning, buttons to spawn enemies. With a retained-mode UI (uGUI or UI Toolkit, Godot's Control nodes, Unreal's UMG), that means creating a canvas, laying out widgets, wiring each button to a callback, and writing code to keep labels in sync with changing values. Twenty minutes for a panel that will change tomorrow. Editor tools have the same problem: every inspector and window needs widgets that mirror data.
 
 ## Solution
 
@@ -23,7 +23,7 @@ Label($"HP: {player.Health}");              // always shows the current value: n
 - **Conditional UI is just `if`.** Show a section only when something is selected, list items with a `foreach`.
 - The cost: the UI is rebuilt every frame (cheap for tools, not ideal for complex game UI), and layout and styling are basic.
 
-Unity's **IMGUI** (`OnGUI`, `GUILayout`, `EditorGUILayout`) is immediate mode and still powers much of the editor. **Dear ImGui** is the most famous example outside Unity, and community Unity bindings exist for it.
+Unity's **IMGUI** (`OnGUI`, `GUILayout`, `EditorGUILayout`) is immediate mode and still powers much of its editor. Godot and Unreal have no immediate-mode GUI for games built in. **Dear ImGui** is the most famous example outside engines, and community plugins bring it to all three.
 
 ## Example
 
@@ -341,12 +341,12 @@ FGlobalTabmanager::Get()->RegisterNomadTabSpawner("LevelStats", FOnSpawnTab::Cre
 - Editor tools: custom windows, inspectors, scene-view overlays.
 - Prototypes, where speed of iteration beats polish.
 
-For **player-facing UI**, use a retained system (UI Toolkit or uGUI). It supports styling, animation, accessibility, localisation and efficient rendering, which IMGUI does poorly.
+For **player-facing UI**, use a retained system (UI Toolkit or uGUI in Unity, Control nodes in Godot, UMG in Unreal). It supports styling, animation, accessibility, localisation and efficient rendering, which IMGUI does poorly.
 
 ## When not to use
 
-- Player-facing UI. Use UI Toolkit or uGUI, which handle styling, animation, accessibility, localisation and efficient rendering.
-- Complex editor tools with lots of state. UI Toolkit is better suited to large editor interfaces.
+- Player-facing UI. Use the engine's retained UI (UI Toolkit or uGUI, Control nodes, UMG), which handles styling, animation, accessibility, localisation and efficient rendering.
+- Complex editor tools with lots of state. A retained system is better suited to large editor interfaces (UI Toolkit in Unity, Control-based editor plugins in Godot, Slate or Editor Utility Widgets in Unreal).
 
 ## Pitfalls
 

@@ -149,7 +149,7 @@ while running:
 
 - **Spiral of death:** if an update takes longer than the time it simulates, the loop falls further behind every frame. Clamp the elapsed time to a maximum.
 - **Busy-waiting** burns battery on mobile. Let vsync or the platform throttle the frame rate.
-- **Mixing time bases.** Use `Time.deltaTime` in `Update` and `Time.fixedDeltaTime` in `FixedUpdate`, and never cache one for use in the other.
+- **Mixing time bases.** Use the frame delta in per-frame code and the fixed step in fixed-step code (`Time.deltaTime` / `Time.fixedDeltaTime` in Unity, the `delta` passed to `_process` / `_physics_process` in Godot, `DeltaSeconds` in Unreal's `Tick`), and never cache one for use in the other.
 
 ## Related
 

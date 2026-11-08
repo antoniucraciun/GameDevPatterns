@@ -15,6 +15,4 @@ namespace Page_factory
         public void Construct(IAnalytics analytics) { }
     }
     public static class EnemyRegistry { public static void Add(Enemy e) { } public static void Remove(Enemy e) { } }
-    public class Button { }
-    public class Panel { }
 }

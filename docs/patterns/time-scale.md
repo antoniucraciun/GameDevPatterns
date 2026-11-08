@@ -6,7 +6,7 @@
 
 ## Problem
 
-The pause menu sets `Time.timeScale = 0`. A slow-motion finisher sets it to 0.2, then back to 1 when it ends, which unpauses the game if the player paused during the finisher. The pause menu's own animations freeze because they use scaled time. Footsteps keep playing. A "freeze one enemy" spell has no way to slow just that enemy. Every system that touches the one global value fights every other system.
+The pause menu sets the global time scale to 0 (`Time.timeScale`, `Engine.time_scale`, global time dilation). A slow-motion finisher sets it to 0.2, then back to 1 when it ends, which unpauses the game if the player paused during the finisher. The pause menu's own animations freeze because they use scaled time. Footsteps keep playing. A "freeze one enemy" spell has no way to slow just that enemy. Every system that touches the one global value fights every other system.
 
 ## Solution
 
@@ -17,7 +17,7 @@ Treat time scaling as **requests that combine**, not as a value anyone can overw
    - *Gameplay*: scaled time. Freezes when paused.
    - *UI and menus*: unscaled time. Keeps animating while paused.
    - *Audio*: paused explicitly with the game, pitch-adjusted for slow-mo if desired.
-3. **Local time scales.** An entity can multiply the global scale by its own factor (frozen enemy ×0, hasted player ×1.5), by using its own `deltaTime` instead of `Time.deltaTime`.
+3. **Local time scales.** An entity can multiply the global scale by its own factor (frozen enemy ×0, hasted player ×1.5), by using its own delta time instead of the global one.
 
 ## Example
 
@@ -338,17 +338,17 @@ Enemy->CustomTimeDilation = 1.f;    // normal
 
 ## When not to use
 
-- Pausing in a game with only one pause source. Setting `Time.timeScale = 0` directly is enough until a second system needs to change time.
+- Pausing in a game with only one pause source. Setting the global time scale to 0 directly is enough until a second system needs to change time.
 - Slowing a single object, enemy or projectile. Give it its own speed multiplier; a global time scale affects everything.
 - Multiplayer games, where you can't change time for one player. Pause or slow the local presentation instead.
 
 ## Pitfalls
 
-- **Overwriting instead of combining.** Any code that assigns `Time.timeScale` directly breaks the request system. Make `GameTime` the only writer, and search the codebase for stray assignments.
-- **The wrong clock.** UI tweens, menu particles and "press any key" prompts need `unscaledDeltaTime`, Animator update mode *Unscaled Time*, and particle systems with *Use Unscaled Time*. Otherwise they freeze when paused.
-- **`FixedUpdate` stops at scale 0**, but `Update` keeps running with `deltaTime == 0`. Code that divides by `deltaTime` breaks, and input handling in `Update` keeps working, which is usually what you want for unpausing.
+- **Overwriting instead of combining.** Any code that assigns the engine's time scale directly breaks the request system. Make `GameTime` the only writer, and search the codebase for stray assignments.
+- **The wrong clock.** UI tweens, menu particles and "press any key" prompts must keep running while paused. In Unity they need `unscaledDeltaTime`, Animator update mode *Unscaled Time*, and particle systems with *Use Unscaled Time*. In Godot, when pausing through `get_tree().paused`, they need the **Always** process mode. In Unreal, actors and components that must run during `SetGamePaused` need *Tick Even When Paused*. Otherwise they freeze when paused.
+- **Zero delta.** In Unity, `FixedUpdate` stops at scale 0, but `Update` keeps running with `deltaTime == 0`. Code that divides by the frame delta breaks, and per-frame input handling keeps working, which is usually what you want for unpausing. Unreal clamps global time dilation to a small minimum instead of 0.
 - **Audio.** `AudioListener.pause` pauses *everything*, including menu sounds. Mark UI sources with `ignoreListenerPause = true`, or route gameplay audio through a mixer group you pause and pitch.
-- **Leaked requests.** A slow-mo that never releases its handle (its object was destroyed mid-effect) keeps the game slow forever. Release in `OnDestroy`, and show active requests in a debug overlay.
+- **Leaked requests.** A slow-mo that never releases its handle (its object was destroyed mid-effect) keeps the game slow forever. Release when the owner is destroyed, and show active requests in a debug overlay.
 - **Networked games.** You cannot slow down or pause a shared server simulation for one player. Time scale is a single-player tool, except for client-side cosmetics.
 
 ## Related

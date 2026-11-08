@@ -556,7 +556,7 @@ Knowing A* still matters in every engine for grids, tactics games, custom graphs
 ## When not to use
 
 - Thousands of agents heading to the same goal. One [Flow Field](./flow-field) serves them all.
-- Unity projects with continuous 3D levels. The built-in [Navigation Mesh](./navigation-mesh) already runs A* on a better graph.
+- Continuous 3D levels in Unity, Godot or Unreal. Each engine's built-in [Navigation Mesh](./navigation-mesh) already runs A* on a better graph.
 - Open spaces with no obstacles. A straight line with [Steering](./steering-behaviors) is enough.
 
 ## Pitfalls

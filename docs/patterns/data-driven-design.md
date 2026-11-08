@@ -6,7 +6,7 @@
 
 ## Problem
 
-Jump height is a constant in `PlayerController.cs`. Enemy health lives in the enemy class. Level 3's spawn timings are hard-coded in a coroutine. Every balance tweak goes through a programmer, a recompile and a domain reload, so designers queue up requests and iteration slows to a crawl. Worse, values are scattered: nobody can answer "what are all the weapon damage numbers?" without reading code.
+Jump height is a constant in `PlayerController.cs`. Enemy health lives in the enemy class. Level 3's spawn timings are hard-coded in a coroutine. Every balance tweak goes through a programmer, a recompile and an editor reload, so designers queue up requests and iteration slows to a crawl. Worse, values are scattered: nobody can answer "what are all the weapon damage numbers?" without reading code.
 
 ## Solution
 
@@ -19,7 +19,7 @@ Data lives where designers can edit it, with fast feedback:
 
 | Format | Best for | Notes |
 | --- | --- | --- |
-| **ScriptableObject assets** | Most Unity content: items, enemies, abilities, waves | Inspector editing, references to other assets, edits apply live in play mode |
+| **Engine data assets** (Unity ScriptableObjects, Godot `Resource`s, Unreal Data Assets and Data Tables) | Most content: items, enemies, abilities, waves | Editing in the engine's editor, references to other assets |
 | **Spreadsheets → import** (CSV/JSON) | Large tables: 300 items, level-up curves, localisation | Designers use familiar tools, and you get easy bulk edits and diffs |
 | **JSON/YAML at runtime** | Modding, live-ops balance updates, server-driven config | Loaded without a new build. Needs validation and versioning. |
 | **AnimationCurve / Gradient fields** | Shapes: difficulty over time, damage falloff, XP curves | Visual editing, sampled at runtime |
@@ -467,7 +467,7 @@ struct FWeaponTuning
 
 - **Logic hiding in data.** Flags like `isSpecialBossThatDoesTheThing` turn data into a bad programming language. When data needs real logic, add a code hook, such as a [Strategy](./strategy) reference or an effect list.
 - **No validation.** A typo in a spreadsheet becomes a 10,000-damage pistol in production. Validate ranges and references on import and in `OnValidate`, and fail loudly.
-- **Runtime edits persisting in the editor.** Changing a ScriptableObject field at runtime changes the asset. Treat data as read-only at runtime, and keep mutable state on instances.
+- **Runtime edits persisting in the editor.** In Unity and in Unreal's Play In Editor, the game uses the editor's own asset objects, so changing a data asset at runtime changes it in the editor too (Unity saves the change to disk). In Godot, a loaded `Resource` is shared, so a runtime change affects everything using it. Treat data as read-only at runtime, and keep mutable state on instances.
 - **Culture-dependent parsing.** `float.Parse("1.5")` fails on machines that use a decimal comma. Always parse with `CultureInfo.InvariantCulture`.
 - **Two sources of truth.** If both the spreadsheet and the assets are edited, imports overwrite manual changes. Decide which is authoritative for which fields.
 

@@ -6,7 +6,7 @@
 
 ## Problem
 
-Playing a sound "properly" involves: picking a pooled `AudioSource`, routing it to the right mixer group, randomising pitch, choosing one of several clip variants, setting 2D or 3D spatial settings, respecting the player's volume settings, ducking music during dialogue, and returning the source to the pool afterwards. Every gameplay script that wants a sound repeats some of these steps and gets others wrong. Swapping Unity audio for FMOD or Wwise later would touch hundreds of files.
+Playing a sound "properly" involves: picking a pooled audio player, routing it to the right mixer group, randomising pitch, choosing one of several clip variants, setting 2D or 3D spatial settings, respecting the player's volume settings, ducking music during dialogue, and returning the source to the pool afterwards. Every gameplay script that wants a sound repeats some of these steps and gets others wrong. Swapping Unity audio for FMOD or Wwise later would touch hundreds of files.
 
 ## Solution
 
@@ -281,7 +281,7 @@ Callers depend on the facade (in Unity through `IAudio`, obtained via a [Service
 ## When not to use
 
 - Subsystems that are already simple, or that callers use in many different ways. The facade either duplicates the API or becomes a bottleneck that blocks needed features.
-- Wrapping Unity's own APIs "just in case". `AudioSource` and `SceneManager` are stable; wrap them only when you need extra behaviour or a test seam.
+- Wrapping the engine's own APIs "just in case". Its audio and scene-loading APIs are stable; wrap them only when you need extra behaviour or a test seam.
 - As a way to hide a messy subsystem you should actually fix.
 
 ## Pitfalls

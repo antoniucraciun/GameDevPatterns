@@ -6,7 +6,7 @@
 
 ## Problem
 
-The typical first screen shake offsets the camera by `Random.insideUnitSphere * 0.3f` for half a second. It looks like a broken video signal rather than an impact. Repeated explosions either do nothing extra or stack into chaos. Shakes cut off abruptly, and every shake looks the same whether it came from a pistol or a building collapsing.
+The typical first screen shake offsets the camera by a random amount every frame for half a second. It looks like a broken video signal rather than an impact. Repeated explosions either do nothing extra or stack into chaos. Shakes cut off abruptly, and every shake looks the same whether it came from a pistol or a building collapsing.
 
 ## Solution
 

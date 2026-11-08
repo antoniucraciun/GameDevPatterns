@@ -6,11 +6,11 @@
 
 ## Problem
 
-Text is written directly in code and prefabs: `label.text = "You found " + count + " coins!"`. When the game is translated, someone must hunt down every string in scripts, scenes and prefabs, and some are missed. Word order differs between languages, so string concatenation produces broken grammar. "1 coins" is wrong in English, and other languages have more than two plural forms. German text is 30% longer and overflows buttons. Japanese needs a different font. Translators cannot work in Unity scenes.
+Text is written directly in code and scenes: `label.text = "You found " + count + " coins!"`. When the game is translated, someone must hunt down every string in scripts and scenes, and some are missed. Word order differs between languages, so string concatenation produces broken grammar. "1 coins" is wrong in English, and other languages have more than two plural forms. German text is 30% longer and overflows buttons. Japanese needs a different font. Translators cannot work in the game's scenes.
 
 ## Solution
 
-Never put player-facing text in code or prefabs. Instead:
+Never put player-facing text in code or scenes. Instead:
 
 - **Keys, not text.** Code and UI refer to keys: `"loot.found_coins"`.
 - **Tables per locale.** Each language has a table mapping keys to text. Translators edit the tables (often exported as CSV, XLIFF or a Google Sheet), never the game.
@@ -18,7 +18,11 @@ Never put player-facing text in code or prefabs. Instead:
 - **Fallback.** A missing translation falls back to the base language, and is reported, never shown as a blank or a key.
 - **Assets too.** Fonts, voice-over, images with text and even UI layouts can vary per locale.
 
-Unity's **Localization** package provides string tables, asset tables, `LocalizedString` fields with smart-string formatting (plurals, variables, gender), locale selection, and import/export for translators.
+Each engine has this built in or as a package:
+
+- **Unity:** the **Localization** package provides string tables, asset tables, `LocalizedString` fields with smart-string formatting (plurals, variables, gender), locale selection, and import/export for translators.
+- **Godot:** localization is built in. `tr()` and `tr_n()` translate keys from CSV or PO files, controls translate matching text automatically, and `TranslationServer.set_locale()` switches language.
+- **Unreal:** player-facing text is `FText`. String Tables hold keyed entries, `FText::Format` handles plurals and gender, and the **Localization Dashboard** gathers text and exports PO files for translators.
 
 ## Example
 
@@ -317,7 +321,7 @@ Plurals, genders and number formatting are where hand-made systems fall short, w
 ## When to use
 
 - Any game that may ever be translated. Retrofitting localisation is far more expensive than starting with keys.
-- Even single-language games benefit: all text in one place for proofreading, consistent terminology, and no text in prefabs.
+- Even single-language games benefit: all text in one place for proofreading, consistent terminology, and no text in scenes.
 
 ## When not to use
 
@@ -329,7 +333,7 @@ Plurals, genders and number formatting are where hand-made systems fall short, w
 - **Concatenation.** `"You found " + n + " coins"` cannot be translated correctly. Every sentence must be one string with placeholders.
 - **Hard-coded plurals.** `n == 1 ? "coin" : "coins"` is wrong for Russian, Polish, Arabic and many others. Use plural rules from the localisation system.
 - **Layouts that assume English length.** German and French run 20–35% longer. Use auto-sizing and flexible layouts, and test with a pseudo-locale that lengthens all strings.
-- **Fonts.** A Latin font has no Japanese, Chinese or Korean glyphs, so text shows as boxes. Configure font fallbacks or font assets per locale, and check TextMeshPro atlas coverage.
+- **Fonts.** A Latin font has no Japanese, Chinese or Korean glyphs, so text shows as boxes. Configure font fallbacks or font assets per locale, and check atlas coverage (TextMeshPro font assets in Unity, font fallbacks in Godot, composite fonts in Unreal).
 - **Text in images and textures.** Signs and UI baked into art cannot be translated. Use asset tables for localised textures, or overlay text.
 - **Keys reused for different meanings.** "Close" (a door) and "Close" (a window) may need different words in other languages. Give each use its own key, with a comment for translators.
 

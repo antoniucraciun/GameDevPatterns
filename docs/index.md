@@ -7,14 +7,14 @@ hero:
   tagline: Game loops, architecture, AI, performance, netcode, game feel and more. Each pattern has a problem statement, a solution and code examples for Unity (C#), Godot (GDScript) and Unreal (C++).
   actions:
     - theme: brand
-      text: Browse the catalog
+      text: 'Start here: Keep it simple'
+      link: /keep-it-simple
+    - theme: alt
+      text: Explore Catalog
       link: /patterns/
     - theme: alt
-      text: See patterns combined
+      text: See Recipes
       link: /recipes/
-    - theme: alt
-      text: Read first — Keep it simple
-      link: /keep-it-simple
 
 features:
   - title: Game Loop & Timing

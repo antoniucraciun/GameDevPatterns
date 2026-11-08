@@ -6,7 +6,7 @@
 
 ## Problem
 
-Designers want to tune formulas without programmers: damage is `base * (1 + strength / 100) - armor * 0.5`, XP for a level is `100 * level ^ 1.5`, a dialogue choice appears when `gold >= 50 and reputation > 10`. Hard-coding each formula in C# means a code change and recompile for every balance tweak. Building a field in the inspector for every possible term does not scale. What designers need is a tiny **language** for expressions, stored as text in data.
+Designers want to tune formulas without programmers: damage is `base * (1 + strength / 100) - armor * 0.5`, XP for a level is `100 * level ^ 1.5`, a dialogue choice appears when `gold >= 50 and reputation > 10`. Hard-coding each formula in code means a code change and recompile for every balance tweak. Building a field in the inspector for every possible term does not scale. What designers need is a tiny **language** for expressions, stored as text in data.
 
 ## Solution
 

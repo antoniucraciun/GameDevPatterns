@@ -269,7 +269,7 @@ The engines' own hierarchies (Unity's Transform tree, Godot's scene tree, Unreal
 
 - Flat collections where nothing nests. A `List<T>` and a loop is enough.
 - When leaves and groups need very different operations. Forcing them behind one interface leads to methods that do nothing or throw.
-- Unity's Transform hierarchy already composes objects. Don't build a parallel tree for things the scene graph handles.
+- The engine's scene hierarchy already composes objects (Unity's Transform hierarchy, Godot's node tree, Unreal's component attachment). Don't build a parallel tree for things the scene graph handles.
 
 ## Pitfalls
 
@@ -285,3 +285,4 @@ The engines' own hierarchies (Unity's Transform tree, Godot's scene tree, Unreal
 - [Command](./command) — commands issued to a composite fan out to its leaves.
 - [Visitor](./visitor) — performs operations over a composite structure without changing its classes.
 - [Dirty Flag](./dirty-flag) — caches expensive aggregates.
+- [Iterator](./iterator) — walks a composite tree depth-first or breadth-first without exposing its structure.

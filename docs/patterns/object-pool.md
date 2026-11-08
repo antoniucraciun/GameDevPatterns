@@ -6,7 +6,7 @@
 
 ## Problem
 
-A bullet-hell game fires hundreds of projectiles per second. Each `Instantiate` allocates memory and runs initialisation, and each `Destroy` leaves garbage behind. The result is CPU spikes, garbage-collector pauses and memory fragmentation, all visible as hitches during the most intense moments of play.
+A bullet-hell game fires hundreds of projectiles per second. Each spawn allocates memory and runs initialisation, and each destroy frees it again or leaves garbage for the collector. The result is CPU spikes, allocator or garbage-collector overhead and memory fragmentation, all visible as hitches during the most intense moments of play.
 
 ## Solution
 
@@ -293,17 +293,17 @@ void AGun::Fire(const FVector& Dir)
 ## When to use
 
 - Objects created and destroyed frequently: projectiles, particles, hit effects, damage numbers, audio sources, enemies in waves.
-- Platforms where GC spikes are noticeable, such as mobile, VR and consoles.
+- Platforms where allocation or garbage collection spikes are noticeable, such as mobile, VR and consoles.
 
 ## When not to use
 
 - Objects created once per level load or rarely, such as level geometry, the player or managers. Pooling them only adds reset bugs.
-- Small, plain C# objects. Modern .NET allocates them cheaply; pool only when the Profiler shows GC spikes.
+- Small, plain data objects. Allocating them is cheap in every engine's language; pool only when a profiler shows allocation spikes.
 - Objects with complex state that is hard to reset. A stale field from a previous use causes subtle bugs; measure before pooling.
 
 ## Pitfalls
 
-- **Stale state.** A reused enemy still has last life's status effects, or a trail renderer still shows its old path. Reset everything in `Get` or `Launch`, including `TrailRenderer.Clear()` and Rigidbody velocities.
+- **Stale state.** A reused enemy still has last life's status effects, or a trail renderer still shows its old path. Reset everything in `Get` or `Launch`, including trail effects and physics velocities.
 - **Double release** puts the same object in the pool twice, so two systems end up controlling it. Keep `collectionCheck` on in development.
 - **Holding references to released objects.** A homing missile still targeting an enemy that was released and respawned elsewhere. Use generation counters or clear references on release.
 - **Oversized pools** waste memory. Profile and set `maxSize`.

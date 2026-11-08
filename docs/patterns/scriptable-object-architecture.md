@@ -1,22 +1,22 @@
 # ScriptableObject Architecture
 
-> Use Unity assets as shared variables, events and configuration between scenes.
+> Use engine data assets as shared variables, events and configuration between scenes.
 
 **Category:** Architecture & Structure
 
 ## Problem
 
-The health bar needs the player's health, the low-health vignette needs it too, and the music should change when it drops. The player lives in the gameplay scene, while the HUD is in a separate UI scene. Every option has a cost. A `Player.Instance` singleton couples all three to the player class. Passing references across scenes needs bootstrap code. `FindObjectOfType` is slow and fragile. And designers cannot hook up a new reaction without a programmer.
+The health bar needs the player's health, the low-health vignette needs it too, and the music should change when it drops. The player lives in the gameplay scene, while the HUD is in a separate UI scene. Every option has a cost. A `Player.Instance` singleton couples all three to the player class. Passing references across scenes needs bootstrap code. Searching the scene for the player is slow and fragile. And designers cannot hook up a new reaction without a programmer.
 
 ## Solution
 
-Use **ScriptableObject assets** as the shared meeting point. An asset exists outside any scene, so any scene object can reference it in the inspector. Three building blocks cover most uses:
+Use **data assets** as the shared meeting point: ScriptableObjects in Unity, `Resource`s in Godot, Data Assets in Unreal. An asset exists outside any scene, so any scene object can reference it from the editor. Three building blocks cover most uses:
 
 | Building block | What it is | Replaces |
 | --- | --- | --- |
 | **Variable** | An asset holding one runtime value (`FloatVariable PlayerHealth`) | Singletons for shared state |
 | **Event channel** | An asset that objects raise and listen to (`VoidEventChannel OnPlayerDied`) | Direct references for notifications |
-| **Runtime set** | An asset holding the list of currently active objects of a kind (`EnemySet`) | `FindObjectsOfType`, manager registries |
+| **Runtime set** | An asset holding the list of currently active objects of a kind (`EnemySet`) | Scene-wide searches, manager registries |
 
 The player *writes* `PlayerHealth`, and the HUD *reads* it. Neither references the other, and the connection is made by dragging the same asset into both inspectors. Scenes can load and unload independently, and designers can wire new reactions themselves.
 
@@ -400,25 +400,25 @@ void UHealthBarWidget::Refresh(float Value) { Bar->SetPercent(Value / Max); }
 
 - Sharing state and events across scenes and prefabs without singletons.
 - Teams where designers wire behaviour in the editor.
-- Configuration data: game settings, difficulty curves, item and enemy definitions. This is the [Flyweight](./flyweight) use of ScriptableObjects, and the least controversial one.
+- Configuration data: game settings, difficulty curves, item and enemy definitions. This is the [Flyweight](./flyweight) use of data assets, and the least controversial one.
 
 ## When not to use
 
-- One-off links between two objects in the same scene or prefab. A direct serialized reference is easier to follow and debug than an event channel asset.
+- One-off links between two objects in the same scene or prefab. A direct editor-assigned reference is easier to follow and debug than an event channel asset.
 - Small teams of programmers. The editor wiring mainly helps designers, and it hides the flow of control from the code.
-- Runtime state that must be saved, reset or networked. ScriptableObject state persists across Play sessions in the editor and isn't part of your save data unless you add it.
+- Runtime state that must be saved, reset or networked. Asset state can outlive a play session (Unity keeps it between Play sessions in the editor, and Unreal between Play In Editor sessions; Godot runs the game in a separate process, so it resets), and it isn't part of your save data unless you add it.
 
 ## Pitfalls
 
-- **Runtime changes persisting in the editor.** Changing a *serialised* field of a ScriptableObject in play mode changes the asset, and it stays changed after you stop. Keep runtime values `[NonSerialized]` and reset them in `OnEnable`, as above.
-- **Assets unloaded in builds.** If nothing references a ScriptableObject for a while, such as during a scene transition, Unity may unload it, and its runtime value resets on reload. Keep a reference alive from a persistent object, or do not use variables for state that must survive scene loads.
-- **Invisible wiring.** Connections live in inspector fields across many scenes and prefabs, and "who changes PlayerHealth?" has no code search answer. Name assets clearly and organise them in folders. "Find References in Scene" helps.
+- **Runtime changes persisting in the editor.** In Unity and in Unreal's Play In Editor, the game uses the editor's own asset objects. Changing a *serialised* field of a ScriptableObject in Unity's play mode changes the asset, and it stays changed after you stop; keep runtime values `[NonSerialized]` and reset them in `OnEnable`, as above. In Unreal, keep runtime values out of `UPROPERTY` fields that are saved with the asset, or reset them when play starts. Godot runs the game in a separate process, so the asset on disk is safe, but a loaded `Resource` is shared by everything that loaded it.
+- **Assets unloaded mid-game.** If nothing references the asset for a while, such as during a scene transition, the engine may unload it, and its runtime value resets on reload: Unity unloads unreferenced ScriptableObjects, Godot frees a `Resource` when its last reference goes, and Unreal garbage-collects unreferenced assets. Keep a reference alive from a persistent object, or do not use variables for state that must survive scene loads.
+- **Invisible wiring.** Connections live in editor fields across many scenes and prefabs, and "who changes PlayerHealth?" has no code search answer. Name assets clearly and organise them in folders. The engine's reference search helps: *Find References in Scene* in Unity, *View Owners* in Godot's FileSystem dock, the *Reference Viewer* in Unreal.
 - **Asset sprawl.** Hundreds of tiny variable and event assets become hard to navigate. Use them for genuinely shared things, not for every value.
 - **One shared instance.** An asset is global. Two players in co-op cannot share `PlayerHealth`. Per-instance state belongs on the instance.
 
 ## Related
 
 - [Singleton](./singleton) — the problem this pattern most often replaces.
-- [Event Bus](./event-bus) — the same decoupling, keyed by type in code rather than by asset in the inspector.
+- [Event Bus](./event-bus) — the same decoupling, keyed by type in code rather than by asset in the editor.
 - [Observer](./observer) — variables and channels are observable subjects.
-- [Flyweight](./flyweight) — ScriptableObjects as shared, read-only definitions.
+- [Flyweight](./flyweight) — data assets as shared, read-only definitions.

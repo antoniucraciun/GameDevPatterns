@@ -328,7 +328,7 @@ int32 USensorComponent::Scan()
 ## When not to use
 
 - A few dozen objects. A linear search is fast enough and has no bugs.
-- When Unity's physics queries (`Physics.OverlapSphere`, triggers) already do the job. They use their own broad phase.
+- When the physics engine's own queries (overlap tests, triggers) already do the job. They use their own broad phase.
 - Objects that move so fast or so far that updating the structure costs more than the queries save.
 
 ## Pitfalls
@@ -342,3 +342,4 @@ int32 USensorComponent::Scan()
 
 - [Interest Management](./interest-management), [Flocking](./flocking) and [Culling](./culling) are the main consumers.
 - [Data Locality](./data-locality) — store cell contents contiguously for cache-friendly queries.
+- [Iterator](./iterator) — a query can yield results cell by cell instead of filling a list.

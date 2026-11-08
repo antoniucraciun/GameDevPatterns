@@ -445,7 +445,7 @@ An "Ice Bolt" is now `mana cost 15, cooldown 2, effects: [Damage 20, Apply Statu
 
 - **Instant effects only.** Real abilities have cast times, channels, projectiles that hit later, and animation events that decide *when* damage lands. Model activation as a small state machine (casting → executing → recovering), and let effects run on events such as "projectile hit" rather than immediately.
 - **Validation in several places.** If the UI and AI check "can I cast?" with their own logic, they drift apart. Everything calls `CanActivate`.
-- **Effects that know too much.** An effect reaching for `GameObject.Find` or singletons is hard to reuse. Pass everything it needs through the context.
+- **Effects that know too much.** An effect reaching for scene-wide lookups or singletons is hard to reuse. Pass everything it needs through the context.
 - **Networked games.** Activation must be validated on the server, while the client predicts the cooldown and animation. See [Client-Side Prediction](./client-side-prediction).
 - **Cooldowns keyed by asset.** Two different "Fireball" assets with the same name have independent cooldowns. If they should share one, key cooldowns by an explicit cooldown group.
 

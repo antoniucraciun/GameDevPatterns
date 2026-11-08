@@ -20,7 +20,7 @@ Prepare **several levels of detail** for an object, and choose one based on how 
 | **Physics** | Full ragdoll, cloth | Simple capsule | Kinematic | None |
 | **Audio** | All sounds | Main sounds only | None | None |
 
-Rendering LOD is built into Unity (**LOD Group**). **Simulation LOD**, applying the same idea to scripts, AI and animation, is up to you, and is often the bigger win in games with many agents.
+Rendering LOD is built into every engine: Unity's **LOD Group**, Godot's automatic mesh LOD and `visibility_range`, Unreal's static mesh LODs and Nanite. **Simulation LOD**, applying the same idea to scripts, AI and animation, is up to you, and is often the bigger win in games with many agents.
 
 Use **hysteresis** between levels, so objects near a boundary do not switch back and forth every frame.
 
@@ -315,7 +315,7 @@ Mesh LOD is an editor feature in all three engines rather than code. In Unity, a
 ## When not to use
 
 - Small scenes where everything is close to the camera.
-- Before profiling. LOD meshes and simplified AI cost authoring time; add them where the Profiler shows a problem.
+- Before profiling. LOD meshes and simplified AI cost authoring time; add them where a profiler shows a problem.
 - Objects whose silhouettes matter at all distances, such as key landmarks. Visible popping can be worse than the cost.
 
 ## Pitfalls

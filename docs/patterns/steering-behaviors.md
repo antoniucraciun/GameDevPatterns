@@ -6,7 +6,7 @@
 
 ## Problem
 
-An enemy that sets `transform.position = Vector3.MoveTowards(...)` toward the player moves like a cursor. It turns instantly, overshoots or stops dead, walks through other enemies, and twenty of them stack into one blob. Pathfinding tells an agent *where* to go, but not *how* to move there in a way that looks alive.
+An enemy that moves its position straight toward the player at a fixed speed moves like a cursor. It turns instantly, overshoots or stops dead, walks through other enemies, and twenty of them stack into one blob. Pathfinding tells an agent *where* to go, but not *how* to move there in a way that looks alive.
 
 ## Solution
 
@@ -456,7 +456,7 @@ FVector USteeringComponent::Wander(float DeltaTime)
 - **Oscillation.** Agents that overshoot and correct back and forth need *Arrive* instead of *Seek* near targets, and a lower maximum force.
 - **Not a pathfinder.** Steering is local: an agent will happily steer into a U-shaped dead end. Combine it with [A*](./a-star) or a NavMesh for global routes.
 - **O(n²) neighbours.** Checking every agent against every other is fine for 50 agents and too slow for 2,000. Use a [Spatial Partition](./spatial-partition) for neighbour queries.
-- **Mixing with physics.** Setting `transform.position` on a Rigidbody fights the physics engine. Apply the force to the Rigidbody instead, or use kinematic movement consistently.
+- **Mixing with physics.** Setting the position of a physics body directly fights the physics engine. Apply the force to the body instead, or use kinematic movement consistently.
 - **Frame-rate dependence.** Large forces with variable `deltaTime` behave differently at 30 and 144 FPS. Run steering in a [Fixed Timestep](./fixed-timestep) for consistency.
 
 ## Related

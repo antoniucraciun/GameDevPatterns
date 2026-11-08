@@ -24,7 +24,7 @@ Lazy initialisation trades **startup time and memory** for a **one-time cost at 
 | **Lazy with warm-up** | On first access, *or* earlier during a loading screen | Things that would hitch if created mid-gameplay: pools, shaders, effects |
 | **Lazy per context** | First access within a level, released with the level | Level-specific content |
 
-For thread safety, .NET's `Lazy<T>` guarantees the factory runs once even with concurrent access. On Unity's main thread, a null-coalescing field is enough.
+For thread safety, use the language's run-once primitive: .NET's `Lazy<T>`, or a function-local `static` or `std::call_once` in C++. On the main thread only, a plain null check is enough.
 
 ## Example
 
@@ -310,9 +310,9 @@ inline const TArray<float>& GetErosionTable()
 
 - **Hitch at the worst moment.** The first explosion of the game also creates the explosion pool, loads its textures and compiles its shader, freezing the frame the player cares about most. Warm up things that are likely needed during loading, and keep pure laziness for things that are truly optional.
 - **Hidden cost in a getter.** A property that looks cheap (`Library.Effects`) but sometimes takes 200 ms surprises callers. Name it clearly, or expose an explicit `EnsureLoaded()`.
-- **Unity objects and `??=`.** `??=` uses C# null, not Unity's "destroyed" check. A destroyed `GameObject` is not null to `??=`, so the cache keeps a dead object. Use `if (cached == null) cached = Create();` for `UnityEngine.Object` fields.
+- **Unity objects and `??=`.** `??=` uses C# null, not Unity's "destroyed" check. A destroyed `GameObject` is not null to `??=`, so the cache keeps a dead object. Use `if (cached == null) cached = Create();` for `UnityEngine.Object` fields. Godot and Unreal have the same trap: check freed nodes with `is_instance_valid()`, and destroyed actors with `IsValid()` or a `TWeakObjectPtr`.
 - **Initialisation order bugs.** Lazy creation can hide dependency problems until an unusual code path runs first. Keep factories free of dependencies on other lazy objects, or document them.
-- **Static lazies and Domain Reload.** Static lazy fields survive between play sessions when Domain Reload is disabled, and may hold stale references. Reset them on play mode entry.
+- **Static lazies in the editor.** In Unity with Domain Reload disabled, and in Unreal's Play In Editor, static lazy fields survive between play sessions and may hold stale references. Reset them when play starts. Godot runs the game in a separate process, so it is unaffected.
 
 ## Related
 
@@ -321,3 +321,4 @@ inline const TArray<float>& GetErosionTable()
 - [Bootstrapper](./bootstrapper) — decides what is created eagerly at startup.
 - [Memoization / Caching](./memoization) and [Dirty Flag](./dirty-flag) — also compute on demand and keep the result.
 - [Singleton](./singleton) — lazy creation of the single instance is common, with the same pitfalls.
+- [Proxy](./proxy) — a virtual proxy wraps lazy initialization in a stand-in with the real object's interface, so callers don't know it is lazy.

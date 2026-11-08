@@ -388,13 +388,13 @@ namespace Damp
 
 - Movement driven by physics or gameplay rules. A tween fights the simulation.
 - Values whose target changes every frame. Use damping instead of restarting the tween.
-- Long, choreographed sequences. Use Timeline or an animation clip.
+- Long, choreographed sequences. Use the engine's sequencer: Unity's Timeline, Godot's `AnimationPlayer`, Unreal's Sequencer.
 
 ## Pitfalls
 
 - **`Lerp(a, b, 0.1f)` every frame** is frame-rate dependent and never quite arrives. Use exponential damping with `deltaTime`.
 - **Fighting tweens.** Starting a new tween on an object that is still tweening makes both write every frame, and it jitters. Kill or replace the previous tween (here, by owner).
-- **Tweening destroyed objects.** A callback touching a destroyed object throws. Kill tweens in `OnDestroy`, or check for null in callbacks.
+- **Tweening destroyed objects.** A callback touching a destroyed object throws. Kill tweens when their target is destroyed, or check that it is still valid in callbacks. Godot tweens created with a node's `create_tween()` are bound to that node and stop with it.
 - **Overshoot outside valid ranges.** `OutBack` and `OutElastic` go past 1. Use `LerpUnclamped` where overshoot is intended, and avoid them for values that must stay in range (alpha, fill amounts).
 - **Scaled time in menus.** Pause-menu tweens on scaled time never run. Use unscaled time for UI.
 - **Allocations.** Lambdas that capture variables allocate on every call. Fine for UI, but avoid creating hundreds of tweens per frame in gameplay.

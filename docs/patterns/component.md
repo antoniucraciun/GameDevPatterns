@@ -200,9 +200,9 @@ A crate is `Health + DropLootOnDeath + DestroyOnDeath`. An enemy reuses the same
 
 ## Pitfalls
 
-- **Hidden coupling between components.** Calling `GetComponent<Concrete>()` everywhere recreates the coupling you were escaping. Depend on interfaces such as `IDamageable`, or use events.
+- **Hidden coupling between components.** Looking up concrete sibling components everywhere (`GetComponent<Concrete>()`, `get_node()`, `FindComponentByClass`) recreates the coupling you were escaping. Depend on interfaces such as `IDamageable`, or use events.
 - **Too fine-grained.** Thirty one-line components on an object are hard to follow. A component should be a meaningful capability.
-- **Initialisation order.** Do not read sibling state in `Awake` if the sibling initialises in its own `Awake`. Cache references in `Awake` and read values in `Start`.
+- **Initialisation order.** Do not read sibling state while the sibling may still be initialising. In Unity, cache references in `Awake` and read values in `Start`. In Godot, a parent's `_ready` runs after its children's. In Unreal, all of an actor's components are initialised before `BeginPlay`, so read siblings there.
 - **Per-object overhead.** With tens of thousands of objects, consider an [Entity Component System](./entity-component-system) instead.
 
 ## Related
