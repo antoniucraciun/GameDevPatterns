@@ -28,6 +28,42 @@ Common arenas in games:
 
 Engines ship their own arenas: Unity's `Allocator.Temp` *is* a per-frame arena for native memory (and the Entities package exposes a rewindable world update allocator), and Unreal has `FMemStack` with `FMemMark`. GDScript has no manual memory management at all. In managed C# and GDScript, the closest equivalent is a set of buffers allocated once and **reused** every frame.
 
+## Pseudocode
+
+```text
+FrameArena:
+    buffer       // one large block, allocated once
+    used ← 0     // offset of the first free byte
+
+    allocate(count, item size, alignment):
+        start ← used rounded up to a multiple of alignment
+        end ← start + count × item size
+        if end > size of buffer:
+            grow the buffer, or fail loudly   // rare; size it from profiling
+        used ← end                            // the whole cost: one addition
+        return the slice buffer[start .. end)
+
+    // No free(): single allocations are never given back.
+
+    reset():                                  // everything dies together
+        used ← 0                              // reference types: clear the used part too
+
+    mark():          return used              // a scoped arena: remember a point...
+    release_to(m):   used ← m                 // ...and pop everything after it at once
+
+// One frame of use:
+arena ← FrameArena(1 MB)
+
+during the frame:
+    nearby ← arena.allocate(64 enemy indices)
+    for each enemy i:
+        if distance(enemy i, me) < 10 m: append i to nearby
+    ... use nearby this frame only; never store it in a field ...
+
+after every system has finished with this frame's data:
+    arena.reset()        // any slice still held now points at garbage
+```
+
 ## Example
 
 Only reach for an arena after the profiler shows allocation cost: GC spikes and `GC.Alloc` in the Unity Profiler, or allocator time and memory churn in Unreal Insights (with the memory trace channel). GDScript has no manual memory management at all; its tabs show the closest idiom, reusing preallocated packed arrays.

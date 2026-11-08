@@ -23,6 +23,47 @@ The pattern has several forms:
 
 Memoisation is only **correct for pure functions**: same inputs, same output, no side effects. If the answer also depends on hidden state (the current map, the time of day), that state must be part of the key or must invalidate the cache.
 
+## Pseudocode
+
+```text
+// Bounded cache: keeps at most capacity results, drops the least recently used.
+LruCache:
+    capacity
+    map        // key → result
+    order      // keys, least recently used first
+
+    get_or_add(key, compute):
+        if key is in map:
+            move key to the back of order       // now the most recently used
+            return map[key]
+        value ← compute(key)                    // the expensive part, only on a miss
+        map[key] ← value
+        put key at the back of order
+        if size of map > capacity:
+            oldest ← take the first key out of order
+            remove oldest from map
+        return value
+
+// Versioned: the hidden state (the map) is part of the key.
+PathCache:
+    cache ← LruCache(capacity 512)
+    map_version ← 0
+
+    invalidate_all():          // a wall was built or destroyed
+        map_version ← map_version + 1    // old keys are never asked for again
+
+    get(from_region, to_region):
+        return cache.get_or_add((from_region, to_region, map_version),
+                                key → find_path(key.from, key.to))
+
+// Lookup table: every possible input computed once, at load.
+XpTable(max_level, curve):
+    for level from 1 to max_level:
+        xp_for_level[level] ← round(curve at level)
+    required(level):
+        return xp_for_level[level clamped to 1 .. max_level]
+```
+
 ## Example
 
 Profile first (Unity Profiler, Godot's profiler, Unreal Insights) to confirm the function is hot *and* is called repeatedly with the same inputs; a cache that never hits only costs memory.

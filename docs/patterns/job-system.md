@@ -23,6 +23,46 @@ Godot has `WorkerThreadPool` (4.0+) for tasks and group tasks, and Unreal has `P
 
 The pattern of use: **schedule early, do other work, complete late**. Start jobs at the beginning of the frame, and wait for their results only when you need them.
 
+## Pseudocode
+
+What the engine's scheduler does underneath, then the two jobs from the Example on top of it.
+
+```text
+Scheduler:
+    queue                  // batches ready to run, shared by all workers
+    one worker per core:   loop forever: take a batch from queue, run it
+
+    schedule_parallel(n, batch_size, body, after ← nothing):
+        job ← new job, with (n / batch_size) batches left
+        when `after` is done:           // a dependency: waits off the main thread
+            for start from 0 to n-1 in steps of batch_size:
+                put batch (body for i in start .. start+batch_size-1) in queue
+        when the last batch finishes: mark job done
+        return job                       // a handle; the caller does not wait
+
+    complete(job):         // block only here, and help run batches meanwhile
+        while job is not done: take a batch from queue and run it
+
+// Swarm: each i touches only its own position and velocity.
+move(i):
+    if length(position[i]) > bounds_radius:
+        velocity[i] ← -direction(position[i]) × length(velocity[i])   // bounce inward
+    position[i] ← position[i] + velocity[i] × dt
+
+each frame:
+    job ← schedule_parallel(count, 64, move)    // schedule early
+    ... the main thread does everything else ...
+    complete(job)                                // complete late
+    copy positions to the drawn instances        // main thread only
+
+// Heightmap: a dependency chain, all of it off the main thread.
+noise ← schedule_parallel(width × width, 256,
+            i → heights[i] ← noise_at(i mod width, i div width) / 2 + 0.5)
+normalise ← schedule_parallel(1, 1,
+            → divide every height by the largest height, after ← noise)
+... later: complete(normalise), then hand heights to the terrain
+```
+
 ## Example
 
 Profile before and after: the Unity Profiler's Timeline view shows jobs on the worker threads, Godot's profiler shows the main thread's frame time, and Unreal Insights shows tasks per thread. A job that finishes but makes the main thread wait has not helped.

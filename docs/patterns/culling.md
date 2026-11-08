@@ -22,6 +22,38 @@ Find out early, and cheaply, what does **not** need processing, and skip it. Sev
 
 Engine culling handles rendering automatically. **Logic culling** is up to you, and is often where the big wins are. Unity's **`CullingGroup`** API, for example, efficiently tells you, for thousands of bounding spheres, which are visible and which distance band each is in, and **notifies you when that changes**, so you do not have to poll. Godot's `VisibleOnScreenNotifier3D` signals and Unreal's Significance Manager serve the same purpose.
 
+## Pseudocode
+
+Logic culling as in the Example: the engine reports visibility and distance bands, and each creature switches its own work on or off only when those change.
+
+```text
+bands ← [20, 60, 150]   // band 0: closer than 20 m, 1: < 60, 2: < 150, 3: beyond
+
+band_of(d):
+    return how many entries of bands are ≤ d     // 0..3
+
+CreatureCulling:
+    creatures          // each with a bounding sphere
+    state[i]           // last known (visible, band) per creature
+
+    a few times per second:          // or every frame, in native code
+        for each creature i:
+            visible ← its sphere is inside the camera's view
+            band ← band_of(distance from camera to creature i)
+            if (visible, band) ≠ state[i]:
+                state[i] ← (visible, band)
+                apply(creature i, visible, band)   // only on change
+
+apply(creature, visible, band):
+    creature logic runs    ← band < 3                // beyond: nothing at all
+    creature animates      ← visible and band ≤ 1    // seen and fairly close
+    creature sound plays   ← band = 0                // audible only up close
+
+// Moving creatures keep their spheres current, in place.
+every frame:
+    for each creature i: sphere[i].position ← creature i position
+```
+
 ## Example
 
 Logic culling for many ambient creatures: animate and update only those that are visible, and switch them off completely when far away. Rendering is already culled by every engine; what this adds is culling the *work* attached to invisible objects. Confirm that work shows up in the profiler (Unity Profiler, Godot's profiler, Unreal Insights) before building it.

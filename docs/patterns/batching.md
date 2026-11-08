@@ -30,6 +30,44 @@ Outside rendering, the same idea applies:
 - **UI:** change many values, then rebuild once (UI systems rebuild layout once per frame, so avoid forcing it manually).
 - **Saves, logs and analytics:** buffer writes and flush in one operation.
 
+## Pseudocode
+
+The two halves of the Example, with what the engine does underneath spelled out: the per-call cost is paid once per batch, not once per item.
+
+```text
+// 1. Line of sight: build every query first, submit them together.
+each frame:
+    commands ← empty list
+    for each agent i:
+        eye ← agent i position + eye height
+        add ray(from eye, to player, stop at first occluder) to commands
+
+    // The batch is split into chunks that worker threads take in turn,
+    // so the setup and hand-off cost is paid per chunk, not per ray.
+    for each chunk of 32 commands, on any free worker:
+        for each command c in the chunk:
+            results[c] ← cast c against the physics world
+
+    ... other main-thread work runs meanwhile ...
+
+    wait until every chunk is done          // results are a stage late
+    for each agent i:
+        can_see_player[i] ← results[i] hit nothing
+
+// Without a batch API: cast a fixed budget of rays per frame,
+// continuing round-robin where the last frame stopped.
+
+// 2. Static props: merge draw calls once, at load.
+merge_static_children():
+    groups ← map: mesh → list of transforms
+    for each child that draws a mesh:
+        add child transform to groups[child mesh]
+        remove the child                  // it no longer draws itself
+    for each (mesh, transforms) in groups:
+        make one instanced drawer: mesh drawn once per transform
+        // the GPU now gets one draw call per mesh, not one per prop
+```
+
 ## Example
 
 Batched line-of-sight checks: 500 agents check whether they can see the player. Unity submits all rays as one scheduled job; Unreal queues them as async traces that run together on worker threads; Godot has no batched raycast API, so its tab runs them in one tight loop with a reused query and spreads them across frames.

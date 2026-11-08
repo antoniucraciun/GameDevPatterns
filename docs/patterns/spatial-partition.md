@@ -21,6 +21,43 @@ Store objects in a data structure organised by **location**. A query then visits
 
 <SpatialPartitionViz />
 
+## Pseudocode
+
+A uniform grid stored as a hash map, the first row of the table; the Example below builds the same thing.
+
+```text
+SpatialHash:
+    cell_size              // about the query radius
+    cells                  // map: (x, y) cell coordinate → list of items
+
+    cell_of(position):     // ground plane only
+        return (floor(position.x / cell_size), floor(position.z / cell_size))
+
+    clear():
+        empty every list in cells        // keep the lists for reuse
+
+    insert(item, position):
+        add item to cells[cell_of(position)]
+
+    query(center, radius, results):      // candidates only
+        low  ← cell_of(center - (radius, radius))
+        high ← cell_of(center + (radius, radius))
+        for x from low.x to high.x:
+            for y from low.y to high.y:
+                append everything in cells[(x, y)] to results
+
+// Each frame: rebuild, then let every unit look only nearby.
+grid.clear()
+for each unit u:
+    grid.insert(u, u.position)
+for each unit u:
+    candidates ← empty
+    grid.query(u.position, radius, candidates)
+    for each other in candidates:
+        if other is not u and distance(u, other) ≤ radius:   // exact check
+            separate(u, other)
+```
+
 ## Example
 
 ### Core
