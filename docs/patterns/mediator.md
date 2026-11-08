@@ -18,6 +18,42 @@ Introduce a **mediator** that owns the **rules of interaction**:
 
 Compared with an [Event Bus](./event-bus): a bus *relays* messages between anyone and anyone, with no logic. A mediator *coordinates* a specific group, and the rules live inside it.
 
+## Pseudocode
+
+```text
+// Colleagues: they report what happened to them and obey orders.
+PressurePlate:
+    pressed ← false
+    on something steps on:  pressed ← true;  room.notify(this, "pressed")
+    on something steps off: pressed ← false; room.notify(this, "released")
+    reset(): pressed ← false
+
+Lever:
+    up ← false
+    pull(): up ← not up; room.notify(this, "pulled")
+
+Door:          set_open(open)
+ProgressLight: set_lit(lit)
+
+// The mediator: knows every part and holds all of the room's rules.
+Room:
+    plates, left_lever, right_lever, door, lights
+    timer                       // stopped until the first plate
+
+    notify(sender, event):
+        if sender is a plate and event is "pressed" and timer is stopped:
+            start timer for plate_timeout   // first plate starts it
+        pressed ← number of plates that are pressed
+        for each light i: light i lit ← (i < pressed)   // show progress
+        solved ← all plates pressed and left_lever up and right_lever down
+        door.set_open(solved)
+        if solved: stop timer
+
+    on timer runs out:          // too slow: start over
+        for each plate p: p.reset()
+        notify(nothing, "timeout")
+```
+
 ## Example
 
 A puzzle room: pressure plates, two levers, progress lights and a door. The parts only report what happened to them; the room decides what it means.

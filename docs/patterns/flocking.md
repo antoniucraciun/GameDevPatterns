@@ -22,6 +22,48 @@ The weighted sum of the three forces, plus optional goals (*seek the food*, *fle
 
 Finding neighbours is the expensive part, O(n²) if every boid checks every other. A [Spatial Partition](./spatial-partition) grid with cells the size of the neighbour radius limits each boid to the 3×3 cells around it.
 
+## Pseudocode
+
+```text
+Boid:  position, velocity
+
+steer(boid, direction):          // Reynolds steering
+    if direction is near zero: return zero
+    return normalised direction × max_speed − boid.velocity
+
+update(dt):
+    // Bucket boids into grid cells as wide as the neighbour radius.
+    clear grid
+    for each boid b: add b to grid cell of b.position
+
+    for each boid b:
+        separation, heading, centre ← zero;  n ← 0
+        for each other boid o in the cells around b's cell:
+            offset ← b.position − o.position
+            d ← length of offset
+            if o is b or d > neighbour_radius: skip it
+            if d < separation_radius:
+                separation ← separation + offset / d × (1 − d / separation_radius)
+            heading ← heading + o.velocity
+            centre  ← centre + o.position
+            n ← n + 1
+
+        force ← zero
+        if n > 0:
+            force ← steer(b, separation)              × separation_weight
+                  + steer(b, heading / n)             × alignment_weight
+                  + steer(b, centre / n − b.position) × cohesion_weight
+        if b is farther than bounds_radius from the flock's origin:
+            force ← force + steer(b, origin − b.position) × bounds_weight
+
+        next_velocity[b] ← clamp(b.velocity + clamp(force, max_force) × dt, max_speed)
+
+    // Move only after every boid has decided, so all saw the same snapshot.
+    for each boid b:
+        b.velocity ← next_velocity[b]
+        b.position ← b.position + b.velocity × dt
+```
+
 ## Example
 
 One flock object simulates every boid, with a uniform grid (cells as wide as the neighbour radius) so each boid only checks the 27 cells around it. Unity keeps one GameObject per boid; Godot and Unreal keep positions and velocities in arrays and draw all boids as instances of one mesh, which is the idiomatic way to show hundreds of identical things there.

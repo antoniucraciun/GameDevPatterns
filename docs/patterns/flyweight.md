@@ -15,6 +15,37 @@ Split each object's data into two parts:
 - **Intrinsic** state is shared and immutable, such as the mesh, the material and the gameplay stats of the "oak" type. It is stored once.
 - **Extrinsic** state is unique per instance, such as position, current health or the burning flag. It is stored per object, together with a *reference* to the shared intrinsic data.
 
+## Pseudocode
+
+```text
+// Intrinsic: one per kind of tree, shared and read-only.
+TreeType:
+    mesh, material
+    wood_yield
+    burn_time
+
+// Extrinsic: one per tree, small.
+TreeInstance:
+    type          // a reference to a TreeType, never a copy
+    position
+    health
+
+oak  ← load TreeType "oak"     // stored once
+pine ← load TreeType "pine"
+
+for each placed tree:
+    add TreeInstance(type ← oak or pine, position, full health) to forest
+
+// Reading shared data goes through the reference.
+chop(tree):
+    give player tree.type.wood_yield wood
+
+// The GPU version: one mesh and material, one transform per instance.
+draw_forest(type):
+    transforms ← position of every tree whose type is this type
+    draw type.mesh with type.material once for all transforms
+```
+
 ## Example
 
 Each engine has an asset type that works as a flyweight: Unity ScriptableObjects, Godot Resources and Unreal Data Assets. Store the shared definition as an asset, and let each instance hold only its own state plus a reference to the asset:

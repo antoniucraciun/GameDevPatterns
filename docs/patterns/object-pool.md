@@ -12,6 +12,50 @@ A bullet-hell game fires hundreds of projectiles per second. Each spawn allocate
 
 Create objects ahead of time, or on first demand, and keep inactive ones in a pool. **Get** takes an inactive object from the pool and activates it, creating a new one only if the pool is empty. **Release** deactivates the object and returns it to the pool instead of destroying it. Each object must fully reset its state when reused.
 
+## Pseudocode
+
+```text
+Pool:
+    free        // inactive objects waiting to be reused
+    max_size    // beyond this, released objects are really destroyed
+
+    prewarm(count):             // pay the creation cost up front
+        repeat count times:
+            add deactivated(create()) to free
+
+    get():
+        if free is empty:
+            obj ← create()      // only when the pool runs dry
+        else:
+            obj ← take one out of free
+        activate obj            // show it, turn its updates back on
+        return obj
+
+    release(obj):
+        if obj is already in free:
+            error "released twice"  // two owners would share it
+        if size of free ≥ max_size:
+            destroy obj
+            return
+        deactivate obj          // hide it, stop its updates
+        add obj to free
+
+Projectile:
+    position, velocity, lifetime
+    launch(start, new_velocity):    // reset ALL per-use state here
+        position ← start
+        velocity ← new_velocity
+        lifetime ← 3 seconds
+    update(dt):
+        position ← position + velocity × dt
+        lifetime ← lifetime - dt
+        if lifetime ≤ 0:
+            pool.release(this)      // instead of destroying it
+
+Gun.fire(direction):
+    pool.get().launch(gun position, direction × speed)
+```
+
 ## Example
 
 Before pooling, confirm that spawning is the cost: look for `Instantiate` and GC spikes in the Unity Profiler, node-count and frame-time spikes in Godot's profiler and Monitors, or `SpawnActor` time in Unreal Insights.

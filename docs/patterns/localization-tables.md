@@ -24,6 +24,42 @@ Each engine has this built in or as a package:
 - **Godot:** localization is built in. `tr()` and `tr_n()` translate keys from CSV or PO files, controls translate matching text automatically, and `TranslationServer.set_locale()` switches language.
 - **Unreal:** player-facing text is `FText`. String Tables hold keyed entries, `FText::Format` handles plurals and gender, and the **Localization Dashboard** gathers text and exports PO files for translators.
 
+## Pseudocode
+
+```text
+// The tables: one per locale, key → text. Translators edit only these.
+Loc:
+    current                // the selected locale's table
+    fallback               // the base language's table
+    changed                // event: the locale switched
+
+    set_locale(locale):
+        current ← table for locale
+        notify changed     // every visible text refreshes itself
+
+    get(key, arguments):
+        text ← current[key]
+        if missing:
+            report "missing translation: key"
+            text ← fallback[key]
+            if still missing: return "#key#"    // visible, searchable marker
+        if text has plural forms:               // e.g. one = "coin", other = "coins"
+            text ← the form the locale's plural rule picks for arguments.count
+        replace each {name} in text with arguments[name]
+        return text        // word order belongs to the translation
+
+// UI stores a key, never text.
+CoinPickupMessage:
+    key ← "loot.found_coins"
+    count
+
+    show(n):  count ← n; refresh()
+    on Loc changed: refresh()
+    refresh(): label ← Loc.get(key, { count })
+
+LanguageMenu.choose(code):   Loc.set_locale(code)   // "en", "de", "ja"
+```
+
 ## Example
 
 ### With the engine's localization system
@@ -315,8 +351,6 @@ Plurals, genders and number formatting are where hand-made systems fall short, w
 - **Unity:** the Localization package (`com.unity.localization`) provides String and Asset Tables, Smart Strings with plural rules, and `LocalizeStringEvent` for no-code binding. This page isn't compile-checked here, because the check's project doesn't include the package.
 - **Godot:** localization is built in. `tr()` and `tr_n()` translate, Controls auto-translate text that matches a key, and `TranslationServer.set_locale()` switches language. CSV suits simple key tables; PO files add plural forms and context and work with standard translation tools. The **POT Generation** tab in Project Settings > Localization extracts strings from scenes and scripts.
 - **Unreal:** user-facing text is `FText`, never `FString`. String Tables hold keyed entries, the **Localization Dashboard** gathers text, exports PO files for translators and compiles `.locres`, and `FText::Format` handles plurals and gender with `|plural(...)` and `|gender(...)`. `NSLOCTEXT`/`LOCTEXT` mark text written in C++ for gathering.
-
-## When to use
 
 ## When to use
 

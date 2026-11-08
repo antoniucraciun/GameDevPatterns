@@ -21,6 +21,40 @@ Accept that **not everything must happen this frame**, and divide work deliberat
 
 The cost of time slicing is **latency**. Results arrive a few frames later, so systems must be designed to tolerate it: show a "thinking" state, use the old path until the new one arrives.
 
+## Pseudocode
+
+```text
+// A work queue with a time budget.
+FrameBudget:
+    budget                    // milliseconds this system may use per frame, e.g. 2
+    work                      // queue of jobs, oldest first
+
+    enqueue(job): add job to the back of work
+
+    every frame:
+        start ← wall clock now        // real time: the budget is real milliseconds
+        while work is not empty and wall clock now - start < budget:
+            take the front job out of work and run it
+            // the first job always runs, even if it overruns
+
+// Round-robin: each agent updates every n-th frame.
+RoundRobin:
+    slices                    // n
+    agents
+    last_update[i]            // when agent i last ran
+    frame ← 0
+
+    every frame:
+        slice ← frame mod slices
+        frame ← frame + 1
+        for i = slice, slice + slices, slice + 2 × slices, … while i < number of agents:
+            dt ← now - last_update[i]     // its own elapsed time, not the frame's
+            last_update[i] ← now
+            agents[i].sliced_update(dt)
+
+// 200 units asking for paths become 200 jobs, finished over several frames.
+```
+
 ## Example
 
 A frame-budgeted work queue: jobs run until this system has used its share of the frame, and the rest wait for the next frame.

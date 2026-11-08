@@ -24,6 +24,41 @@ Two design decisions make this possible:
 - **Input goes through an abstraction**, so a bot can drive the player exactly as a person would. See [Input Abstraction](./input-abstraction).
 - **Tests run in CI**, in batch mode, on every change, and fail the build.
 
+## Pseudocode
+
+```text
+// Smoke test: every scene must load and run without errors.
+for each scene in the build:
+    load scene
+    run it for 3 seconds
+    fail if an error or exception was logged
+
+// Scripted bot: a timed script drives the real controller through its input.
+ScriptedInput is a CharacterInput:
+    script                 // list of (until, move, jump); until = seconds since start
+    move():          the move of the first step whose until is still ahead, else none
+    jump_pressed():  true on the first frame of a jump step only, like a real press
+
+bot_can_reach_the_first_goal:
+    load Level1; find the player and Goal_A
+    player.input ← ScriptedInput[(2.0, right, no jump),    // run right
+                                 (2.2, right, jump),       // jump over the gap
+                                 (5.0, right, no jump)]    // keep running
+    wait until the player is within 1 m of the goal, or 8 s have passed
+    fail "the bot no longer reaches the first goal" if it is still further away
+
+// Monkey test: seeded random input, so a failure can be reproduced.
+two_minutes_of_random_input:
+    load Level1
+    rng ← random generator(12345)
+    player.input ← random move every frame, jump 5% of frames, attack 30%
+    every frame for 120 s:
+        fail "player fell out of the world" if player height < -100
+    // an exception or logged error during the run also fails the test
+
+// Run all of them in CI, in batch mode, on every change.
+```
+
 ## Example
 
 Each engine's own test runner: the **Unity Test Framework** (Play Mode tests), **GUT** in Godot (an add-on; GdUnit4 is similar), and Unreal's **Functional Tests**, actors placed in a test map that the Automation system finds and runs.

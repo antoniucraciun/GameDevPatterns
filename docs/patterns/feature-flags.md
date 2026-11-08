@@ -29,6 +29,46 @@ Wrap features in **flags**: named switches that code checks, whose values come f
 
 For code that must not even *exist* in a build (cheats, unlicensed SDKs), use compile-time scripting defines instead of runtime flags.
 
+## Pseudocode
+
+```text
+Flags:
+    defaults ← { Crafting → off,        // release toggle
+                 WinterEvent → off,     // operational, switched on remotely
+                 NewMatchmaking → off,  // experiment, rolled out by percentage
+                 Store → on,            // kill switch
+                 PhotoMode → on only in development builds }
+    remote ← empty map                  // from remote config
+    local ← empty map                   // from the debug menu
+    changed                             // event
+
+    is_on(flag):                        // later sources win
+        if flag is in local:  return local[flag]
+        if flag is in remote: return remote[flag]
+        return defaults[flag], or off if it has none
+
+    apply_remote(config, player_id):    // config: name → "true", "false" or "5%"
+        for each (name, value) in config:
+            if name is not a known flag: skip it
+            if value ends with "%":
+                remote[flag] ← in_rollout(player_id, name, the number before "%")
+            else if value is "true" or "false":
+                remote[flag] ← (value is "true")
+        raise changed
+
+    // The same player always lands in the same bucket for a flag.
+    in_rollout(player_id, name, percent):
+        h ← stable 32-bit hash (FNV-1a) of player_id + name
+        return (h mod 10000) < percent × 100     // buckets of 0.01%
+
+    set_local_override(flag, value):   // value: on, off, or none to clear
+        if value is none: remove flag from local
+        else: local[flag] ← value
+        raise changed
+
+if Flags.is_on(Crafting): show the crafting button
+```
+
 ## Example
 
 Flags with code defaults, remote values (including percentage rollouts that stay stable per player) and local debug overrides, in that order of priority.

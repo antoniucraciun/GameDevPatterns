@@ -16,6 +16,50 @@ Put the **fixed sequence of steps** in one method of the base class: the **templ
 - **Subclasses only fill in the gaps.**
 - The base class calls the subclass, not the other way round ("don't call us, we'll call you").
 
+## Pseudocode
+
+```text
+TurnTaker:
+    max_action_points ← 2
+    action_points
+    effects                 // the unit's status effects
+
+    // The template method: fixed for every unit, never overridden.
+    take_turn():
+        effects.tick_turn()                 // 1. damage over time, durations
+        if not is_alive(): return
+        if effects has "stun":              // 2. stunned units skip
+            on_turn_skipped()
+            return
+        action_points ← max_action_points   // 3. regenerate AP
+        on_turn_started()
+        while action_points > 0:
+            action ← wait for choose_action()  // 4. varies
+            if action is none: stop            //    end the turn early
+            wait for perform(action)           // 5. varies
+            action_points ← action_points - action.cost
+        on_turn_ended()                     // 6.
+
+    // Steps every subclass must provide.
+    choose_action() → action, or none   // may wait for the player
+    perform(action)                     // may wait for animations
+    is_alive()
+
+    // Hooks a subclass may override; empty by default.
+    on_turn_started(), on_turn_ended()
+    on_turn_skipped(): log "stunned, skips the turn"
+
+GoblinAI is a TurnTaker:
+    choose_action():
+        target ← nearest enemy; if none: return none
+        if target in melee range: return attack(target)
+        return move toward(target)
+
+PlayerKnight is a TurnTaker:
+    choose_action(): wait for the action the player picks in the UI
+    on_turn_started(): focus the camera on this unit
+```
+
 ## Example
 
 A turn-based game where every unit's turn follows the same rules, while choosing and performing actions differ per unit. Choosing can wait for the player, so the template method is asynchronous: a coroutine in Unity, `await` in Godot, and completion callbacks in Unreal.

@@ -21,6 +21,49 @@ There are two strategies, and many games combine them:
 
 **Snapshot recording.** Every few steps, store the position, rotation and animation state of tracked objects. Playback interpolates between snapshots. Seeking is easy, but you cannot change anything and re-simulate.
 
+## Pseudocode
+
+Input recording, as in the Example:
+
+```text
+FrameInput:
+    move, jump, fire        // what one simulation step consumes
+
+// Both sources answer the same question; gameplay can't tell them apart.
+LiveInput:
+    recorded ← empty list
+    get_input(step):
+        input ← read the devices
+        append input to recorded
+        return input
+
+ReplayInput:
+    frames
+    get_input(step):
+        if step ≥ number of frames: return finished
+        return frames[step]
+
+Replay:
+    game_version, seed, frames
+
+Simulation:
+    start_live(seed):     reset(seed); source ← new LiveInput
+    start_replay(replay): reset(replay.seed); source ← ReplayInput(replay.frames)
+
+    reset(seed):
+        step ← 0
+        seed every gameplay random stream with seed
+        put the world back in its initial state
+
+    every fixed step:
+        input ← source.get_input(step)
+        if finished: stop
+        tick(input)         // the same gameplay code for live play and replays
+        step ← step + 1
+
+    save(): return Replay(game version, seed, live source's recorded inputs)
+```
+
 ## Example
 
 Input recording for a deterministic, fixed-step simulation. The **core** is the input source: live play records what it reads, a replay feeds back what was recorded, and gameplay can't tell the difference. The **engine wiring** drives it from the fixed step and saves the replay. Unreal also has a built-in replay system that records replicated state instead.

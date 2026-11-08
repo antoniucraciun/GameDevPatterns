@@ -19,6 +19,37 @@ At the end of the tick, **swap** them. Swapping exchanges two references, not th
 
 <DoubleBufferViz />
 
+## Pseudocode
+
+```text
+FireGrid:
+    width, height
+    current[width × height]   // heat this tick: only read
+    next[width × height]      // heat next tick: only written
+
+    tick(spread, cooling):
+        for each cell (x, y):
+            neighbours ← read(x-1, y) + read(x+1, y) + read(x, y-1) + read(x, y+1)
+            next[x, y] ← clamp(current[x, y] + neighbours × spread - cooling, 0, 1)
+            // every cell of next is written, so none keeps a value from two ticks ago
+        swap current and next     // exchange two references: no copying
+
+    read(x, y):
+        if (x, y) is outside the grid: return 0
+        return current[x, y]      // never next: every cell sees the same snapshot
+
+// The same idea for agents that read each other.
+Agent:
+    current                   // the state others see this tick
+    next                      // the state this agent computes
+
+each tick:
+    for each agent a:
+        a.next ← steering(a, the current states of a's neighbours)
+    for each agent a:
+        a.current ← a.next    // publish only after everyone has updated
+```
+
 ## Example
 
 A fire-spread grid, where order independence matters. This is pure logic with no engine types, so all three versions are drop-in cores:

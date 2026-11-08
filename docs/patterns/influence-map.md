@@ -17,6 +17,43 @@ Keep **grids of numbers over the map**. Each unit **stamps** its influence onto 
 - **Decay and propagation** give memory: old influence fades over time, so the map remembers where enemies *were* recently, not just where they are.
 - Maps are **updated once** (every few frames), then shared by every agent.
 
+## Pseudocode
+
+```text
+InfluenceMap:
+    values[cell]                 // one number per grid cell, starting at 0
+
+    decay(factor):               // old information fades instead of vanishing
+        for each cell: values[cell] ← values[cell] × factor
+
+    stamp(position, strength, radius):
+        centre ← cell of position
+        for each cell c within radius of centre:
+            d ← distance from c to centre
+            values[c] ← values[c] + strength × (1 − d / radius)   // linear falloff
+
+threat, allies ← two InfluenceMaps over the same grid
+
+every 0.25 s:                    // updated once, read by every agent
+    threat.decay(0.8);  allies.decay(0.8)
+    for each unit u:
+        map ← threat if u is an enemy, else allies
+        map.stamp(u.position, u.combat_power, u.threat_radius)
+
+// "Where should I retreat to?"
+best_retreat(from, search_radius):
+    best ← −∞
+    for each cell c within search_radius of from's cell:
+        score ← 0.5 × allies[c] − threat[c]
+              − 0.05 × distance from from's cell to c   // prefer closer options
+        if score > best: best ← score, best_cell ← c
+    return centre of best_cell
+
+// The front line: both sides present and roughly balanced.
+is_front_line(c):
+    return threat[c] > 0.5 and allies[c] > 0.5 and |allies[c] − threat[c]| < 0.5
+```
+
 ## Example
 
 The **core** is a grid of floats with two operations, decay and stamp. The **engine wiring** keeps a threat map and an ally map up to date a few times per second and answers tactical questions from them.
@@ -218,7 +255,7 @@ public class TacticalMaps : MonoBehaviour
         }
     }
 
-    // "Where should I retreat to?" The safest reachable cell near me, preferring friendly territory.
+    // "Where should I retreat to?" The safest cell near me, preferring friendly territory.
     public Vector3 BestRetreat(Vector3 from, float searchRadius)
     {
         var c = Threat.CellOf(from);

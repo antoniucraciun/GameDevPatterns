@@ -41,6 +41,31 @@ function codeGroupErrors(markdown: string): string[] {
   return errors
 }
 
+/** The text of each "## " heading in the Markdown, skipping lines inside fenced code blocks. */
+function h2Headings(markdown: string): string[] {
+  const headings: string[] = []
+  let fence: string | null = null
+  for (const text of markdown.split(/\r?\n/)) {
+    const marker = /^\s*(`{3,}|~{3,})(.*)$/.exec(text)
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = null
+      continue
+    }
+    if (marker) fence = marker[1]
+    else if (/^## /.test(text)) headings.push(text.slice(3).trim())
+  }
+  return headings
+}
+
+/** null if "## Pseudocode" comes directly before "## Example"; otherwise "missing" or what is wrong with it. */
+function pseudocodeProblem(markdown: string): string | null {
+  const headings = h2Headings(markdown)
+  const at = headings.indexOf('Pseudocode')
+  if (at < 0) return 'missing'
+  if (headings[at + 1] !== 'Example') return `followed by ${headings[at + 1] ? `"## ${headings[at + 1]}"` : 'nothing'}`
+  return null
+}
+
 export interface CatalogData {
   categories: typeof categories
   patterns: (WithWritten<(typeof patterns)[number]> & { interactive: boolean })[]
@@ -67,6 +92,18 @@ export default {
       .filter((p) => !/^## Example\s*$/m.test(readFileSync(`${patternsDir}${p.slug}.md`, 'utf8')))
       .map((p) => p.slug)
     if (noExample.length) throw new Error(`Pattern page(s) missing a "## Example" section: ${noExample.join(', ')}`)
+
+    // Every written pattern page has a "## Pseudocode" section directly before "## Example" (see contributing.md#pseudocode).
+    const pseudocodeProblems = patterns
+      .filter((p) => existsSync(`${patternsDir}${p.slug}.md`))
+      .map((p) => ({ slug: p.slug, problem: pseudocodeProblem(readFileSync(`${patternsDir}${p.slug}.md`, 'utf8')) }))
+      .filter((r) => r.problem !== null)
+    const noPseudocode = pseudocodeProblems.filter((r) => r.problem === 'missing').map((r) => r.slug)
+    const misplaced = pseudocodeProblems.filter((r) => r.problem !== 'missing').map((r) => `${r.slug} (${r.problem})`)
+    if (noPseudocode.length)
+      throw new Error(`${noPseudocode.length} pattern page(s) missing a "## Pseudocode" section: ${noPseudocode.join(', ')}`)
+    if (misplaced.length)
+      throw new Error(`Pattern page(s) whose "## Pseudocode" is not directly before "## Example": ${misplaced.join(', ')}`)
 
     const badGroups = [
       ...patterns.map((p) => ({ label: `patterns/${p.slug}`, file: `${patternsDir}${p.slug}.md` })),

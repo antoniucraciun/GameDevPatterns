@@ -18,6 +18,44 @@ Separate **operations** from **the element classes**:
 
 The trade-off is the reverse for new *element types*: adding `Ladder` means adding `Visit(Ladder)` to every visitor. Visitor fits when the set of types is **stable** and the set of operations **grows**.
 
+## Pseudocode
+
+```text
+// One visit method per element type: the stable part.
+LevelVisitor:
+    visit_wall(w), visit_door(d), visit_spawn_point(s), visit_trigger(t)
+
+// Each element knows only which visit method is its own.
+Wall:       triangles      accept(v): v.visit_wall(this)
+Door:       required_key   accept(v): v.visit_door(this)
+SpawnPoint: enemy_type     accept(v): v.visit_spawn_point(this)
+Trigger:    target         accept(v): v.visit_trigger(this)
+
+// Operation 1: every validation rule, in one place.
+Validation is a LevelVisitor:
+    errors ← empty list
+    keys_in_level, known_enemy_types
+    visit_wall(w):        nothing to check
+    visit_door(d):        if d needs a key not in keys_in_level: add an error
+    visit_spawn_point(s): if s.enemy_type not in known_enemy_types: add an error
+    visit_trigger(t):     if t has no target: add an error
+
+// Operation 2: a different concern, also in one place.
+Budget is a LevelVisitor:
+    triangles ← 0, enemies ← 0, triggers ← 0
+    visit_wall(w):        triangles ← triangles + w.triangles
+    visit_door(d):        triangles ← triangles + 500
+    visit_spawn_point(s): enemies ← enemies + 1
+    visit_trigger(t):     triggers ← triggers + 1
+
+run(level, visitor):
+    for each element e in level:
+        e.accept(visitor)   // double dispatch: e's type picks the method
+
+budget ← Budget; run(level, budget)
+if budget.triangles > 500 000: warn "over triangle budget"
+```
+
 ## Example
 
 Level tooling: the level is made of walls, doors, spawn points and triggers, and several unrelated operations (validation, a performance budget) run over all of them.

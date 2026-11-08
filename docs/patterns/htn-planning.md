@@ -23,6 +23,55 @@ The **planner** decomposes the root task, top-down, on a **copy** of the world s
 
 The result is a complete, feasible sequence of primitive tasks, or nothing. Because methods are tried in authored order, designers decide what the agent prefers. Because effects are simulated, the agent knows the whole plan works before starting it.
 
+## Pseudocode
+
+The planner works through a list of tasks, depth first, on its own copy of the world state.
+
+```text
+PrimitiveTask:
+    precondition(state)          // may it run here?
+    effect(state)                // what it changes, simulated while planning
+
+Method:
+    condition(state)
+    subtasks                     // an ordered list of tasks
+
+CompoundTask:
+    methods                      // tried in order: the designer's preference
+
+plan(root, state):
+    result ← empty list
+    if decompose([root], 0, copy of state, result): return result
+    return no plan
+
+decompose(tasks, i, state, result):
+    if i is past the end of tasks: return true      // everything decomposed
+    task ← tasks[i]
+
+    if task is primitive:
+        if not task.precondition(state): return false
+        next ← copy of state
+        task.effect(next)
+        append task to result
+        if decompose(tasks, i + 1, next, result): return true
+        remove task from the end of result           // backtrack
+        return false
+
+    for each method m of task, in order:
+        if not m.condition(state): skip it
+        // Replace the compound task with the method's subtasks, in place.
+        expanded ← tasks before i, then m.subtasks, then tasks after i
+        size ← length of result
+        if decompose(expanded, i, state, result): return true
+        cut result back to size                      // undo this method's tasks
+    return false                                     // no method worked
+
+// The soldier: BeSoldier → Fight → AttackEnemy, whose methods are
+// shoot (loaded), reload first, get ammo, melee.
+plan(BeSoldier, enemy visible and ammo nearby)
+    // → pick up ammo, reload, move in range, shoot
+```
+
 ## Example
 
 The **core** is the planner: depth-first decomposition with backtracking over methods, with no engine types. The **domain** is a soldier authored as ways of doing things.

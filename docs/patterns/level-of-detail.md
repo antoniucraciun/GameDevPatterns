@@ -24,6 +24,44 @@ Rendering LOD is built into every engine: Unity's **LOD Group**, Godot's automat
 
 Use **hysteresis** between levels, so objects near a boundary do not switch back and forth every frame.
 
+## Pseudocode
+
+Simulation LOD, as in the Example: one component picks the level, the other systems react to it.
+
+```text
+levels: High, Medium, Low, Dormant      // ordered from most to least detail
+
+SimulationLod:
+    medium_at, low_at, dormant_at       // distances where detail drops
+    hysteresis ← 1.1                    // coming back needs to be ~10% closer
+    check_interval ← 0.5 seconds        // first check at a random offset, to stagger
+    level ← High
+
+    every check_interval:
+        d ← distance from this object to the camera
+        next ← level_for(d)
+        if next ≠ level:
+            level ← next
+            tell listeners "level changed to next"
+
+    level_for(d):
+        if d ≥ threshold(dormant_at, Dormant): return Dormant
+        if d ≥ threshold(low_at, Low):         return Low
+        if d ≥ threshold(medium_at, Medium):   return Medium
+        return High
+
+    threshold(distance, boundary):
+        if level is already boundary or lower detail:
+            return distance / hysteresis    // stay there until clearly closer
+        return distance                     // dropping needs the full distance
+
+NpcLodController, on level changed:
+    animation runs only at Low detail or better
+    footsteps play only at High
+    brain think interval ← High: every frame, Medium: 0.1 s,
+                           Low: 0.5 s, Dormant: 2 s
+```
+
 ## Example
 
 Simulation LOD: one component chooses a level from the distance to the camera, and the systems on the object adapt. Profile first (Unity Profiler, Godot's profiler, Unreal Insights) to find which systems on distant objects actually cost time; those are the ones worth degrading.
@@ -51,7 +89,7 @@ public class SimulationLod : MonoBehaviour
 
     void Start()
     {
-        viewer ??= Camera.main.transform;
+        if (viewer == null) viewer = Camera.main.transform;   // not ??=: it misses a destroyed camera
         nextCheck = Time.time + UnityEngine.Random.value * checkInterval;   // stagger checks
     }
 

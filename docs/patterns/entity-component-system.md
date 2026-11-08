@@ -22,6 +22,45 @@ Behind the scenes, an ECS stores components of entities with the same set of com
 
 Adding behaviour means adding a component, such as a `Burning` tag, so the burn system picks the entity up. Removing it stops the behaviour. There is no class hierarchy at all.
 
+## Pseudocode
+
+What an ECS framework does underneath, for the projectiles in the Example.
+
+```text
+// Entities are IDs. Components are plain data, stored per archetype:
+// one table per set of component types, one packed column per type.
+Archetype:
+    component types       // e.g. {Position, Velocity, Lifetime}
+    columns[type]         // one entry per row; split into fixed-size chunks
+    entities              // which entity owns each row
+
+World:
+    archetypes
+    location[entity]      // (archetype, row) where that entity's data lives
+
+query(required types):    // every row of every archetype that has them all
+    for each archetype a whose types include all required types:
+        for each row of a:
+            yield the entity and its components at that row
+
+// Systems hold all the logic. Systems that don't write the same columns,
+// and different chunks of one system, can run on different cores.
+MoveSystem(dt):
+    for each (position, velocity) in query(Position, Velocity):
+        position ← position + velocity × dt   // streams down two packed arrays
+
+LifetimeSystem(dt):
+    for each (entity, lifetime) in query(Lifetime):
+        lifetime ← lifetime - dt
+        if lifetime ≤ 0:
+            record "destroy entity" in commands   // never change tables mid-loop
+
+end of frame:
+    for each recorded destroy:
+        move the archetype's last row into the freed row   // keeps columns dense
+        update location[] of the entity that moved
+```
+
 ## Example
 
 Projectiles that move and expire, with all the logic in systems that run over plain data. Unity and Unreal ship ECS frameworks; Godot doesn't, so its version applies the same data-oriented idea by hand.

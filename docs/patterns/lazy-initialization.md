@@ -26,6 +26,44 @@ Lazy initialisation trades **startup time and memory** for a **one-time cost at 
 
 For thread safety, use the language's run-once primitive: .NET's `Lazy<T>`, or a function-local `static` or `std::call_once` in C++. On the main thread only, a plain null check is enough.
 
+## Pseudocode
+
+```text
+// Pure lazy: the effect index is built by the first lookup, not at startup.
+EffectLibrary:
+    effects            // the list assigned in the editor
+    by_name ← none     // name → effect, not built yet
+
+    get(name):
+        if by_name is none:          // first use pays the cost, once
+            by_name ← map each effect's name to the effect
+        return by_name[name], or nothing if missing
+
+// Lazy with warm-up: one pool per effect, created when first asked for.
+LazyPools:
+    pools              // effect → its pool of inactive copies
+
+    pool_for(effect):
+        if effect has no pool yet:
+            pools[effect] ← new empty pool
+        return pools[effect]
+
+    get(effect):              return pool_for(effect).get()
+    release(effect, copy):    pool_for(effect).release(copy)
+
+    warm_up(effect, count):   // call on a loading screen
+        temp ← get(effect) count times    // creates the copies now
+        release every copy in temp        // so gameplay never hitches
+
+// Thread-safe: only one thread may build the shared table.
+erosion_table():
+    lock the table's mutex
+    if table is empty:
+        table ← for each i in 0..4095: (i / 4095) ^ 2.2
+    unlock
+    return table
+```
+
 ## Example
 
 The basic form, plus a warm-up hook so the cost can be moved to a loading screen. Check with the profiler (Unity Profiler, Godot's profiler, Unreal Insights) that the first use really hitches before adding warm-up calls:

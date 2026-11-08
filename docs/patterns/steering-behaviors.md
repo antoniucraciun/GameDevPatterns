@@ -28,6 +28,53 @@ Complex movement comes from **combining** them: a weighted sum (for example, arr
 
 <SteeringViz />
 
+## Pseudocode
+
+```text
+Vehicle:
+    position, velocity
+    max_speed, max_force
+    target                       // optional, set by AI decisions or a path follower
+
+// Each behaviour returns a steering force: desired velocity − current velocity.
+seek(point):  return direction to point × max_speed − velocity
+flee(point):  return direction away from point × max_speed − velocity
+
+arrive(point):
+    offset ← point − position
+    if length of offset is tiny: return −velocity      // brake to a stop
+    speed ← max_speed × min(1, length of offset / arrive_radius)   // slow when close
+    return direction of offset × speed − velocity
+
+separation():
+    push ← zero
+    for each other agent within separation_radius:
+        d ← distance to other
+        push ← push + direction away from other × (1 − d / separation_radius)
+    return push × max_speed      // stronger when closer
+
+avoid_obstacles():
+    for each feeler (ahead, 30° left, 30° right), longer when moving faster:
+        if the feeler hits an obstacle at distance d:
+            return hit surface normal × max_speed × (1 − d / feeler length)
+    return zero
+
+wander():
+    wander_angle ← wander_angle + a small random drift
+    return direction of (2 × forward + point on circle at wander_angle)
+           × max_speed − velocity
+
+update(dt):
+    force ← arrive(target) × arrive_weight             // if there is a target
+          + separation() × separation_weight
+          + avoid_obstacles() × avoid_weight
+          + wander() × wander_weight
+    force ← clamp length of force to max_force         // limited acceleration
+    velocity ← clamp length of (velocity + force × dt) to max_speed
+    position ← position + velocity × dt
+    turn smoothly to face velocity
+```
+
 ## Example
 
 A ground agent that blends Arrive, Separation, obstacle avoidance and Wander, each a steering force (desired velocity minus current velocity) with a weight. The behaviours are plain vector maths; only the neighbour list and the obstacle feelers touch the engine.

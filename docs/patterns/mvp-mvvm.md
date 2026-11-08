@@ -24,6 +24,46 @@ The variants differ in how the middle layer talks to the view:
 - **MVP:** the presenter *pushes* to a passive view through an interface (`view.SetWeight("12.5 / 40 kg")`). It is easy to test with a fake view, and works with any UI system.
 - **MVVM:** the view model exposes *observable properties*, and the view *binds* to them, so updates flow automatically. It suits UI systems with binding built in: Unity's UI Toolkit runtime binding and Unreal's UMG Viewmodel plugin. Godot has no built-in binding, so MVVM there is wired by hand with signals. See [Data Binding](./data-binding).
 
+## Pseudocode
+
+```text
+// Model: game data and rules. Knows nothing about UI.
+Inventory:
+    items, weight, max_weight ← 40
+    changed                          // event raised after every change
+    can_add(item): return weight + item.weight ≤ max_weight
+    drop(i): subtract items[i].weight from weight, remove items[i], raise changed
+
+// View: shows what it is told and reports what the player did. No decisions.
+InventoryView:
+    show_items(rows), show_weight(text, overloaded), set_drop_enabled(on)
+    events: slot_clicked(index), drop_clicked
+
+// Presenter: every decision, and no engine UI types, so a fake view can test it.
+InventoryPresenter:
+    model, view
+    selected ← none
+
+    on creation: listen to model.changed, view.slot_clicked and view.drop_clicked, then refresh()
+
+    on slot_clicked(i):
+        selected ← i if it is a valid item, else none
+        refresh()
+
+    on drop_clicked:
+        if selected is none: return
+        i ← selected
+        selected ← none              // clear first: drop refreshes at once
+        model.drop(i)                // refresh runs through model.changed
+
+    refresh():
+        view.show_items(for each item: "name (weight kg)" and its icon)
+        view.show_weight("weight / max_weight kg", overloaded ← weight > 90% of max_weight)
+        view.set_drop_enabled(selected is not none)
+
+    on dispose: stop listening to the model and the view
+```
+
 ## Example
 
 MVP for an inventory screen. For MVVM with engine-supported bindings, see [Data Binding](./data-binding), which uses Unreal's UMG Viewmodel plugin.
@@ -409,8 +449,9 @@ public class InventoryPresenter : IDisposable
     void OnDropClicked()
     {
         if (selected < 0) return;
-        model.Drop(selected);
-        selected = -1;                                  // Refresh runs through model.Changed
+        int index = selected;
+        selected = -1;
+        model.Drop(index);                              // Refresh runs through model.Changed
     }
 
     void Refresh()

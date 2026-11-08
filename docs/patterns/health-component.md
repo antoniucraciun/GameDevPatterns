@@ -19,6 +19,45 @@ Two small pieces:
 
 **Hurtboxes** on child colliders forward hits to the `Health` on the root, optionally with a multiplier (head ×2, armour plate ×0.5).
 
+## Pseudocode
+
+```text
+DamageInfo:                 // what a weapon knows about its hit
+    amount, type, source, point
+
+Damageable:                 // the only thing weapons talk to
+    take_damage(info)
+
+Health is a Damageable:
+    max, current ← max
+    invulnerable_after_hit  // i-frames, e.g. 0.5 s for the player
+    invulnerable_until ← 0
+
+    take_damage(info):
+        if current ≤ 0 or info.amount ≤ 0: return    // dead stays dead
+        if now < invulnerable_until: return          // inside i-frames
+        current ← max(0, current - info.amount)
+        invulnerable_until ← now + invulnerable_after_hit
+        announce damaged(info)
+        if current ≤ 0:
+            announce died(info)        // once only: the first check now fails
+
+    heal(amount):
+        if current ≤ 0: return         // healing doesn't revive
+        gained ← min(max, current + amount) - current
+        current ← current + gained
+        if gained > 0: announce healed(gained)
+
+Hurtbox is a Damageable:    // on a body part
+    health                  // the character's Health
+    multiplier              // head 2, armour plate 0.5
+    take_damage(info):
+        health.take_damage(copy of info with amount × multiplier)
+
+// A weapon: on touching something, if it is Damageable,
+// call take_damage(amount 25, physical, source = attacker, point).
+```
+
 ## Example
 
 A health component with i-frames and events, plus hurtboxes that scale damage by body part. Weapons only know "something damageable", never the concrete class.

@@ -34,6 +34,37 @@ value = Lerp(value, target, 1 - exp(-rate * deltaTime))
 
 Unlike `Lerp(value, target, 0.1f)`, this converges at the same speed whatever the frame rate.
 
+## Pseudocode
+
+```text
+// Easing: maps linear progress 0..1 to shaped progress.
+ease_out_quad(t)     = 1 - (1 - t)²
+ease_in_out_cubic(t) = 4t³ if t < 0.5, else 1 - (2 - 2t)³ / 2
+ease_out_back(t)     = 1 + 2.70158 (t - 1)³ + 1.70158 (t - 1)²   // overshoots past 1
+
+// A tween: run for a fixed time and hand the eased progress to apply().
+Tween:
+    owner, elapsed ← 0, duration, ease, apply(p), on_complete
+    unscaled                       // true for UI that must run while paused
+
+run(owner, duration, ease, apply, on_complete):
+    remove any tween with the same owner     // replace it, don't fight it
+    add a new Tween to tweens
+
+every frame, for each tween in tweens:
+    elapsed ← elapsed + (real or game frame time, as unscaled says)
+    p ← clamp(elapsed / duration, 0, 1)
+    apply(ease(p))                 // e.g. position ← lerp unclamped(from, to, eased p)
+    if p ≥ 1:
+        remove the tween; on_complete()
+
+// Damping: chase a moving target at the same speed at any frame rate.
+damp(current, target, rate, dt):
+    return lerp(current, target, 1 - e^(-rate × dt))
+
+shown_health ← damp(shown_health, real_health, 8, frame time)
+```
+
 ## Example
 
 Easing functions (all take and return values in `[0, 1]` at the ends):

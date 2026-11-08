@@ -18,6 +18,52 @@ Give the base class a **toolbox of protected operations**, the **sandbox**, and 
 
 It is the opposite of [Template Method](./template-method): instead of the base class calling the subclass's steps in a fixed order, the subclass freely calls the base class's tools.
 
+## Pseudocode
+
+```text
+// The base class owns every link to engine systems and offers them
+// as a small set of safe operations: the sandbox.
+Power:
+    cooldown
+    ready_at ← 0
+
+    // ── The sandbox: the only operations powers may use ──
+    play_sound(cue)                  // through the audio service
+    spawn_effect(effect, at)         // removed again after a short lifetime
+    launch(velocity)                 // set the owner's velocity
+    damage_in_area(center, radius, damage):
+        for each target overlapping the sphere, except the owner:
+            if target can take damage: target.take_damage(damage)
+    is_grounded()
+    wait(seconds)
+
+    activate()                       // each power fills this in
+
+    try_use():
+        if now < ready_at: return false
+        ready_at ← now + cooldown
+        start activate()             // may run over several frames
+        return true
+
+// A power only composes sandbox calls.
+GroundSlam is a Power:
+    activate():
+        play_sound(jump_sound)
+        launch(up × 12)
+        wait(0.35)
+        launch(down × 30)
+        wait until is_grounded()
+        play_sound(slam_sound)
+        spawn_effect(shockwave, owner position)
+        damage_in_area(owner position, radius 5, damage 40)
+
+SkyLaunch is a Power:
+    activate():
+        play_sound(whoosh)
+        spawn_effect(trail, owner position)
+        launch(up × 20)
+```
+
 ## Example
 
 A base class for powers provides a small set of safe operations; each power is a short subclass that uses only those.

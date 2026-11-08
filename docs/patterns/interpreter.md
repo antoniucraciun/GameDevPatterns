@@ -32,6 +32,45 @@ base * (1 + strength / 100) - armor * 0.5
 
 The tree is the "interpreter": evaluation is a recursive walk. For a few expressions, it is fast enough. For thousands per frame, compile the tree into [Bytecode](./bytecode) or C# delegates.
 
+## Pseudocode
+
+```text
+// The tree: every node can evaluate itself.
+Num(value):          eval(ctx) → value
+Var(name):           eval(ctx) → ctx.get(name)     // unknown names give 0
+Binary(op, l, r):
+    eval(ctx):
+        a ← l.eval(ctx); b ← r.eval(ctx)
+        + → a + b    - → a - b    * → a × b
+        / → 0 if b = 0, else a / b    // a bad formula must not crash the game
+        ^ → a to the power b
+        < → 1 if a < b, else 0        > → 1 if a > b, else 0
+
+// The parser: one function per precedence level, lowest first.
+comparison(): l ← sum();     while next is < or >: l ← Binary(op, l, sum())
+sum():        l ← product(); while next is + or -: l ← Binary(op, l, product())
+product():    l ← power();   while next is * or /: l ← Binary(op, l, power())
+power():      l ← unary();   if next is ^: return Binary(^, l, power())  // right-assoc.
+              return l
+unary():
+    if next is "-": return Binary(-, Num(0), unary())
+    if next is "(": e ← comparison(); expect ")"; return e
+    if a number follows: return Num(read the number)
+    if a name follows:   return Var(read the name)
+    fail "expected a value at position i"
+
+parse(text): e ← comparison(); fail if any text is left over; return e
+
+// A formula is data: parsed once, evaluated many times.
+Formula:
+    expression ← "base * (1 + strength / 100) - armor * 0.5"
+    evaluate(ctx):
+        if not parsed yet: tree ← parse(expression)
+        return tree.eval(ctx)
+
+damage.evaluate({base: 20, strength: 45, armor: 12})   // → 23
+```
+
 ## Example
 
 ### Core: expression nodes

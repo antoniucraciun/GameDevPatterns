@@ -28,6 +28,44 @@ Each language has this built in, and you plug into it rather than writing a new 
 
 The same idea covers much more than lists: a [spatial partition](./spatial-partition) query that yields the objects in a radius cell by cell, an inventory that skips empty slots and the extra cells of large items, a depth-first walk of a scene or UI tree with an explicit stack, or the items in a [composite](./composite).
 
+## Pseudocode
+
+```text
+// The collection: a fixed array that overwrites its oldest entry
+// when full.
+RingBuffer:
+    items[capacity]
+    head               // where the next add writes
+    count              // how many slots hold an entry
+
+    add(item):
+        items[head] ← item
+        head ← (head + 1) mod capacity
+        if count < capacity: count ← count + 1
+
+    iterate():         // callers never see head or the wrap-around
+        return a new Iterator over this buffer
+
+// The iterator: a position in one walk, and nothing else.
+Iterator:
+    buffer
+    offset ← -1        // 0 = oldest entry; -1 = not started yet
+
+    move_next():       // step forward; false once all were visited
+        offset ← offset + 1
+        return offset < buffer.count
+
+    current():
+        n ← buffer.capacity
+        oldest ← (buffer.head - buffer.count + n) mod n
+        return buffer.items[(oldest + offset) mod n]
+
+// The caller only asks "is there a next one, and what is it?"
+it ← buffer.iterate()
+while it.move_next():
+    show(it.current())
+```
+
 ## Example
 
 A ring buffer that callers can walk oldest-to-newest without knowing how it wraps. The **core** is the buffer and its iterator, with no engine types. The **engine wiring** records hits and builds the death recap from them. The last group shows the most common iterator bug in games: changing a collection while walking it.

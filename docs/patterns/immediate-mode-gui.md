@@ -25,6 +25,38 @@ Label($"HP: {player.Health}");              // always shows the current value: n
 
 Unity's **IMGUI** (`OnGUI`, `GUILayout`, `EditorGUILayout`) is immediate mode and still powers much of its editor. Godot and Unreal have no immediate-mode GUI for games built in. **Dear ImGui** is the most famous example outside engines, and community plugins bring it to all three.
 
+## Pseudocode
+
+```text
+// No widget objects are kept. Every frame the panel is described again from
+// the current state, and each control returns what the player did to it.
+when F1 is pressed: visible ← not visible
+
+every frame:
+    if not visible: return
+    label("FPS: " + frames per second)
+    label("HP: " + player.health + " / " + player.max_health)   // never stale
+
+    player.move_speed  ← slider("Move speed", player.move_speed, 0, 20)
+    player.jump_height ← slider("Jump height", player.jump_height, 0, 10)
+
+    if button("Spawn 1"):  spawner.spawn(1)      // true on the frame it is clicked
+    if button("Spawn 10"): spawner.spawn(10)
+    if button("Kill all"): spawner.kill_all()
+    player.god_mode ← toggle("God mode", player.god_mode)
+
+    show_advanced ← toggle("Advanced", show_advanced)
+    if show_advanced:                            // conditional UI is just an if
+        for each enemy in spawner.alive:         // a list is just a loop
+            label(enemy name, state and health)
+
+// What one control does underneath:
+button(text):
+    area ← the next free space in the layout
+    draw a button showing text in area
+    return true if the mouse was released over area this frame
+```
+
 ## Example
 
 A runtime debug panel. Unity's IMGUI (`OnGUI`) is a full immediate-mode GUI. Godot has no immediate-mode GUI for games: the closest built-in is immediate-mode *drawing* in `CanvasItem._draw()`, with input handled separately, or a community ImGui add-on. Unreal's closest built-ins are immediate drawing on the HUD canvas plus console commands for the controls, or one of the ImGui plugins.

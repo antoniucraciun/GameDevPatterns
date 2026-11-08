@@ -18,6 +18,45 @@ Treat randomness as **explicit, owned state**:
 4. **A generator you own.** Built-in generators make no such promise: `System.Random`'s algorithm may change between .NET versions, Unity's `UnityEngine.Random` and Godot's global `randf()` are shared global state, and Unreal's `FMath::Rand` depends on the platform's C runtime. For seeds that must work across game versions and platforms, such as shared world seeds or daily challenges, ship your own small PRNG.
 5. **Saveable state.** Store the generator's internal state in save files and replays, not just the original seed.
 
+## Pseudocode
+
+```text
+// A generator you own (SplitMix64): all arithmetic on unsigned 64-bit, wrapping.
+Rng:
+    state                  // the whole generator: save and restore this
+
+    next():                // 64 random bits
+        state ← state + 0x9E3779B97F4A7C15
+        return mix(state)
+
+    next_float():          // [0, 1), 24 bits: exact as a float
+        return (next() shifted right by 40) / 2^24
+
+    range(min, max):       // [min, max), multiply-shift, so no modulo bias
+        return min + ((next() shifted right by 32) × (max - min)) shifted right by 32
+
+// Stateless: a stable seed from a parent seed and a key.
+derive(seed, a, b ← 0, c ← 0):
+    h ← mix(seed xor a)
+    h ← mix(h xor (b shifted left by 32))
+    return mix(h xor (c × 0x9E3779B97F4A7C15))
+
+mix(z):                    // scrambles bits so nearby seeds give unrelated output
+    z ← (z xor (z shifted right by 30)) × 0xBF58476D1CE4E5B9
+    z ← (z xor (z shifted right by 27)) × 0x94D049BB133111EB
+    return z xor (z shifted right by 31)
+
+// One stream per system, and one per chunk derived from the world seed.
+World(seed):
+    loot ← Rng(derive(seed, 1))
+    ai   ← Rng(derive(seed, 2))
+
+    generate_chunk(cx, cy):          // same result in any generation order
+        rng ← Rng(derive(seed, cx, cy, 100))
+        repeat rng.range(3, 12) times:
+            place a tree at (cx × 16 + rng.range(0, 16), cy × 16 + rng.range(0, 16))
+```
+
 ## Example
 
 ### Core: a portable generator
@@ -288,8 +327,6 @@ A daily challenge becomes `new World(Rng.Derive(0xC0FFEE, year, dayOfYear))`, th
 - **Unity:** `UnityEngine.Random` is one global stream (its `state` can be saved, but every system shares it), and `System.Random`'s algorithm is not guaranteed to stay the same across .NET versions. Unity.Mathematics' `Random` struct (xorshift) is seedable, a value type and Burst-friendly.
 - **Godot:** `RandomNumberGenerator` (PCG32) gives each system its own stream; set `seed` for a fixed start and save `state` to resume mid-stream. The global `randf()`/`randi()` share one generator seeded randomly at startup (`seed()` reseeds it). `randi_range` and `randf_range` include both bounds.
 - **Unreal:** `FRandomStream` is a seedable, platform-independent stream (a simple 32-bit generator, fine for gameplay); `FMath::Rand`/`FRand` use the global C runtime generator and shouldn't drive anything that must reproduce. `RandRange` includes both bounds.
-
-## When to use
 
 ## When to use
 

@@ -12,6 +12,39 @@ Inheritance hierarchies for game objects collapse under real requirements. You s
 
 An entity becomes a thin container. Each capability (movement, health, shooting, rendering) is a separate **component** that does one job. You build a new kind of entity by choosing which components to attach. Components can find their siblings on the same entity when they need to cooperate. Prefer interfaces or events for that, so components do not depend on concrete sibling types.
 
+## Pseudocode
+
+```text
+// The entity is only a container; each component does one job.
+Entity:
+    components             // the parts attached to it
+
+Health is a component:
+    max
+    current ← max
+    died                   // an event other components can listen to
+
+    take_damage(amount):
+        if current ≤ 0: return              // already dead
+        current ← max(0, current - amount)
+        if current = 0: raise died
+
+DropLootOnDeath is a component:
+    loot
+    on start:
+        health ← the Health on the same entity
+        when health.died: spawn loot at the entity's position
+
+DestroyOnDeath is a component:
+    on start:
+        health ← the Health on the same entity
+        when health.died: destroy the entity
+
+// New kinds of entity are new combinations, not new classes.
+crate ← Entity with Health, DropLootOnDeath, DestroyOnDeath
+enemy ← Entity with Health, DropLootOnDeath, DestroyOnDeath, Patrol, Shooter
+```
+
 ## Example
 
 Each engine's object model is this pattern: an entity is a container, and behaviour comes from small, focused components attached to it.

@@ -27,6 +27,40 @@ Treat feedback as a **layered response to an event**, authored as data:
 3. **Bundle each response into a reusable feedback asset**: "Light Hit", "Heavy Hit", "Coin Pickup". Gameplay plays one asset, and designers tune the layers inside it.
 4. **Scale with magnitude.** One asset can scale its layers by intensity (damage dealt, fall height), so small and big versions of an event feel related.
 
+## Pseudocode
+
+```text
+FeedbackContext:
+    position
+    target            // the object that was hit, collected or landed on
+    intensity         // 0..1, e.g. damage / max damage
+
+// Each layer does one small thing, scaled by intensity.
+FeedbackLayer:
+    play(ctx)
+
+ShakeLayer:     play(ctx): add trauma × ctx.intensity to the screen shake
+HitStopLayer:   play(ctx): hit stop for lerp(min_duration, max_duration, ctx.intensity)
+SoundLayer:     play(ctx): play a random variant at ctx.position,
+                           louder with intensity, volume jittered a little
+ParticleLayer:  play(ctx): spawn the effect at ctx.position with
+                           lerp(min_count, max_count, ctx.intensity) particles
+SquashLayer:    play(ctx): squash ctx.target by intensity, then tween its
+                           scale back to rest with an elastic ease
+
+// The asset designers edit: a list of layers.
+Feedback:
+    layers
+
+    play(position, target, intensity):
+        ctx ← (position, target, clamp(intensity, 0, 1))
+        for each layer in layers:
+            layer.play(ctx)     // one broken layer must not stop the rest
+
+// Gameplay: one line per event; the feel lives in the asset.
+heavy_hit_feedback.play(hit point, enemy, damage / 50)
+```
+
 ## Example
 
 A feedback asset made of composable layers, each a small serialisable object edited in place in the inspector: `[SerializeReference]` classes in a ScriptableObject in Unity, sub-resources in a `Resource` in Godot, and instanced objects in a Data Asset in Unreal.

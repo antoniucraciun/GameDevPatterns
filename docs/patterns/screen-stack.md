@@ -18,6 +18,43 @@ Keep the open screens on a **stack**:
 
 Screens get lifecycle hooks (`OnPush`, `OnPop`, `OnFocus`, `OnBlur`) for animations, pausing time and remembering the selected element.
 
+## Pseudocode
+
+```text
+Screen:
+    first_focus            // where focus goes the first time
+    last_focus             // remembered while another screen covers it
+    is_overlay             // keep the screen below visible (a popup over a menu)
+
+    on_push():  show it
+    on_pop():   hide it
+    on_focus(): focus last_focus if it still exists, else first_focus
+    on_blur():  last_focus ← whatever has focus now
+    on_back():  return true      // a mandatory confirmation returns false
+
+ScreenStack:
+    stack ← empty
+
+    push(screen):
+        if the stack has a top:
+            top.on_blur()
+            if screen is not an overlay: hide top
+        put screen on top of the stack
+        screen.on_push()
+        screen.on_focus()
+
+    pop():
+        if the stack is empty: return
+        take the top screen off the stack and call its on_pop()
+        if the stack has a top:
+            show top
+            top.on_focus()       // focus returns to where it was
+
+    when Back is pressed:        // the only place that listens for Back
+        if the stack has a top and top.on_back():
+            pop()
+```
+
 ## Example
 
 One stack owns which screen is on top, where focus goes, and what Back does. Unreal's **CommonUI** plugin ships this as `UCommonActivatableWidgetStack`, so its tab uses it instead of a hand-written stack.

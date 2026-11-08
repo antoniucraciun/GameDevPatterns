@@ -12,6 +12,41 @@ A character's final stats depend on base values, equipment, buffs and talents. R
 
 Store the derived value in a cache, together with a boolean **dirty flag**. Whenever an input changes, set the flag; do not recompute. When someone reads the derived value, recompute it only if the flag is set, then clear the flag. Many changes between reads collapse into one recalculation, and if nothing reads the value, nothing is computed.
 
+## Pseudocode
+
+```text
+CharacterStats:
+    base_damage
+    modifiers          // each is flat (+value) or percent (+value × 100%)
+    cached_damage      // the derived value, valid only while not dirty
+    dirty ← true       // nothing computed yet
+
+    // Every input change only raises the flag.
+    set_base_damage(value):
+        base_damage ← value
+        dirty ← true
+    add_modifier(m):
+        add m to modifiers
+        dirty ← true
+    remove_modifier(m):
+        remove m from modifiers
+        dirty ← true
+
+    // The read recomputes at most once per batch of changes.
+    damage():
+        if dirty:
+            cached_damage ← recalculate()
+            dirty ← false
+        return cached_damage
+
+    recalculate():
+        flat ← 0, percent ← 0
+        for each modifier m:
+            if m is flat: flat ← flat + m.value
+            else:         percent ← percent + m.value
+        return (base_damage + flat) × (1 + percent)
+```
+
 ## Example
 
 Damage derived from a base value and a list of modifiers. Setters only raise the flag; the getter recomputes at most once per batch of changes. This is plain logic, so each tab is engine-independent apart from the language:

@@ -16,6 +16,43 @@ Separate **what** spawns, **when**, and **where**:
 - **Where** is decided by **spawn points** in the level, plus a selection rule: not visible to the player, not too close, not too far, and not used in the last few seconds.
 - A **wave runner** plays the waves in order. It counts living enemies by listening to their death events ([Observer](./observer)), and takes enemies from an [Object Pool](./object-pool) so waves do not cause allocation spikes.
 
+## Pseudocode
+
+```text
+WaveDefinition:             // data
+    groups                  // each: pool of (enemy type, weight), count,
+                            //       start_delay, interval
+    wait_for_clear          // next wave only when every enemy is dead
+    break_after             // breather before the next wave
+
+pick_point(points, player, now):
+    candidates ← points that are
+        between min and max distance from the player,
+        unused for at least cooldown seconds,
+        and not visible: outside the camera's view, or behind cover
+    if candidates is empty: return nothing     // the caller retries shortly
+    chosen ← a random candidate; chosen.last_used ← now
+    return chosen
+
+run_waves():
+    for each wave:
+        announce wave started
+        start run_group(group) for every group, side by side
+        wait until every group is done
+        if wave.wait_for_clear: wait until alive = 0
+        announce wave cleared
+        wait wave.break_after seconds
+
+run_group(group):
+    wait group.start_delay
+    repeat group.count times:
+        point ← pick_point(…), retrying every 0.25 s until there is one
+        spawn an enemy picked by weight from group.pool at point
+        alive ← alive + 1
+        when that enemy dies or despawns: alive ← alive - 1
+        wait group.interval
+```
+
 ## Example
 
 ### Data

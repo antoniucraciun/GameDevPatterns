@@ -22,6 +22,42 @@ Three ways to inject:
 
 Dependencies are usually **interfaces** (`ISaveService`), so the composition root decides which implementation each object gets. Tests pass in fakes.
 
+## Pseudocode
+
+```text
+// The shop declares what it needs and never looks anything up.
+Shop:
+    wallet, inventory, analytics      // interfaces, handed in from outside
+
+    create(wallet, inventory, analytics):   // constructor injection
+        keep all three
+
+    buy(item, price):
+        if not wallet.try_spend(price): return false
+        inventory.add(item)
+        analytics.track("purchase", item)
+        return true
+
+// Composition root: the one place that knows the concrete types.
+on startup:
+    analytics ← LogAnalytics if in the editor, else RemoteAnalytics
+    wallet    ← Wallet(starting gold 250)
+    inventory ← Inventory
+    shop_view.construct(Shop(wallet, inventory, analytics))   // method injection
+    enemy_spawner.construct(EnemyFactory(wallet, analytics))
+
+// Objects spawned later get their dependencies from the factory.
+EnemyFactory.create(template, position):
+    enemy ← new instance of template
+    enemy.construct(wallet, analytics)   // before its startup code runs
+    place enemy at position
+    return enemy
+
+// A test passes fakes and needs no scene.
+shop ← Shop(Wallet(50), Inventory, NullAnalytics)
+expect shop.buy("sword", 100) to be false
+```
+
 ## Example
 
 Plain logic with constructor injection and no engine dependency, so it can be unit tested:

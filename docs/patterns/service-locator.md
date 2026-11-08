@@ -12,6 +12,37 @@ Audio, analytics, save data and input are needed from all over the codebase. Pas
 
 Callers depend on an **interface** (`IAudioService`). A central **locator** maps interfaces to the instances currently providing them. A bootstrap step registers the real implementations at startup. Callers ask the locator for the interface and never learn which implementation they received. A **null object** can be registered as a safe default so missing services do not crash.
 
+## Pseudocode
+
+```text
+// Callers know the interface; the locator knows what implements it right now.
+AudioService:                     // the interface
+    play(clip, position)
+
+NullAudio is an AudioService:     // a safe default that does nothing
+    play(clip, position): do nothing
+
+Services:
+    map                           // service interface → current instance
+
+    register(interface, instance):
+        map[interface] ← instance
+
+    get(interface):
+        if interface is not in map:
+            fail "service not registered"    // or hand back its null object
+        return map[interface]
+
+// Bootstrap, once at startup: the only code that names concrete types.
+if running headless:
+    Services.register(AudioService, NullAudio)
+else:
+    Services.register(AudioService, the real audio service)
+
+// Anywhere: the caller never learns which implementation it got.
+Services.get(AudioService).play("explosion", position)
+```
+
 ## Example
 
 A registry that maps a service type to its current implementation, so callers ask for "the audio service" without knowing which one is running.

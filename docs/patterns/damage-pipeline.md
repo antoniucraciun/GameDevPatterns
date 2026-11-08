@@ -25,6 +25,43 @@ Treat every hit as a **`DamageInfo` flowing through an ordered list of stages**.
 
 Stages come from many places: the attacker's buffs, the target's equipment, global rules. Each registers with an order number, so adding a new rule never requires editing the others. Every stage can also write a line to a **breakdown**, so tooltips, combat logs and debugging can show exactly how 100 became 37.
 
+## Pseudocode
+
+```text
+DamageContext:              // one hit on its way through
+    info                    // a copy of the damage: amount, type, source, critical
+    target
+    cancelled ← false
+    breakdown ← empty list  // "100 physical", "armour 50 → 66.7", …
+
+Stage:
+    order                   // 100 crit … 700 apply to health, 800 thorns
+    process(context)        // may change, cancel or react to the hit
+
+DamagePipeline:             // one per character
+    stages ← empty list, kept sorted by order
+
+    add(stage):
+        add stage to stages; sort stages by order
+
+    run(info, target):
+        context ← new DamageContext(copy of info, target)
+        add "amount type from source" to context.breakdown
+        for each stage in stages:
+            if context.cancelled: stop     // immunity, or a shield ate it all
+            stage.process(context)
+        return context      // the breakdown explains the final number
+
+// A few stages:
+Armour (400):   if physical: amount ← amount × 100 / (100 + armour)
+Shield (600):   absorbed ← min(shield, amount)
+                shield ← shield - absorbed; amount ← amount - absorbed
+                if amount ≤ 0: cancelled ← true
+ApplyToHealth (700): target's health takes amount
+Thorns (800):   if type is not true damage:     // never reflect a reflection
+                    deal amount × reflect as true damage back to the source
+```
+
 ## Example
 
 The pipeline is a sorted list of stages that each read and change one damage context. `DamageInfo`, `Health` and `IDamageable` are from the [Health / Damageable](./health-component) page; armour comes from the [Stat & Modifier System](./stat-modifier-system) and immunity tags from [Status Effects](./status-effects).

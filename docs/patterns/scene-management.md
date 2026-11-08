@@ -26,6 +26,46 @@ A **scene loader** owns all loading:
 - **Set the active scene** to the level, so lighting settings and newly instantiated objects belong to it.
 - **Hold activation** (`allowSceneActivation = false`) until the loading screen has faded in and other work has finished, so the swap happens off-screen.
 
+## Pseudocode
+
+The level loader, then the distance check that streams one area of a larger world.
+
+```text
+SceneLoader:                         // lives in the persistent core
+    current_level ← none
+    is_loading ← false
+
+    load_level(level):
+        if is_loading: return        // one load at a time
+        is_loading ← true
+        fade the loading screen in   // cover the screen first
+        if current_level exists:
+            unload current_level, and wait
+            free assets nothing references any more
+        start loading level additively, in the background
+        while it is loading:
+            progress bar ← loading progress
+            wait one frame
+        activate level and make it the active scene
+        current_level ← level
+        raise level_loaded(level)
+        fade the loading screen out
+        is_loading ← false
+
+StreamingArea:                       // one per area of the world
+    scene, load_distance, unload_distance    // unload > load: hysteresis
+    loaded ← false,  busy ← false
+    every frame:
+        if busy: return
+        d ← distance from player to this area
+        if not loaded and d < load_distance:
+            busy ← true;  load scene additively and wait
+            loaded ← true;  busy ← false
+        else if loaded and d > unload_distance:
+            busy ← true;  unload scene and wait
+            loaded ← false;  busy ← false
+```
+
 ## Example
 
 A level loader that lives in a persistent core: fade out, unload the old level, load the new one in the background with a progress bar, then fade in.

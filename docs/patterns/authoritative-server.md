@@ -21,6 +21,52 @@ What may stay client-authoritative: purely cosmetic things that cannot affect ot
 
 The server can be **dedicated** (a headless build in a data centre: fair, scalable, costs money) or a **listen server/host** (one player's machine: free, but the host has zero latency and could cheat).
 
+## Pseudocode
+
+```text
+// ── Server: holds the only real copy of the game ──
+world
+    time
+    players          // each: position, health, gold, inventory,
+                     //   weapons (damage, range, cooldown, ready_at)
+    prices           // the server's price list, never the client's
+
+// sender always comes from the connection the request arrived on,
+// never from the request itself.
+on fire request (sender, target id, weapon slot):
+    shooter ← players[sender];  target ← players[target id]
+    if either is missing or dead, or the slot is not one of shooter's weapons:
+        reject(sender, invalid target)
+    weapon ← shooter's weapon in that slot
+    if world.time < weapon.ready_at:                    reject(sender, on cooldown)
+    if distance(shooter's eyes, target's centre) > weapon.range:
+        reject(sender, out of range)
+    if anything blocks the line between them:           reject(sender, no line of sight)
+    // Only now does the shot happen, with the server's own numbers.
+    weapon.ready_at ← world.time + weapon.cooldown
+    target.health ← target.health - weapon.damage
+    tell every client: sender hit target for weapon.damage
+
+on move input (sender, move):
+    if length(move) > 1: shorten move to length 1      // clamp tampered input
+    dt ← the server's own step                          // a client can't claim a huge one
+    players[sender].position ← move with collisions by move × speed × dt
+
+on buy request (sender, item):
+    if item is not in prices:                           reject(sender, invalid target)
+    if players[sender].gold < prices[item]:            reject(sender, not enough gold)
+    players[sender].gold ← players[sender].gold - prices[item]
+    add item to players[sender].inventory
+
+reject(client, reason):
+    send reason to that client only, and stop handling the request
+
+// ── Client: sends intentions, shows the state it receives ──
+when the player acts:   send the request ("fire at 3 with slot 0"), never a result
+on reject(reason):      undo what it showed early (refund ammo, play a "click")
+on hit or state update: show it
+```
+
 ## Example
 
 Server-side request handling. The client asks, and the server checks everything with its own data. The Unity tab is transport-agnostic; the Godot and Unreal tabs use each engine's built-in RPCs, which also tell the server **who** sent a request, so a client can't claim to be someone else.

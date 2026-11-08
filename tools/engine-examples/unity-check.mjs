@@ -8,7 +8,7 @@
 // declared in stubs/<slug>.cs, inside that page's namespace (Page_<slug with underscores>).
 //
 // Environment (defaults match the machine this was written on):
-//   UNITY_EDITOR   Unity editor folder         C:/Program Files/Unity/Hub/Editor/6000.6.0f1
+//   UNITY_EDITOR   Unity editor folder         C:/Program Files/Unity/Hub/Editor/6000.6.8f1
 //   UNITY_PROJECT  a Unity project with Library/ScriptAssemblies (for UnityEngine.UI etc.)
 //                                              G:/GameDev/UnityProjects/SurvivalGame
 //
@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const patternsDir = join(here, '../../docs/patterns')
 const work = join(here, '.check')
-const editor = process.env.UNITY_EDITOR ?? 'C:/Program Files/Unity/Hub/Editor/6000.6.0f1'
+const editor = process.env.UNITY_EDITOR ?? 'C:/Program Files/Unity/Hub/Editor/6000.6.8f1'
 const project = process.env.UNITY_PROJECT ?? 'G:/GameDev/UnityProjects/SurvivalGame'
 
 // Pages whose Unity tab needs packages that aren't reliably available to this check.

@@ -12,6 +12,45 @@ A player controller starts with a few booleans: `isJumping`, `isCrouching`, `isA
 
 Model the object as being in exactly **one state** at a time. Each state is an object that handles input and updates for that mode, and decides when to **transition** to another state. States get `Enter` and `Exit` hooks for setup and cleanup, such as starting an animation or resetting a timer. Illegal combinations cannot happen because only one state is active.
 
+## Pseudocode
+
+```text
+// Every state offers the same hooks; the machine only knows this shape.
+State:
+    enter()          // setup: start an animation, apply a jump
+    exit()           // cleanup
+    tick(dt)         // this mode's rules, and when to leave it
+
+StateMachine:
+    current          // exactly one active state
+
+    change_to(next):
+        if current exists: current.exit()
+        current ← next
+        current.enter()
+
+    tick(dt):
+        current.tick(dt)
+
+Grounded is a State:
+    tick(dt):
+        move the player at full speed
+        if jump pressed or no ground below:
+            machine.change_to(Airborne)
+
+Airborne is a State:
+    enter():
+        if jump pressed: jump        // walking off a ledge does not jump
+    tick(dt):
+        move the player at 60% speed // reduced air control
+        if on the ground and not rising:
+            machine.change_to(Grounded)
+
+// The player creates each state once and reuses it.
+machine.change_to(Grounded)
+every frame: machine.tick(dt)
+```
+
 ## Example
 
 A platformer character with two states, **Grounded** and **Airborne**. Each state owns its own movement rules and decides when to hand over to the other.

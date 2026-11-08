@@ -17,6 +17,26 @@ On impact, **stop time briefly**: typically 40–150 ms, roughly 3–9 frames at
 - **Do not stack.** Ten hits in one frame should give one stop of the *longest* duration, not ten stops added together.
 - **Keep feedback alive.** Screen shake, particles and sound should play during the stop, on unscaled time. The freeze is what makes them read clearly.
 
+## Pseudocode
+
+```text
+// Global stop: one time-scale request, timed in real time,
+// because game time is frozen while it runs.
+trigger(duration, scale = 0):
+    end ← real now + duration
+    if a freeze is running and end ≤ resume_at:
+        return                    // a longer stop is already running: don't stack
+    resume_at ← end
+    if no freeze is running: freeze ← push time-scale request(scale)
+
+every frame, even while the game is paused:
+    if a freeze is running and real now ≥ resume_at:
+        release freeze
+
+// Local stop: the same rules, but set the attacker's and the victim's
+// animation speed to 0 and restore it at resume_at.
+```
+
 ## Example
 
 A global hit stop built on [Time Scale](./time-scale) requests (`GameTime` in Unity and Godot, `UGameTimeSubsystem` in Unreal). The stop is timed in real time, because game time is frozen while it runs:

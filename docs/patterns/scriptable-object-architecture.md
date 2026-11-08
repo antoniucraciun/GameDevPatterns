@@ -20,6 +20,49 @@ Use **data assets** as the shared meeting point: ScriptableObjects in Unity, `Re
 
 The player *writes* `PlayerHealth`, and the HUD *reads* it. Neither references the other, and the connection is made by dragging the same asset into both inspectors. Scenes can load and unload independently, and designers can wire new reactions themselves.
 
+## Pseudocode
+
+The mechanism underneath: an asset the engine loads once and hands to everything that references it.
+
+```text
+// A data asset lives outside every scene. All objects that reference
+// it get the same loaded instance, so it works as a meeting point.
+FloatVariable (shared asset):
+    initial_value          // saved in the asset, edited by designers
+    value                  // runtime only, never saved back into the asset
+    listeners
+
+    on load (or at game start):  value ← initial_value   // no run inherits the last one's
+    set(v):
+        if v = value: return
+        value ← v
+        for each listener: listener(value)
+
+EventChannel (shared asset):
+    listeners
+    raise():  for each listener: listener()
+
+RuntimeSet (shared asset):
+    items                  // runtime only
+    add(x):    if x is not in items: append x
+    remove(x): remove x from items
+
+// Wiring: both sides reference the same assets, never each other.
+PlayerHealth (gameplay scene):    health asset, player-died channel
+    take_damage(amount):
+        health.set(max(0, health.value - amount))
+        if health.value ≤ 0: player_died.raise()
+
+HealthBar (UI scene):             the same health asset
+    on enable:  add refresh to health.listeners; refresh(health.value)
+    on disable: remove refresh from health.listeners
+    refresh(v): fill ← v / max
+
+Enemy:                            the active-enemies set
+    on enable:  active_enemies.add(this)
+    on disable: active_enemies.remove(this)
+```
+
 ## Example
 
 The idea is engine-wide: **shared data assets** that several objects reference, holding values, events and lists, so objects talk through the asset instead of referencing each other. Unity uses ScriptableObjects, Godot uses `Resource`s and Unreal uses Data Assets.

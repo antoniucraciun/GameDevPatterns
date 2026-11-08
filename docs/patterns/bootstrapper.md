@@ -17,6 +17,46 @@ Have **one place** that runs first and initialises everything the game needs, in
 - **Persistent services.** Create services under one root that survives level loads (a `DontDestroyOnLoad` root or persistent scene in Unity, an autoload in Godot, `GameInstance` subsystems in Unreal), and register them with the [Service Locator](./service-locator) or DI container. This is the composition root from [Dependency Injection](./dependency-injection).
 - **A "ready" signal.** Gameplay waits for the bootstrapper to finish, instead of each system checking whether its dependencies happen to exist.
 
+## Pseudocode
+
+```text
+BootStep:
+    name
+    run()                    // may wait, e.g. for file IO or a network call
+
+Bootstrapper:
+    is_ready ← false
+    ready                    // event raised once boot has finished
+
+    // Runs before the first scene, whichever scene play started from.
+    boot():
+        create the persistent services root, kept across level loads
+        steps ← [ LoadSettings,
+                  Platform,          // SDK and sign-in
+                  Analytics,         // needs the platform user id
+                  LoadSave ]         // needs settings and platform
+        for each step in steps, in order:
+            wait for step.run()
+            if it failed: log it and continue in degraded mode
+            log step.name and how long it took
+        is_ready ← true
+        raise ready
+
+    wait_until_ready():
+        if not is_ready: wait for ready
+
+LoadSettings is a BootStep:
+    run():
+        text ← settings file read off the main thread, or "{}" if none
+        register the parsed settings with the service locator
+
+// Gameplay that needs services:
+level_start():
+    wait for Bootstrapper.wait_until_ready()
+    settings ← services.get(settings)
+    start the level
+```
+
 ## Example
 
 Ordered boot steps that run before the first level, whichever level you start from, with a way for gameplay to wait until boot has finished.
@@ -87,8 +127,9 @@ public class LoadSettingsStep : IBootStep
     public string Name => "Settings";
     public async Awaitable Run()
     {
+        var path = SettingsPath;                          // persistentDataPath is main-thread only
         await Awaitable.BackgroundThreadAsync();         // file IO off the main thread
-        var json = System.IO.File.Exists(SettingsPath) ? System.IO.File.ReadAllText(SettingsPath) : "{}";
+        var json = System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path) : "{}";
         await Awaitable.MainThreadAsync();                // back to the main thread to touch Unity APIs
         Services.Register(JsonUtility.FromJson<GameSettings>(json));
     }

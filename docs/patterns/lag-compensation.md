@@ -19,6 +19,47 @@ The server **remembers recent history** and judges each shot **in the shooter's 
 
 The trade-off is unavoidable: lag compensation favours the **shooter**. A victim can be hit "behind cover", because in the shooter's slightly older view they were not behind it yet.
 
+## Pseudocode
+
+Positions are recorded by server tick here; with a variable server tick rate, use server time in place of ticks.
+
+```text
+// ── Server ──
+tick rate  ← 60;   max rewind ← 0.25 s;   hit radius ← 0.4 m
+history[player] ← ring buffer of (tick, hitbox position), the last 60 ticks (1 s)
+current[player] ← hitbox position now
+server tick
+
+every server tick, after movement:
+    server tick ← this tick
+    for each player p:
+        record (server tick, p's hitbox position) in history[p]
+        current[p] ← p's hitbox position
+
+sample(history, tick):        // tick may be fractional
+    find the two recorded entries "earlier" and "later" with earlier.tick ≤ tick ≤ later.tick
+    if none: return nothing   // older than the buffer, or in the future
+    t ← (tick - earlier.tick) / (later.tick - earlier.tick)   // 0 if they are equal
+    return lerp(earlier.position, later.position, t)
+
+on shot (shooter, ray, range, client view tick):
+    // Clamp instead of trusting the client blindly.
+    tick ← clamp(client view tick, server tick - max rewind × tick rate, server tick)
+    best ← range;  victim ← none
+    for each player p other than shooter:
+        centre ← sample(history[p], tick), or current[p] if nothing
+        d ← distance along ray to the sphere (centre, hit radius)   // the REWOUND position
+        if the ray hits it and d < best:
+            best ← d;  victim ← p
+    // Level geometry is checked in the present: walls don't move.
+    return victim
+
+// ── Client ──
+on fire:
+    client view tick ← (estimated server time - interpolation delay) × tick rate
+    send (ray, client view tick)    // the moment it was actually showing
+```
+
 ## Example
 
 Server side, transport-agnostic, using simple sphere hitboxes for clarity. None of the three engines has a general-purpose lag compensation system, so this is engine-free logic in every tab. The Unity and Godot tabs record by fixed tick; Unreal's server ticks at a variable rate, so its tab records by server time instead.

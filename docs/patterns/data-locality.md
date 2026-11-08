@@ -22,6 +22,39 @@ Techniques, roughly from simplest to most involved:
 | **Structure of Arrays (SoA)** | Separate arrays per field (`positions[]`, `velocities[]`), so a loop that needs only positions touches only positions. Ideal for SIMD. |
 | **Sort by access** | Process items grouped by type or material, so branches are predictable and shared data stays cached. |
 
+## Pseudocode
+
+```text
+// Before: a list of pointers to particle objects scattered on the heap.
+// Each step of the loop jumps to a new address and drags in cold fields.
+for each pointer p in particles:
+    p.velocity ← p.velocity + gravity × dt
+    p.position ← p.position + p.velocity × dt
+    p.life ← p.life - dt
+
+// After: structure of arrays, all sized to capacity up front.
+ParticlesSoA:
+    position[capacity], velocity[capacity], life[capacity]  // hot: read every tick
+    start_color[capacity], end_color[capacity]              // cold: spawn and render only
+    count        // live particles are always packed in 0 .. count-1
+
+    tick(dt):
+        g ← gravity × dt
+        for i from 0 to count-1:          // walks memory in order: few misses
+            velocity[i] ← velocity[i] + g
+            position[i] ← position[i] + velocity[i] × dt
+            life[i] ← life[i] - dt
+
+        i ← 0
+        while i < count:                  // remove dead ones, keep it dense
+            if life[i] > 0:
+                i ← i + 1
+            else:
+                count ← count - 1
+                copy slot count into slot i in EVERY array   // swap-remove
+                // don't advance i: slot i now holds a particle not checked yet
+```
+
 ## Example
 
 Measure before and after: the Unity Profiler (or a `Stopwatch` around the loop), Godot's profiler, or Unreal Insights with a `TRACE_CPUPROFILER_EVENT_SCOPE` around the update. Layout changes that don't show up in a measurement aren't worth their complexity.

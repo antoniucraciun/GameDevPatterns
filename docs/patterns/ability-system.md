@@ -25,6 +25,42 @@ TryActivate(ability, target)
   └─ foreach effect: effect.Apply(context)   ── Damage, ApplyStatus, Heal, …
 ```
 
+## Pseudocode
+
+```text
+AbilityDefinition:          // data, made by designers
+    mana_cost, cooldown, range
+    targeting               // self, enemy or ally
+    blocked_by_tags         // e.g. stun, silence
+    effects                 // ordered list: damage, heal, apply status…
+
+AbilityRunner:              // on every character, player or AI
+    mana, team
+    ready_at[ability]       // the time each ability comes off cooldown
+
+    can_activate(ability, target):       // the one shared check
+        if now < ready_at[ability]: return OnCooldown
+        if mana < ability.mana_cost: return NotEnoughMana
+        if this character has any of ability.blocked_by_tags: return Blocked
+        if ability.targeting is self: target ← this runner
+        if target is missing, or on the wrong team for the targeting:
+            return InvalidTarget
+        if distance to target > ability.range: return OutOfRange
+        return Success
+
+    try_activate(ability, target):
+        result ← can_activate(ability, target)
+        if result is not Success: return result   // the UI shows it, the AI picks again
+        if ability.targeting is self: target ← this runner
+        mana ← mana - ability.mana_cost
+        ready_at[ability] ← now + ability.cooldown
+        context ← (caster: this runner, target, ability)
+        for each effect in ability.effects:
+            effect.apply(context)       // e.g. damage 20, then apply Slow
+        announce activated(ability, target)      // animation, VFX, audio
+        return Success
+```
+
 ## Example
 
 ### Definitions and effects
@@ -58,7 +94,8 @@ public abstract class AbilityEffect
 public class DamageEffect : AbilityEffect
 {
     public int amount = 10;
-    public override void Apply(in AbilityContext ctx) => ctx.Target.Health.TakeDamage(amount);
+    public override void Apply(in AbilityContext ctx) =>
+        ctx.Target.Health.TakeDamage(new DamageInfo { Amount = amount, Type = DamageType.Physical, Source = ctx.Caster.gameObject });
 }
 
 [Serializable]

@@ -14,6 +14,26 @@ Record **when the character was last grounded**. Allow a jump as long as that mo
 
 <JumpTimingViz mode="coyote" />
 
+## Pseudocode
+
+Combined with an input buffer, as in the Example:
+
+```text
+last_grounded ← -∞
+last_jump_pressed ← -∞
+
+every frame:
+    if grounded: last_grounded ← now
+    if Jump was pressed this frame: last_jump_pressed ← now
+
+    can_coyote_jump ← now - last_grounded ≤ coyote_time        // late press
+    jump_buffered   ← now - last_jump_pressed ≤ jump_buffer_time   // early press
+    if can_coyote_jump and jump_buffered:
+        vertical velocity ← jump velocity
+        last_grounded ← -∞       // no second jump from the same grace period
+        last_jump_pressed ← -∞   // consume the buffered press
+```
+
 ## Example
 
 Combined with an [Input Buffer](./input-buffer), this covers both early and late presses:

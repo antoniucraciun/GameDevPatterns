@@ -12,6 +12,38 @@ When the player dies, the HUD must update, a sound plays, the achievement system
 
 The **subject** (the player) exposes an event. **Observers** subscribe to it. When something happens, the subject raises the event and every subscriber is notified. The subject knows nothing about who is listening. New reactions are added by subscribing, without touching the subject.
 
+## Pseudocode
+
+```text
+// The event: a list of callbacks with one signature.
+Event:
+    listeners               // functions to call, in subscription order
+    subscribe(f):   add f to listeners
+    unsubscribe(f): remove f from listeners
+    raise(args):
+        for each f in a copy of listeners:   // a handler may unsubscribe
+            f(args)
+
+// The subject owns its events and never names a listener.
+Player:
+    health ← 100
+    health_changed : Event(current, max)
+    died           : Event(player)
+
+    take_damage(amount):
+        health ← max(0, health - amount)
+        health_changed.raise(health, 100)
+        if health = 0: died.raise(this player)
+
+// An observer subscribes for exactly as long as it is alive.
+HealthBar:
+    on enable:  player.health_changed.subscribe(on_health_changed)
+    on disable: player.health_changed.unsubscribe(on_health_changed)
+
+    on_health_changed(current, max):
+        fill ← current / max
+```
+
 ## Example
 
 Each engine has observers built in: C# events in Unity, signals in Godot, multicast delegates in Unreal. A health component announces changes; a health bar listens without the player knowing it exists.

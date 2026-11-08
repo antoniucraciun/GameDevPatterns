@@ -17,6 +17,39 @@ A **scheduler** owns all timers. Code asks it to *"call this in 3 seconds"* or *
 - Timers can have an **owner**. When the owner is destroyed, its timers are cancelled automatically, so callbacks never touch dead objects.
 - **Repeating timers** reschedule themselves from their *due time*, not from "now", so they do not drift.
 
+## Pseudocode
+
+```text
+Timer:                       // also the handle the caller keeps
+    callback
+    due                      // when it should run, on its clock
+    interval                 // 0 = once; otherwise repeat this often
+    owner                    // optional: skipped once the owner is destroyed
+    active ← true
+
+Scheduler:
+    one queue per clock (scaled game time, unscaled real time),
+    ordered by due time; equal due times keep scheduling order
+
+    after(seconds, callback, owner, clock):
+        add Timer(callback, due ← now(clock) + seconds, interval ← 0) to that clock's queue
+    every(interval, callback, owner, clock):
+        add Timer(callback, due ← now(clock) + interval, interval) to that clock's queue
+
+    every frame, for each clock:
+        now ← now(clock)
+        while the queue's earliest timer t has t.due ≤ now:   // later ones aren't due either
+            remove t from the queue
+            if t is not active or t.owner was destroyed: skip it
+            run t.callback
+            if t.interval > 0 and t is still active:
+                t.due ← t.due + t.interval        // from the due time: no drift
+                if t.due ≤ now: t.due ← now + t.interval   // after a hitch, skip missed repeats
+                put t back in the queue
+
+cancel(t): t.active ← false      // dropped when it reaches the front
+```
+
 ## Example
 
 A scheduler that runs callbacks later or repeatedly, cancels them with a handle, stops them when their owner is destroyed, and can ignore pause and slow motion. Unity needs one written; Godot and Unreal mostly have it built in.

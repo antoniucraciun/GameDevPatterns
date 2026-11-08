@@ -27,6 +27,45 @@ snapshots:    t=1.00      t=1.05      t=1.10      t=1.15 (latest)
 
 <NetSyncViz mode="interpolation" />
 
+## Pseudocode
+
+```text
+// ── Server, at its network rate (e.g. 20 Hz) ──
+send each remote entity's (server time, position, rotation) to clients
+
+// ── Client, on each remote entity ──
+buffer ← snapshots sorted by server time, oldest first
+delay  ← 0.1 s                       // about 2–3 snapshot intervals
+
+on snapshot s:
+    if s.server time ≤ the oldest buffered time: ignore it   // stale
+    if a snapshot with the same time is buffered: ignore it  // duplicate
+    insert s in time order               // packets can arrive out of order
+
+every frame:
+    if buffer is empty: return
+    render time ← estimated server time - delay
+    // Drop snapshots we have moved past, keeping one before render time.
+    while buffer has 2+ snapshots and buffer[1].server time ≤ render time:
+        remove buffer[0]
+    a ← buffer[0]
+    if buffer has 2+ snapshots and a.server time ≤ render time:
+        b ← buffer[1]                    // normal case: a ≤ render time < b
+        t ← (render time - a.server time) / (b.server time - a.server time)
+        position ← lerp(a.position, b.position, t)
+        rotation ← slerp(a.rotation, b.rotation, t)
+    else:
+        // Just connected (render time before a) or starved (only a left):
+        // hold a, or extrapolate by velocity × min(render time - a.server time, 0.25 s).
+        position ← a.position;  rotation ← a.rotation
+
+// ── Client clock: local real time plus a smoothed offset ──
+estimated server time = local time + offset
+on time sync (server time, round trip):
+    sample ← server time + round trip / 2 - local time
+    offset ← sample if this is the first sync, else offset + (sample - offset) × 0.1
+```
+
 ## Example
 
 A snapshot buffer on each remote entity, rendered a fixed delay behind the estimated server time. Unity and Godot estimate the server clock themselves; Unreal's game state already provides one.

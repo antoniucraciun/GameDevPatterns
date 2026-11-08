@@ -18,6 +18,43 @@ For each client, the server decides which entities are **relevant**, and replica
 - **Hysteresis.** Use a larger *leave* radius than *enter* radius, so entities at the boundary do not flicker in and out.
 - **Priority and frequency.** Relevant entities are not equal. Nearby enemies update every snapshot, while distant vehicles update every fourth one. This is a bandwidth budget per client.
 
+## Pseudocode
+
+All of this runs on the server; the client only spawns, updates and despawns what it is sent.
+
+```text
+enter radius < leave radius            // the gap is the hysteresis
+grid ← cells of size enter radius, each listing the entities inside it
+known[client] ← ids of the entities that client currently has
+
+every network tick:
+    rebuild grid from every entity's position         // once, not per client
+    for each client:
+        update(client, client's player position)
+        send each spawn with full state, then each despawn
+        send state updates only for known[client];
+            far ones less often (e.g. every 4th tick beyond 60 m)
+
+update(client, viewer):
+    // 1. Candidates: grid cells within the leave radius, plus the always-relevant.
+    candidates ← entities in cells within leave radius of viewer's cell
+                 + always-relevant entities (game state, scoreboard)
+    still relevant ← empty set
+    // 2. Enter: decide each candidate.
+    for each e in candidates:
+        d ← distance(viewer, e.position)
+        relevant ← e is always relevant
+                   or e is owned by client
+                   or d ≤ enter radius
+                   or (e is in known[client] and d ≤ leave radius)   // hysteresis
+        if relevant:
+            add e to still relevant
+            if e is not in known[client]: add it, and spawn e for client
+    // 3. Leave: anything known but not still relevant.
+    for each id in known[client] that is not in still relevant:
+        remove id from known[client];  despawn it for client
+```
+
 ## Example
 
 The Unity tab is a grid-based relevancy system on the server, independent of any netcode package. Godot and Unreal already decide per peer what to replicate, so their tabs plug the same rules (radius, hysteresis, always relevant, owner) into the engine's own relevancy hooks.

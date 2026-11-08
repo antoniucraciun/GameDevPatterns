@@ -23,6 +23,42 @@ Tuning the fill percentage, the thresholds and the iteration count changes the c
 
 <CellularAutomataViz />
 
+## Pseudocode
+
+```text
+// true = wall, false = floor
+generate(width, height, seed, fill chance ← 0.45, iterations ← 5, min region size ← 30):
+    for each attempt, with seed + attempt:      // too small a cave: try the next seed
+        random ← generator seeded with seed + attempt
+
+        // 1. Random fill, with solid borders.
+        for each cell:
+            map[cell] ← cell is on the border, or random value < fill chance
+
+        // 2–3. Smooth with the 4-5 rule, reading only the previous grid.
+        repeat iterations times:
+            for each cell:
+                if cell is on the border: next[cell] ← wall; continue
+                walls ← walls among the 8 neighbours of cell in map
+                next[cell] ← walls ≥ 5, or (walls = 4 and map[cell] is wall)
+            swap map and next                   // double buffer
+
+        // 4. Keep only the largest cave.
+        regions ← floor_regions(map)
+        fill every region except the largest with wall
+        if the largest region has at least min region size cells:
+            return map
+
+floor_regions(map):        // flood fill, 4-connected
+    for each floor cell s not yet seen:
+        region ← [s]; mark s seen
+        for each cell c in region, as region grows:
+            for each up/down/left/right neighbour n of c:
+                if n is inside, floor and not seen: mark n seen; add n to region
+        add region to regions
+    return regions
+```
+
 ## Example
 
 Cave generation with the 4-5 rule. The **core** fills the grid from a seed, smooths it, and keeps only the largest cave, so the same seed always gives the same cave. The **engine wiring** paints the walls into a tilemap or instanced meshes.
@@ -431,8 +467,6 @@ For smooth outlines instead of blocks, build a mesh from the grid with marching 
 - **Unity:** Rule Tiles (2D Tilemap Extras package) choose edge sprites from neighbours; `Tilemap.SetTilesBlock` is faster than `SetTile` per cell for big maps. `System.Random(seed)` is repeatable on a given .NET runtime; use your own generator (see [Seeded Randomness](./seeded-randomness)) if results must match across platforms or versions.
 - **Godot:** `TileMapLayer` (4.3+; earlier versions use layers of a single `TileMap`) with **terrains** does the autotiling, and `set_cells_terrain_connect` applies it from code. `RandomNumberGenerator` with an explicit `seed` is repeatable on every platform.
 - **Unreal:** no built-in cellular automaton. Instanced or hierarchical instanced static meshes keep thousands of wall blocks cheap, and **PCG** graphs can place props in the generated cave. `FRandomStream` is repeatable on every platform.
-
-## When to use
 
 ## When to use
 

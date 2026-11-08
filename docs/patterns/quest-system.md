@@ -17,6 +17,44 @@ Separate the **definition** of a quest from its **runtime progress**, and let ob
 - **`QuestLog`** holds the runtime state: which quests are active, the current stage, each objective's progress. It completes stages, grants rewards, and saves as plain data.
 - Gameplay code just **publishes events** (`EnemyKilled`, `ItemCollected`, `TalkedTo`, `EnteredArea`). It knows nothing about quests.
 
+## Pseudocode
+
+```text
+QuestDefinition:            // data: "Healing herbs"
+    id, title, stages, reward_gold, unlocks_on_complete
+QuestStage:
+    objectives              // e.g. collect 10 healing_herb
+    any_objective           // false: all must finish; true: any one
+Objective:                  // listens for one kind of gameplay event
+    required
+    subscribe(add_progress) // calls add_progress(n) when a matching event arrives
+
+QuestLog:
+    active[quest id] ← (definition, stage, progress per objective)
+    completed ← set of quest ids
+
+    start(definition):
+        if it is already active or completed: return
+        active[definition.id] ← new quest; enter_stage(quest, 0)
+
+    enter_stage(quest, stage):
+        progress ← 0 for each objective of that stage
+        for each objective i of the stage:
+            objective.subscribe(n → add_progress(quest, i, n))
+
+    add_progress(quest, i, n):
+        progress[i] ← min(progress[i] + n, objective i's required)
+        if the stage is not done (any one / all, as the stage says): return
+        unsubscribe every objective of the stage
+        if there is a next stage: enter_stage(quest, stage + 1)
+        else:
+            move quest.id from active to completed
+            grant reward_gold                   // rewards first,
+            for each next in unlocks_on_complete: start(next)   // then unlocks
+
+// Gameplay only publishes facts: item collected("healing_herb", 1).
+```
+
 ## Example
 
 Gameplay only publishes facts ("an orc died", "a herb was picked up") on the [Event Bus](./event-bus); quests listen and count. The bus is the one from that page, with an `ItemCollected` event added.

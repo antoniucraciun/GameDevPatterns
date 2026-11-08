@@ -19,6 +19,27 @@ Separate **how much** shaking from **how it moves**:
 5. **Rotation** shake (a few degrees of roll, pitch and yaw) sells impacts more than translation does, especially in 3D.
 6. Apply the shake to a **child** of the camera rig, so follow, look-at and game logic never see the offset.
 
+## Pseudocode
+
+```text
+trauma ← 0                       // 0..1; events add to it
+
+add_trauma(amount):              // pistol 0.1, explosion 0.6
+    trauma ← clamp(trauma + amount, 0, 1)
+
+// On the shake node, a child of the camera rig, every frame in real time
+// so it keeps shaking during hit stop and slow motion:
+t     ← real now × frequency
+shake ← trauma² × user_scale     // small trauma barely shows; user_scale for accessibility
+offset   ← max_offset × shake × (noise(0, t), noise(1, t), 0)
+rotation ← max_angle × shake × (noise(2, t), noise(3, t), noise(4, t))
+apply offset and rotation to the shake node
+trauma ← max(0, trauma - decay_per_second × real frame time)
+
+noise(channel, t):               // smooth noise, one row per channel, in -1..1
+    return perlin(channel, t) remapped to -1..1
+```
+
 ## Example
 
 A trauma-based shake: hits add trauma, the shake strength is trauma squared, and smooth noise drives the offset and rotation. Unreal has this built in, so its tab configures and plays the engine's camera shakes instead.

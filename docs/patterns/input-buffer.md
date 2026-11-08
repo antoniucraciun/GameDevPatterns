@@ -14,6 +14,32 @@ When an action is pressed but cannot happen yet, **remember the press with a tim
 
 <JumpTimingViz mode="buffer" />
 
+## Pseudocode
+
+```text
+// The buffer remembers one press and when it happened.
+BufferedInput:
+    window              // how long a press stays valid, e.g. 0.15 s
+    pressed_at ← -∞     // time of the last unconsumed press
+
+    press():
+        pressed_at ← now
+
+    is_buffered():
+        return now - pressed_at ≤ window
+
+    try_consume():
+        if not is_buffered(): return false
+        pressed_at ← -∞     // consume, so the press fires only once
+        return true
+
+// The platformer, every frame:
+if Jump was pressed this frame:
+    jump.press()        // remember it even though we can't jump yet
+if grounded and jump.try_consume():
+    jump
+```
+
 ## Example
 
 A buffered jump: the press is remembered for a short window and consumed the first frame the character is grounded.

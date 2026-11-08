@@ -12,6 +12,22 @@ What goes wrong without this pattern? Describe a concrete game situation.
 
 The idea in a few sentences. Add a diagram or a short list of participants if it helps.
 
+## Pseudocode
+
+Optionally one short sentence on what the outline shows.
+
+```text
+// The core mechanism in about 10-30 lines, in no particular language:
+// the data each participant holds, then the main operations.
+Participant
+    field         // what it holds and why
+
+operation(argument):
+    for each item in collection:
+        result ← something(item)    // comment the reasoning, not the syntax
+    return result
+```
+
 ## Example
 
 One line on what the example builds. If it has an engine-free core, split it into **Core** and **Engine wiring**; otherwise use a single tab group.

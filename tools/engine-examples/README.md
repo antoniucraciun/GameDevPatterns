@@ -32,7 +32,7 @@ Helpers for converting pattern pages to three-engine examples (Unity C#, Godot G
 Reference pages already converted: [a-star.md](../../docs/patterns/a-star.md) (Core + Engine wiring split), [time-scale.md](../../docs/patterns/time-scale.md) (several tab groups with prose between), [scriptable-object-architecture.md](../../docs/patterns/scriptable-object-architecture.md) (engine-specific pattern shown through each engine's equivalent).
 
 - **Only the Example section changes.** Replace `## Example (Unity C#)` and everything up to `## When to use` with a new `## Example` section. Leave the structure of Problem, Solution (including any `<…Viz />` visualizer), When to use, When not to use, Pitfalls and Related as it is, but keep their prose engine-neutral: say "startup callback", "the frame delta" or "template" rather than `Awake`, `Time.deltaTime` or "prefab", and where a point is engine-specific, name all three engines (or say which one it applies to).
-- **Every code block is a three-tab code group**, tabs named exactly `Unity (C#)`, `Godot (GDScript)`, `Unreal (C++)`, in that order. Language-neutral pseudocode can stay a plain block.
+- **Every code block is a three-tab code group**, tabs named exactly `Unity (C#)`, `Godot (GDScript)`, `Unreal (C++)`, in that order. Language-neutral pseudocode doesn't belong in the Example: it goes in the page's single `## Pseudocode` section directly before `## Example`, as one plain ```` ```text ```` block (see [docs/contributing.md](../../docs/contributing.md#pseudocode)). `splice-example.mjs` leaves that section alone.
 - **Keep the existing Unity code** unless it doesn't compile or is wrong; turn stray top-level statements ("Anywhere: …") into comments so every tab compiles.
 - **Idiomatic per engine**, never transliterated: Godot 4 (typed GDScript, nodes, `@export`, signals, `await`, autoloads, Resources); Unreal Engine 5 (`UCLASS`/`UPROPERTY`, actors, components, subsystems, delegates, `TArray`/`TMap`, header and source in one block separated by a `// File.cpp` comment).
 - **Use what the engine already has.** If an engine has a built-in feature for the pattern (Godot's `UndoRedo`, Unreal's Behavior Trees, GAS, Enhanced Input…), show it or point to it instead of rewriting it. If an engine has no real equivalent, say so in the notes rather than forcing code.
@@ -44,7 +44,7 @@ Reference pages already converted: [a-star.md](../../docs/patterns/a-star.md) (C
 ## Requirements
 
 - Node.js and the .NET SDK.
-- A Unity editor install (`UNITY_EDITOR`, default `C:/Program Files/Unity/Hub/Editor/6000.6.0f1`).
+- A Unity editor install (`UNITY_EDITOR`, default `C:/Program Files/Unity/Hub/Editor/6000.6.8f1`).
 - Optional: a Unity project (`UNITY_PROJECT`, default `G:/GameDev/UnityProjects/SurvivalGame`) whose `Library/ScriptAssemblies` provides package assemblies that the editor install doesn't: `UnityEngine.UI` (uGUI), `Unity.TextMeshPro`, `Unity.InputSystem`, `Unity.Mathematics`, `Unity.Collections`, `Unity.Burst`, `Unity.AI.Navigation` (NavMeshSurface) and `UnityEngine.TestRunner` (the Test Framework's `[UnityTest]`, `LogAssert`). To check snippets that need another package, add its assembly name to the list in `unity-check.mjs`, or add the page to `SKIP` with a comment.
 - Pages in `SKIP` must be checked inside a real Unity project instead. Currently: `entity-component-system` (needs Entities plus matching source generators), `asset-reference` (needs Addressables) and `localization-tables` (needs Localization).
 

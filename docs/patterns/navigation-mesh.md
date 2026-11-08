@@ -29,6 +29,61 @@ All three engines have one built in:
 - **Godot:** `NavigationRegion3D` (baking), `NavigationAgent3D`, `NavigationObstacle3D`, `NavigationLink3D`, and region `enter_cost` and `travel_cost`, all backed by `NavigationServer3D`.
 - **Unreal:** a **Nav Mesh Bounds Volume** builds a Recast navmesh; nav areas and `UNavModifierComponent` set costs, **Nav Link Proxy** actors add jumps, and `AAIController::MoveTo` follows paths.
 
+## Pseudocode
+
+What the engine's navmesh does underneath once it is baked (search, smooth, follow), and how the Example's agent uses it.
+
+```text
+Polygon:
+    corners                      // convex, so any two points inside see each other
+    neighbours                   // polygons sharing an edge, with that shared edge
+    area_cost                    // road 1, mud 5, ...
+
+find_path(start, goal):
+    start_poly ← polygon containing start;  goal_poly ← polygon containing goal
+    // 1. Search: A* with polygons as nodes. Moving into neighbour n costs the
+    //    distance between their edge midpoints × n.area_cost.
+    corridor ← a_star(start_poly, goal_poly)          // a list of polygons
+    if corridor does not reach goal_poly: return partial
+    // 2. Smooth: pull a string through the shared edges ("portals").
+    portals ← the shared edge (left end, right end) between each pair of
+              consecutive polygons, then (goal, goal)
+    return string_pull(start, portals)
+
+string_pull(start, portals):                          // the funnel algorithm
+    path ← [start]
+    apex, left, right ← start                         // the funnel: apex plus two sides
+    i ← 0
+    while i < number of portals:
+        (new_left, new_right) ← portals[i]
+        if new_right does not widen the funnel on the right side:
+            if the funnel is a point, or new_right stays right of the left side:
+                right ← new_right                     // narrow the funnel
+            else:                                     // the sides crossed:
+                add left to path                      // the left side is a corner
+                apex, right ← left
+                i ← the portal after the one that set left
+                continue
+        do the same for new_left, mirrored
+        i ← i + 1
+    add the last portal's point (the goal) to path
+    return path                                       // the corners to walk through
+
+// The Example's agent.
+try_move_to(destination):
+    point ← nearest point on the navmesh within 2 m of destination
+    if there is none: return false                    // clicked on a wall or prop
+    path ← find_path(agent position, point)           // using this agent's area costs
+    if path is partial: return false                  // tell the player "can't get there"
+    follow(path)
+    return true
+
+follow(path):
+    every frame:
+        corner ← the next corner of path; once close to it, move on to the one after
+        steer toward corner                           // arrive at the last one
+```
+
 ## Example
 
 Every engine here ships a navmesh, so the example is wiring rather than an implementation: runtime baking for a procedurally generated level, and an agent that checks reachability and prefers roads.

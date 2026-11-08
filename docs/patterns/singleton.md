@@ -20,6 +20,42 @@ Global access is what makes singletons convenient, and also what makes them hurt
 | Something that genuinely cannot exist twice (wrapping a native SDK) | Something that is "one for now", such as a single player before co-op arrives |
 | Small projects and jams, where speed matters more than structure | Code that needs unit tests or alternative implementations |
 
+## Pseudocode
+
+```text
+// A plain singleton: the class owns its only instance.
+SaveService:
+    instance ← none          // one slot, shared by the whole program
+    constructor is private   // nobody else can create one
+
+    get_instance():
+        if instance is none:
+            instance ← new SaveService    // created on first use
+        return instance
+
+    save(slot, data):
+        write data to the file for slot
+
+// An engine-managed singleton: a scene object that may be loaded twice.
+// (Autoloads and subsystems make this check for you.)
+AudioManager:
+    instance ← none
+
+    on start:
+        if instance exists and is not this:
+            destroy this          // a second copy, e.g. the start scene reloaded
+            return
+        instance ← this
+        keep this alive across scene changes
+
+    on destroy:
+        if instance is this: instance ← none
+
+// Anywhere: global access, and a dependency nothing declares.
+SaveService.get_instance().save("slot1", data)
+AudioManager.instance.play_music(boss_theme)
+```
+
 ## Example
 
 A plain singleton, for services that don't need to be part of the scene:

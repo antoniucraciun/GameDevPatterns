@@ -18,6 +18,45 @@ Separate **how an object is assembled** from **the object itself**:
 
 Builders often return `this` from each step (a fluent API), so construction reads like a description. A **director** (or plain helper methods) can encode common recipes: "random drop for level 20", "quest reward", "vendor item".
 
+## Pseudocode
+
+```text
+// The product: set once, never changed afterwards.
+Weapon:
+    name, base, rarity, level, affixes, damage
+
+// The builder: collects choices, then checks and finishes them in one place.
+WeaponBuilder:
+    base ← none,  rarity ← Common,  level ← 1
+    affixes ← empty list,  custom_name ← none
+
+    with_base(b):    base ← b;  return this builder     // each step returns the
+    with_rarity(r):  rarity ← r;  return this builder   // builder, so calls chain
+    at_level(l):     level ← max(1, l);  return this builder
+    add_affix(a):    add a to affixes;  return this builder
+
+    with_random_affixes(table, rng):    // fill the remaining slots
+        target ← random whole number in affix_range(rarity), from rng
+        while affixes has fewer than target entries:
+            add table.roll(rng, level, excluding affixes) to affixes
+        return this builder
+
+    build():
+        if base is none: fail "a weapon needs a base type"
+        if count of affixes is outside affix_range(rarity): fail
+        damage ← base.damage × (1 + 0.08 × (level - 1))
+        for each affix a: damage ← a.modify(damage)
+        name ← custom_name, or prefix + base name + suffix
+        return new Weapon(name, base, rarity, level, copy of affixes, damage)
+
+affix_range(rarity): Common 0-0, Magic 1-2, Rare 3-4, Epic 4-5
+
+sword ← new WeaponBuilder
+            .with_base(longsword).with_rarity(Rare).at_level(20)
+            .add_affix(blazing).with_random_affixes(table, rng)
+            .build()
+```
+
 ## Example
 
 A builder for generated weapons: readable step-by-step construction, validation that impossible combinations can't escape, and an immutable result.

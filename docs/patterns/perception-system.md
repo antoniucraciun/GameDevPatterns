@@ -18,6 +18,46 @@ Give agents **senses** that turn the world into **stimuli**, and a **memory** th
 - **Awareness**: seeing the target *raises* an awareness value over time, faster when close or in the centre of view. The agent reacts only when it crosses a threshold. This gives players the familiar "?" then "!" moment.
 - **Memory**: the agent remembers the last known position and time after losing sight, and writes these facts into its [Blackboard](./blackboard) for decision-making to use.
 
+## Pseudocode
+
+```text
+visible_targets      // every target registers itself, with a visibility (lower when crouching)
+emit_noise(position, radius, source):  tell every listening agent
+
+Perception:
+    sight_range, half_fov, sight_interval
+    awareness ← 0                    // 0 = unaware, 1 = fully alerted
+    seen, seen_strength              // the best target from the last sight check
+    blackboard                       // where knowledge goes
+
+    every sight_interval (each agent starting at a random offset):
+        seen ← none, seen_strength ← 0
+        for each target t in visible_targets:     // cheapest test first
+            if distance to t > sight_range: skip it
+            if angle between eyes' forward and t > half_fov: skip it
+            if a ray from the eyes to t hits a wall: skip it
+            strength ← t.visibility × (1 − distance / sight_range)
+                                    × (1 − 0.5 × angle / half_fov)   // close and central
+            if strength > seen_strength: seen ← t, seen_strength ← strength
+
+    every frame (dt):
+        before ← awareness
+        if seen: awareness ← min(1, awareness + gain × seen_strength × dt)
+        else:    awareness ← max(0, awareness − decay × dt)
+        if seen and awareness ≥ 1:                 // memory: what and where
+            blackboard.set(target, seen)
+            blackboard.set(last known position, seen.position)   // also stamps the time
+        if before < 1 and awareness ≥ 1:
+            raise alerted                          // the "!" moment
+
+    on noise(position, radius, source):
+        if source is this agent: ignore it
+        d ← distance to position
+        if d > radius: ignore it
+        blackboard.set(noise location, position)   // go and investigate
+        awareness ← max(awareness, 0.5 × (1 − d / radius))   // suspicious, not alerted
+```
+
 ## Example
 
 Sight with a range, a field of view and an occlusion ray; hearing through noise events; an awareness meter that fills while the target is seen; and memory written to the agent's [Blackboard](./blackboard). Unreal ships this as the **AI Perception** system, so its tabs configure that and add only the awareness meter on top.

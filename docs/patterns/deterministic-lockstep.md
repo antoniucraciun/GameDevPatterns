@@ -20,6 +20,44 @@ Send **inputs only**, and run the **same deterministic simulation** on every mac
 
 Bandwidth no longer depends on the number of units. The trade-offs: the game runs at the speed of the **slowest connection** (everyone waits for the late player's input), every command takes the input delay to execute, and the simulation must be **bit-for-bit deterministic** ([Determinism](./determinism)).
 
+## Pseudocode
+
+Every peer runs the same session; there is no server.
+
+```text
+input delay ← 3                  // commands execute 3 turns after they are issued
+turn ← 0
+inputs[t][player]                // one command per player per turn, "none" included
+local pending ← queue of the local player's orders
+scheduled ← input delay - 1      // last turn our own command was scheduled for
+
+start:
+    for each turn t in 0 … input delay - 1, for each player p:
+        store("none" from p for turn t)    // nobody could send these in time
+
+store(cmd):                      // our own commands and every received one
+    if cmd.turn < turn: ignore it                         // late: already simulated
+    if inputs[cmd.turn][cmd.player] is filled: ignore it  // duplicate: keep the first
+    inputs[cmd.turn][cmd.player] ← cmd
+
+every turn interval (e.g. 10 per second):
+    // 1. Schedule one local command per turn, input delay turns ahead.
+    if scheduled < turn + input delay:
+        cmd ← next order from local pending, or "none"
+        cmd.player ← local player;  cmd.turn ← turn + input delay
+        store(cmd);  send cmd to every peer (reliable, in order)
+        scheduled ← cmd.turn
+    // 2. Lock: simulate only with every player's input for this turn.
+    if any player's input for turn is missing:
+        show "waiting for players";  return     // stall, never guess
+    // 3. Apply in a fixed order, then step the deterministic simulation.
+    for each player p in id order: apply inputs[turn][p]
+    step the simulation;  forget inputs[turn]
+    // 4. Detect desyncs early: a mismatch with any peer is a bug.
+    if turn is a multiple of 30: send checksum of the state to every peer
+    turn ← turn + 1
+```
+
 ## Example
 
 The lockstep session is engine-free logic in every tab: it decides **when** a turn may run and **which** commands it applies. The simulation itself and its checksum are on the [Determinism](./determinism) page; the network layer only has to deliver commands reliably and in order.
@@ -49,6 +87,7 @@ public class LockstepSession
     readonly Dictionary<int, PlayerCommand[]> inputs = new();   // turn → one command per player
     readonly Dictionary<int, bool[]> received = new();          // turn → which players' input arrived
     readonly Queue<PlayerCommand> localPending = new();
+    int scheduledTurn = InputDelay - 1;  // the last turn our own command was scheduled for
     public int Turn { get; private set; }
 
     public LockstepSession(int playerCount, int localPlayer, Simulation sim)
@@ -81,11 +120,16 @@ public class LockstepSession
     public void TryAdvance()
     {
         // 1. Schedule this turn's local command (or "none") for Turn + InputDelay, and send it.
-        var cmd = localPending.Count > 0 ? localPending.Dequeue() : new PlayerCommand();
-        cmd.PlayerId = localPlayer;
-        cmd.Turn = Turn + InputDelay;
-        Store(cmd);
-        Network.SendToAll(cmd);
+        //    Once per turn: while stalled, Turn stays put, and a second command would be dropped.
+        if (scheduledTurn < Turn + InputDelay)
+        {
+            var cmd = localPending.Count > 0 ? localPending.Dequeue() : new PlayerCommand();
+            cmd.PlayerId = localPlayer;
+            cmd.Turn = Turn + InputDelay;
+            Store(cmd);
+            Network.SendToAll(cmd);
+            scheduledTurn = cmd.Turn;
+        }
 
         // 2. Lock: only simulate when every player's input for this turn has arrived.
         if (!HasAllInputs(Turn)) { Network.ShowWaitingForPlayers(); return; }   // stall, don't guess
@@ -158,6 +202,7 @@ var _sim: Simulation  # deterministic: integer math, seeded RNG, ordered iterati
 var _inputs := {}  # turn -> Array of one PlayerCommand per player
 var _received := {}  # turn -> Array[bool]: which players' input arrived
 var _local_pending: Array[PlayerCommand] = []
+var _scheduled_turn := INPUT_DELAY - 1  # the last turn our own command was scheduled for
 
 
 func _init(player_count: int, local_player: int, sim: Simulation) -> void:
@@ -201,11 +246,14 @@ func _store(cmd: PlayerCommand) -> void:
 # Called at a fixed rate (e.g. a Timer at 10 turns per second for an RTS).
 func try_advance() -> void:
 	# 1. Schedule this turn's local command (or "none") for turn + INPUT_DELAY, and send it.
-	var cmd: PlayerCommand = _local_pending.pop_front() if not _local_pending.is_empty() else PlayerCommand.new()
-	cmd.player_id = _local_player
-	cmd.turn = turn + INPUT_DELAY
-	_store(cmd)
-	send_command.emit(cmd)
+	#    Once per turn: while stalled, turn stays put, and a second command would be dropped.
+	if _scheduled_turn < turn + INPUT_DELAY:
+		var cmd: PlayerCommand = _local_pending.pop_front() if not _local_pending.is_empty() else PlayerCommand.new()
+		cmd.player_id = _local_player
+		cmd.turn = turn + INPUT_DELAY
+		_store(cmd)
+		send_command.emit(cmd)
+		_scheduled_turn = cmd.turn
 
 	# 2. Lock: only simulate when every player's input for this turn has arrived.
 	if not _has_all_inputs(turn):
@@ -272,12 +320,17 @@ public:
 	void TryAdvance()
 	{
 		// 1. Schedule this turn's local command (or "none") for Turn + InputDelay, and send it.
-		FPlayerCommand Cmd;
-		LocalPending.Dequeue(Cmd);                        // leaves Cmd as "none" if nothing is pending
-		Cmd.PlayerId = LocalPlayer;
-		Cmd.Turn = Turn + InputDelay;
-		Store(Cmd);
-		if (SendToAll) SendToAll(Cmd);
+		//    Once per turn: while stalled, Turn stays put, and a second command would be dropped.
+		if (ScheduledTurn < Turn + InputDelay)
+		{
+			FPlayerCommand Cmd;
+			LocalPending.Dequeue(Cmd);                    // leaves Cmd as "none" if nothing is pending
+			Cmd.PlayerId = LocalPlayer;
+			Cmd.Turn = Turn + InputDelay;
+			Store(Cmd);
+			if (SendToAll) SendToAll(Cmd);
+			ScheduledTurn = Cmd.Turn;
+		}
 
 		// 2. Lock: only simulate when every player's input for this turn has arrived.
 		const FTurnInputs* Current = Inputs.Find(Turn);
@@ -325,6 +378,7 @@ private:
 	TMap<int32, FTurnInputs> Inputs;                      // turn -> commands
 	TQueue<FPlayerCommand> LocalPending;
 	int32 Turn = 0;
+	int32 ScheduledTurn = InputDelay - 1;                 // the last turn our own command was scheduled for
 };
 ```
 

@@ -27,6 +27,52 @@ If prediction was correct, the replay lands exactly where the client already was
 
 <NetSyncViz mode="prediction" />
 
+## Pseudocode
+
+```text
+// Shared: simulate(state, input) is the same pure step on both sides.
+// Sequence numbers start at 1, so 0 means "nothing processed yet".
+
+// ── Server, per client ──
+queue ← inputs ordered by sequence
+state
+last processed ← 0
+
+on input packet (the client's last few inputs):    // redundancy against loss
+    for each input in the packet:
+        if input.sequence > last processed and it is not queued yet:
+            add input to queue                     // duplicates are expected
+
+every server tick:
+    if queue is empty: do nothing                  // starved: inputs are late
+    input ← take the lowest sequence out of queue  // one input per tick
+    state ← simulate(state, input)
+    last processed ← input.sequence
+    // state updates carry (state, last processed) back to the client
+
+// ── Owning client ──
+predicted; pending ← empty list
+visual offset ← 0                    // shown = predicted + offset
+
+every fixed step, after sending input:
+    predicted ← simulate(predicted, input);  add input to pending
+
+on server update (server state, ack):
+    before ← predicted.position
+    predicted ← server state                        // 1. rewind
+    remove from pending every input with sequence ≤ ack   // 2. discard
+    for each input in pending, oldest first:        // 3. replay the rest
+        predicted ← simulate(predicted, input)
+    error ← before - predicted.position
+    if error is longer than 2 m: visual offset ← 0  // a teleport: snap
+    else: visual offset ← visual offset + error     // 4. smooth it out
+
+every frame:
+    visual offset ← visual offset × e^(-15 × frame time)   // decays to zero
+    place the body at predicted.position
+    draw the mesh at predicted.position + visual offset
+```
+
 ## Example
 
 Shared types and simulation, as in [Client-Side Prediction](./client-side-prediction). Sequence numbers start at 1, so 0 can mean "nothing processed yet":
