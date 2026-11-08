@@ -22,6 +22,41 @@ DoubleShot( Explosive( Piercing( BasicGun ) ) )
 
 The same structure is useful well beyond gameplay: logging, caching, retrying or timing around a service (`LoggingSaveService(RetryingSaveService(CloudSaveService))`).
 
+## Pseudocode
+
+```text
+// Every weapon, plain or decorated, offers the same operation.
+Weapon:
+    fire(shot, output)      // adds the projectiles to spawn to output
+
+BasicGun is a Weapon:
+    fire(shot, output):
+        add shot to output
+
+Mod is a Weapon:            // the base decorator
+    inner                   // the weapon it wraps
+    fire(shot, output):
+        inner.fire(shot, output)    // by default, just forward
+
+DamageBoost is a Mod:
+    multiplier
+    fire(shot, output):     // shot is a copy, so changing it is safe
+        shot.damage ← shot.damage × multiplier   // change the request,
+        inner.fire(shot, output)                 // then pass it on
+
+DoubleShot is a Mod:
+    fire(shot, output):
+        // Fire the inner weapon twice: every inner mod applies to both.
+        inner.fire(shot turned a little left, output)
+        inner.fire(shot turned a little right, output)
+
+// Each pickup wraps whatever the player holds now.
+weapon ← BasicGun
+weapon ← DamageBoost(weapon, 1.5)
+weapon ← DoubleShot(weapon)
+weapon.fire(shot, output)   // DoubleShot → DamageBoost → BasicGun, twice
+```
+
 ## Example
 
 Roguelike weapon mods: each pickup wraps the current weapon in a decorator that changes how it fires. This is pure logic, so all three versions are engine-free apart from vector maths.

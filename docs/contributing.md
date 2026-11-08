@@ -58,11 +58,25 @@ Every pattern page uses the same sections, in this order:
 | Intent (quote under the title) | One sentence on what the pattern lets you do. |
 | Problem | A concrete game situation that hurts without the pattern. |
 | Solution | The idea, its participants, and how they interact. |
+| Pseudocode | A language-neutral outline of the core mechanism that readers could implement in any language or engine. See [Pseudocode](#pseudocode). |
 | Example | Short, compilable code in tabs for Unity, Godot and Unreal. See [Engine examples](#engine-examples). |
 | When to use | Situations where it pays off. |
 | When not to use | Situations where it costs more than it saves, each naming the simpler code or better-fitting pattern to use instead. See [Keep It Simple](./keep-it-simple). |
 | Pitfalls | How it goes wrong when you do use it, and what to do instead. |
 | Related | Links to neighbouring patterns, with one line on how they relate. |
+
+## Pseudocode
+
+The **Pseudocode** section sits directly before **Example**. It gives readers the shape of the pattern before they see it in any one engine.
+
+- **One plain block.** A single ```` ```text ```` fence, not a code group, optionally with one short sentence above it.
+- **About 10-30 lines.** Use indentation for structure, plain words for operations ("for each neighbour n of current"), `←` or `=` for assignment, and comments for the reasoning.
+- **No language or engine syntax.** No engine API names, generics, decorators, semicolons or `self.`.
+- **Core mechanism only.** Show the data each participant holds and the main operations. Leave out engine wiring, editor tooling, and error handling that isn't part of the idea.
+- **Engine-feature patterns** (ScriptableObject Architecture, Coroutines, the Job System, ECS): outline the mechanism the engine provides underneath, not its API.
+- **Sketches in Solution stay.** A formula or one-line structure in Solution (A*'s `f(n)`, the decorator chain) is an illustration; Pseudocode is the full outline.
+
+The build warns about pattern pages that have no `## Pseudocode` heading directly before `## Example`.
 
 ## Engine examples
 

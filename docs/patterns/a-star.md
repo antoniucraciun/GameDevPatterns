@@ -31,6 +31,43 @@ If `h` never overestimates the true cost (it is **admissible**), A* returns a sh
 | 8 directions (diagonal cost √2) | Octile: `max(dx, dy) + (√2 − 1) · min(dx, dy)` |
 | Any direction | Euclidean distance |
 
+## Pseudocode
+
+The search works on any graph; the Example below runs it on a grid.
+
+```text
+open      = priority queue of (node, f), lowest f first
+            // nodes discovered but not yet expanded
+g[n]      = cheapest known cost from start to n, ∞ until found
+parent[n] = the node that cheapest path came from
+
+find_path(start, goal):
+    g[start] ← 0
+    add (start, h(start)) to open
+
+    while open is not empty:
+        (current, f) ← take the lowest-f entry out of open
+        if current is goal:
+            return follow_parents(goal)
+        if f > g[current] + h(current):
+            skip it        // stale: a cheaper copy was expanded already
+
+        for each neighbour n of current:
+            tentative ← g[current] + cost(current, n)
+            if tentative < g[n]:       // a cheaper way to reach n
+                g[n] ← tentative
+                parent[n] ← current
+                add (n, g[n] + h(n)) to open
+
+    return no path         // every reachable node was expanded
+
+follow_parents(goal):
+    path ← [goal]
+    while the first node of path is not start:
+        put parent[first node of path] at the front of path
+    return path
+```
+
 ## Example
 
 A* on a grid with 8-way movement, terrain costs and no corner cutting. The **core** is the search itself, with no scene or engine types, so it can be unit tested on its own. The **engine wiring** builds the cost grid from the level and draws the path.
