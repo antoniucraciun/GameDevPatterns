@@ -18,6 +18,38 @@ Give every potential receiver the same interface, and arrange them in a **chain*
 
 A variation lets every handler process the request and pass it on (modifying it along the way) instead of stopping. The [Damage Pipeline](./damage-pipeline) is that variation.
 
+## Pseudocode
+
+```text
+PointerHandler:
+    priority                // higher is asked first
+    handle(click) → handled?  // true stops the chain
+
+PointerChain:
+    handlers                // kept sorted by priority, highest first
+
+    add(h):    insert h; sort handlers by priority
+    remove(h): remove h
+
+    dispatch(click):
+        for each h in a copy of handlers:   // h may add or remove handlers
+            if h.handle(click): stop
+        // nobody claimed it: the click is dropped
+
+// Each handler decides only for itself.
+ModalPopup  (100): handle → is a modal popup open?     // swallow every click
+UI          (90):  handle → is the pointer over UI?
+BuildTool   (50):  handle(click):                      // only while building
+                       if right button: cancel placing; return true
+                       return try to place the building at click
+UnitSelect  (20):  handle → left button and a unit was selected at click
+MoveOrder   (0):   handle → right button and the selection was ordered to click
+
+on mouse button down: chain.dispatch(click at pointer position)
+entering build mode: chain.add(BuildTool)
+leaving build mode:  chain.remove(BuildTool)
+```
+
 ## Example
 
 Pointer-input routing for a strategy game: a modal popup, the UI, the build tool, unit selection and move orders each get a chance at a click, in priority order. Godot's input propagation already is such a chain, so the Godot tab uses it instead of building one.

@@ -18,6 +18,43 @@ Pull each algorithm out into its own object behind a common interface: the **str
 
 Strategies are often **data assets**: ScriptableObjects in Unity, `Resource`s in Godot, Data Assets or instanced objects in Unreal. Designers then pick a strategy in the editor, and tune its parameters per asset ("nearest, but ignore targets beyond 15 m").
 
+## Pseudocode
+
+```text
+// The strategy: one operation, many interchangeable answers.
+TargetingStrategy:
+    choose(from, in_range) → a target, or none
+
+Nearest is a TargetingStrategy:
+    choose(from, in_range):
+        return the target in in_range closest to from
+
+FirstAlongPath is a TargetingStrategy:
+    choose(from, in_range):
+        return the target with the highest path progress  // nearest the goal
+
+Weakest is a TargetingStrategy:
+    prefer_flying ← true            // tuned per strategy, not per turret
+    choose(from, in_range):
+        best ← none
+        for each t in in_range:
+            if best is none: best ← t
+            else if prefer_flying and t.flying ≠ best.flying:
+                if t.flying: best ← t   // flying beats ground, whatever the health
+            else if t.health < best.health: best ← t
+        return best
+
+// The context holds a strategy and never asks which one it is.
+Turret:
+    targeting               // picked in the editor; UI may swap it
+    range
+
+    every frame:
+        in_range ← enemies within range of this turret
+        current ← targeting.choose(position, in_range)
+        if current exists: aim at current and fire
+```
+
 ## Example
 
 Tower-defense targeting. Each engine makes strategies editor-selectable: ScriptableObject assets in Unity, `Resource` subclasses in Godot, and instanced `UObject`s in Unreal.

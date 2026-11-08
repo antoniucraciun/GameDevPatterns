@@ -21,6 +21,47 @@ That buys several things at once:
 
 A **ring buffer** (a fixed-size array with head and tail indices) keeps the queue allocation-free.
 
+## Pseudocode
+
+```text
+RingQueue:
+    items[capacity]
+    head                    // oldest entry
+    count
+
+    try_enqueue(item):
+        if count = capacity: return false   // full: the caller decides
+        items[(head + count) mod capacity] ← item
+        count ← count + 1
+        return true
+
+    try_dequeue():
+        if count = 0: return nothing
+        item ← items[head]
+        clear items[head]                   // don't keep references alive
+        head ← (head + 1) mod capacity
+        count ← count - 1
+        return item
+
+AudioQueue:
+    pending ← RingQueue(256)
+
+    request(sound, position, volume):       // callers return at once
+        if not pending.try_enqueue((sound, position, volume)):
+            warn "request dropped"
+
+    once per frame, after all gameplay:
+        merged ← empty map: sound → (position sum, loudest, count)
+        while pending has an entry e:
+            m ← merged[e.sound]
+            add e.position to m's position sum
+            m.loudest ← max(m.loudest, e.volume)
+            m.count ← m.count + 1
+        for each sound, m in merged:        // one play per sound, not N
+            volume ← min(1, m.loudest × (1 + 0.15 × log2(m.count)))
+            play sound at (position sum / m.count) with volume
+```
+
 ## Example
 
 ### Core: a fixed-capacity queue

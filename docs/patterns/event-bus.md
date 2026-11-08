@@ -20,6 +20,44 @@ Player ─Publish(PlayerDied)─►┘                 └─► Analytics
 
 Compared with Observer, the bus trades *explicitness* (who is connected to whom is no longer visible in the code) for *decoupling* (publishers and subscribers can come and go independently).
 
+## Pseudocode
+
+The Example keeps one channel per event type; a single bus keyed by type works the same way.
+
+```text
+// An event type is a small piece of data: what happened.
+EnemyKilled:      enemy type id, position
+BossFightStarted: boss id
+
+// The bus: one list of handlers per event type.
+EventBus:
+    handlers        // map: event type → list of handlers
+
+    subscribe(type, handler):   add handler to handlers[type]
+    unsubscribe(type, handler): remove handler from handlers[type]
+
+    publish(event):
+        for each h in a snapshot of handlers[type of event]:
+            h(event)            // handlers may (un)subscribe meanwhile
+            if h failed: log it and carry on   // one bad listener
+                                               // must not stop the rest
+
+// The publisher knows only the bus and the event type.
+Enemy.die():
+    bus.publish(EnemyKilled(type id, position))
+    destroy this enemy
+
+// So does the subscriber; it never sees an enemy.
+AchievementSystem:
+    kills ← 0
+    on enable:  bus.subscribe(EnemyKilled, on_enemy_killed)
+    on disable: bus.unsubscribe(EnemyKilled, on_enemy_killed)
+
+    on_enemy_killed(event):
+        kills ← kills + 1
+        if kills = 100: unlock "centurion"
+```
+
 ## Example
 
 ### The bus and its events

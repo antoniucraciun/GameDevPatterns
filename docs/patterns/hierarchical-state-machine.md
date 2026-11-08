@@ -23,6 +23,53 @@ Grounded                    Airborne
 └── Crouching
 ```
 
+## Pseudocode
+
+```text
+State:
+    parent              // its super-state, or none at the top level
+    enter(), exit()
+    tick(dt) → handled? // false lets the parent have a go
+
+Machine:
+    current             // always a leaf
+
+    tick(dt):
+        s ← current
+        while s exists:             // leaf first, then ancestors
+            if s.tick(dt): stop
+            s ← s.parent
+
+    change_to(target):
+        from ← path from root down to current
+        to   ← path from root down to target
+        common ← length of the prefix both paths share
+        exit from's states below common, deepest first
+        current ← target
+        enter to's states below common, shallowest first
+
+// Super-states hold the shared rules, written once.
+Grounded.tick:
+    if jump pressed:   change_to(Jumping)   // for every grounded child
+    if no ground:      change_to(Falling)
+    return handled
+Airborne.tick:
+    if on the ground and not rising: change_to(Idle)
+    return handled
+
+// Leaves handle only what is specific to them.
+Idle (parent Grounded).tick:
+    if crouch held:    change_to(Crouching); return handled
+    if moving:         change_to(Running);   return handled
+    return not handled                      // Grounded checks jump and fall
+Jumping (parent Airborne):
+    enter: set upward speed
+    tick:  if moving down: change_to(Falling); return handled
+           return not handled               // Airborne checks landing
+
+change_to(Idle)          // enters Grounded, then Idle
+```
+
 ## Example
 
 A platformer character whose states nest: **Grounded** (Idle, Running, Crouching) and **Airborne** (Jumping, Falling). Jump and fall checks live once in the super-states instead of in every leaf.

@@ -27,6 +27,52 @@ push Stunned            pop (stun ends)
 └──────────┘            └──────────┘
 ```
 
+## Pseudocode
+
+```text
+StackState:
+    enter()     // pushed onto the stack
+    exit()      // popped off the stack
+    pause()     // something was pushed on top; keep all data
+    resume()    // the state on top was popped
+    tick(dt)
+
+StateStack:
+    stack       // top = the only state that runs
+
+    push(state):                // interrupt
+        if stack not empty: top.pause()
+        put state on top
+        state.enter()
+
+    pop():                      // the interruption is over
+        if stack is empty: return
+        take the top off; it.exit()
+        if stack not empty: top.resume()   // continues where it was
+
+    switch(state):              // a peer transition, not remembered
+        if stack not empty: take the top off; it.exit()
+        put state on top
+        state.enter()
+
+    tick(dt):
+        if stack not empty: top.tick(dt)
+
+Patrol is a StackState:
+    waypoint                    // survives being paused
+    resume(): play the walk animation again
+
+Stunned is a StackState:
+    remaining ← seconds
+    enter(): play the stunned animation
+    tick(dt):
+        remaining ← remaining - dt
+        if remaining ≤ 0: states.pop()   // back to whatever was running
+
+push(Patrol)                    // at start
+on stun(seconds): push(Stunned(seconds))   // knows nothing of what it covers
+```
+
 ## Example
 
 ### Core

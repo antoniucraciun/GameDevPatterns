@@ -20,6 +20,40 @@ Three roles:
 | **Memento** | An immutable snapshot. To everyone else, it is a black box. |
 | **Caretaker** | Decides *when* to snapshot and *which* memento to restore. Never inspects contents. |
 
+## Pseudocode
+
+```text
+// Originator: the only one that knows what its state is.
+Crate:
+    position, health, is_open
+
+    save():
+        return Memento(position, health, is_open)   // a copy, not a view
+
+    restore(m):
+        position ← m.position       // only Crate may read these
+        health   ← m.health
+        is_open  ← m.is_open
+
+// Memento: an immutable snapshot, a black box to everyone else.
+Memento:
+    position, health, is_open       // set once, when created
+
+// Caretaker: decides when to save and what to restore, never looks inside.
+RoomReset:
+    snapshot ← empty list of (crate, memento)
+
+    on room entered:
+        clear snapshot
+        for each crate c in the room:
+            add (c, c.save()) to snapshot
+
+    reset room:
+        for each (c, m) in snapshot:
+            if c still exists:      // it may have been destroyed since
+                c.restore(m)
+```
+
 ## Example
 
 ### An explicit memento

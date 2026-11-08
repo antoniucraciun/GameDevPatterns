@@ -12,6 +12,46 @@ Input handling often calls gameplay methods directly: `if (jumpPressed) player.J
 
 Wrap each action in a **command object** with an `Execute` method, and optionally `Undo`. Input code (or AI, or a network packet) creates commands. Something else executes them, possibly later, possibly more than once, possibly on another machine. A history stack of executed commands gives you undo. A timestamped log gives you replays.
 
+## Pseudocode
+
+```text
+Command:
+    execute()
+    undo()
+
+MoveCommand is a Command:
+    target          // what to move
+    delta           // how far: everything needed to do and undo
+    execute(): target.position ← target.position + delta
+    undo():    target.position ← target.position - delta
+
+CommandHistory:
+    done            // stack of executed commands
+    undone          // stack of undone commands, for redo
+
+    run(command):
+        command.execute()
+        push command onto done
+        clear undone        // a new action ends the redo branch
+
+    undo():
+        if done is empty: return
+        command ← pop done
+        command.undo()
+        push command onto undone
+
+    redo():
+        if undone is empty: return
+        command ← pop undone
+        command.execute()
+        push command onto done
+
+// The input layer only turns keys into commands.
+on right arrow: history.run(MoveCommand(box, one cell right))
+on undo key:    history.undo()
+on redo key:    history.redo()
+```
+
 ## Example
 
 An undoable move for a grid-based puzzle game or level editor. Unity and Unreal define the command objects; Godot already ships an undo stack, `UndoRedo`, whose actions are commands built from a "do" and an "undo" half.
