@@ -34,13 +34,13 @@ value = Lerp(value, target, 1 - exp(-rate * deltaTime))
 
 Unlike `Lerp(value, target, 0.1f)`, this converges at the same speed whatever the frame rate.
 
-## Example (Unity C#)
+## Example
 
 Easing functions (all take and return values in `[0, 1]` at the ends):
 
-```csharp
-using System;
-using System.Collections.Generic;
+::: code-group
+
+```csharp [Unity (C#)]
 using UnityEngine;
 
 public static class Ease
@@ -64,9 +64,79 @@ public static class Ease
 }
 ```
 
-A tiny tween runner, one `Update` for all tweens:
+```gdscript [Godot (GDScript)]
+# ease.gd: Godot's Tween has these built in (set_trans / set_ease); the functions are useful
+# with tween_method, shaders or your own code.
+class_name Ease
 
-```csharp
+
+static func linear(t: float) -> float:
+	return t
+
+
+static func out_quad(t: float) -> float:
+	return 1.0 - (1.0 - t) * (1.0 - t)
+
+
+static func out_cubic(t: float) -> float:
+	return 1.0 - pow(1.0 - t, 3.0)
+
+
+static func in_out_cubic(t: float) -> float:
+	return 4.0 * t * t * t if t < 0.5 else 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0
+
+
+static func out_back(t: float) -> float:
+	const C1 := 1.70158
+	const C3 := C1 + 1.0
+	return 1.0 + C3 * pow(t - 1.0, 3.0) + C1 * pow(t - 1.0, 2.0)
+
+
+static func out_elastic(t: float) -> float:
+	if t <= 0.0 or t >= 1.0:
+		return t
+	return pow(2.0, -10.0 * t) * sin((t * 10.0 - 0.75) * (TAU / 3.0)) + 1.0
+```
+
+```cpp [Unreal (C++)]
+// Ease.h: header-only. Built-ins: FMath::InterpEaseIn/Out/InOut, InterpCircularOut, InterpExpoOut…
+// and UKismetMathLibrary::Ease with EEasingFunc.
+#pragma once
+
+#include "CoreMinimal.h"
+
+namespace Ease
+{
+	inline float Linear(float T) { return T; }
+	inline float OutQuad(float T) { return 1.f - (1.f - T) * (1.f - T); }
+	inline float OutCubic(float T) { return 1.f - FMath::Pow(1.f - T, 3.f); }
+	inline float InOutCubic(float T) { return T < 0.5f ? 4.f * T * T * T : 1.f - FMath::Pow(-2.f * T + 2.f, 3.f) / 2.f; }
+
+	inline float OutBack(float T)
+	{
+		constexpr float C1 = 1.70158f, C3 = C1 + 1.f;
+		return 1.f + C3 * FMath::Pow(T - 1.f, 3.f) + C1 * FMath::Pow(T - 1.f, 2.f);
+	}
+
+	inline float OutElastic(float T)
+	{
+		if (T <= 0.f || T >= 1.f) return T;
+		return FMath::Pow(2.f, -10.f * T) * FMath::Sin((T * 10.f - 0.75f) * (2.f * PI / 3.f)) + 1.f;
+	}
+}
+```
+
+:::
+
+Running tweens. Unity has no built-in tween runner, so the Unity tab is a tiny one with one `Update` for all tweens. Godot's `Tween` and Unreal's Timelines are built in:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
 public class Tweener : MonoBehaviour
 {
     class Tween
@@ -121,9 +191,130 @@ public class Tweener : MonoBehaviour
 //             () => score.Add(1));
 ```
 
+```gdscript [Godot (GDScript)]
+# reward_ui.gd: Tween is built in. create_tween() on a node binds the tween to it, so it stops
+# when the node is freed.
+extends Control
+
+@export var panel: Control
+@export var counter: Control
+
+var _panel_tween: Tween
+
+
+# Pop a reward panel in with overshoot, while the game is paused.
+func pop_in() -> void:
+	if _panel_tween:
+		_panel_tween.kill()  # a new tween on the same target replaces the old one
+	panel.pivot_offset = panel.size / 2.0
+	panel.scale = Vector2.ZERO
+	_panel_tween = panel.create_tween()
+	_panel_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)  # keeps running while the tree is paused
+	_panel_tween.tween_property(panel, "scale", Vector2.ONE, 0.35) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+# Fly a coin to the score counter, arriving gently, then count it.
+func fly_coin(coin: Control, on_arrived: Callable) -> void:
+	var tween := coin.create_tween()
+	tween.tween_property(coin, "global_position", counter.global_position, 0.6) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_callback(on_arrived)
+	tween.tween_callback(coin.queue_free)
+
+
+# A custom curve from the Ease class: tween a 0..1 progress and apply it yourself.
+func wobble(target: Control) -> void:
+	var tween := target.create_tween()
+	tween.tween_method(func(p: float) -> void: target.scale = Vector2.ONE * (0.5 + 0.5 * Ease.out_elastic(p)),
+		0.0, 1.0, 0.5)
+```
+
+```cpp [Unreal (C++)]
+// PopInComponent.h: an FTimeline driven by a curve asset. The curve is the easing: draw it in
+// the curve editor (0 to 1 over 0.35 s, overshooting like OutBack). The Timeline component and
+// Blueprint Timeline node wrap the same struct; UMG widget animations do this for UI.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Components/TimelineComponent.h"
+#include "PopInComponent.generated.h"
+
+class UCurveFloat;
+
+UCLASS(ClassGroup = (Feedback), meta = (BlueprintSpawnableComponent))
+class UPopInComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UPopInComponent();
+	void Play();
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+protected:
+	UPROPERTY(EditAnywhere, Category = "Tween")
+	TObjectPtr<UCurveFloat> Curve;
+
+private:
+	UFUNCTION() void OnProgress(float Value);
+	UFUNCTION() void OnFinished();
+
+	FTimeline Timeline;
+};
+
+// PopInComponent.cpp
+#include "PopInComponent.h"
+#include "Curves/CurveFloat.h"
+
+UPopInComponent::UPopInComponent()
+{
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;   // tick only while playing
+}
+
+void UPopInComponent::Play()
+{
+	FOnTimelineFloat Progress;
+	Progress.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UPopInComponent, OnProgress));
+	FOnTimelineEvent Finished;
+	Finished.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UPopInComponent, OnFinished));
+
+	Timeline = FTimeline();                                // replaces a tween that is still running
+	Timeline.AddInterpFloat(Curve, Progress);
+	Timeline.SetTimelineFinishedFunc(Finished);
+	Timeline.SetTimelineLengthMode(TL_LastKeyFrame);       // length = the curve's last key
+	Timeline.PlayFromStart();
+	SetComponentTickEnabled(true);
+}
+
+void UPopInComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	Timeline.TickTimeline(DeltaTime);
+}
+
+void UPopInComponent::OnProgress(float Value)
+{
+	GetOwner()->SetActorScale3D(FVector(Value));
+}
+
+void UPopInComponent::OnFinished()
+{
+	SetComponentTickEnabled(false);
+}
+```
+
+:::
+
 Frame-rate-independent damping, for things that chase a moving target:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public static class Damp
 {
     // rate: higher = snappier. ~5 is soft, ~15 is tight, ~30 is nearly instant.
@@ -138,7 +329,55 @@ public static class Damp
 // shownHealth = Damp.Towards(shownHealth, realHealth, 8f, Time.deltaTime);
 ```
 
-In production, a tweening library such as **DOTween**, **PrimeTween** or **LitMotion** adds sequences, loops, curves and zero-allocation APIs. Knowing the pattern helps you choose easings and avoid the pitfalls below.
+```gdscript [Godot (GDScript)]
+# damp.gd
+class_name Damp
+
+
+# rate: higher = snappier. ~5 is soft, ~15 is tight, ~30 is nearly instant.
+static func towards(current: float, target: float, rate: float, delta: float) -> float:
+	return lerpf(current, target, 1.0 - exp(-rate * delta))
+
+
+static func towards_v3(current: Vector3, target: Vector3, rate: float, delta: float) -> Vector3:
+	return current.lerp(target, 1.0 - exp(-rate * delta))
+
+
+# A health bar that drains smoothly toward the real value:
+# _shown_health = Damp.towards(_shown_health, health, 8.0, delta)
+```
+
+```cpp [Unreal (C++)]
+// Damp.h
+#pragma once
+
+#include "CoreMinimal.h"
+
+namespace Damp
+{
+	// Rate: higher = snappier. ~5 is soft, ~15 is tight, ~30 is nearly instant.
+	inline float Towards(float Current, float Target, float Rate, float DeltaSeconds)
+	{
+		return FMath::Lerp(Current, Target, 1.f - FMath::Exp(-Rate * DeltaSeconds));
+	}
+
+	inline FVector Towards(const FVector& Current, const FVector& Target, float Rate, float DeltaSeconds)
+	{
+		return FMath::Lerp(Current, Target, 1.f - FMath::Exp(-Rate * DeltaSeconds));
+	}
+}
+
+// A health bar that drains smoothly toward the real value:
+// ShownHealth = Damp::Towards(ShownHealth, Health, 8.f, DeltaSeconds);
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** in production, a tweening library such as **DOTween**, **PrimeTween** or **LitMotion** adds sequences, loops, curves and zero-allocation APIs. Knowing the pattern helps you choose easings and avoid the pitfalls below.
+- **Godot:** `Tween` covers sequences (`tween_property` calls run one after another), parallel steps (`set_parallel` or `parallel()`), loops (`set_loops`), delays and callbacks. A tween made with `create_tween()` on a node is killed when that node is freed, which avoids tweening freed objects. `Tween.set_ignore_time_scale` (4.3+) makes a tween ignore `Engine.time_scale`.
+- **Unreal:** `FMath::FInterpTo` and `VInterpTo` are the built-in chasers. They move a fraction `DeltaTime * Speed` of the remaining distance, which is close to the exponential damping above at high frame rates but not exactly frame-rate independent. For UI, use UMG **widget animations**. A component's tick stops while the game is paused unless you set `PrimaryComponentTick.bTickEvenWhenPaused`.
 
 ## When to use
 

@@ -23,11 +23,13 @@ Treat the camera as a small system with several deliberate behaviours:
 
 Run the camera in `LateUpdate`, after all movement for the frame has finished. For Rigidbody targets, enable interpolation, so the camera follows a smooth position.
 
-## Example (Unity C#)
+## Example
 
-A 2D platformer camera with a dead zone, look-ahead, grounded vertical snapping and level bounds:
+A 2D platformer camera with a dead zone, look-ahead, grounded vertical snapping and level bounds. Godot's `Camera2D` and Unreal's `USpringArmComponent` already provide part of this, so those tabs configure the built-in features and add only the rest:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using UnityEngine;
 
 public class PlatformerCamera : MonoBehaviour
@@ -107,9 +109,150 @@ public class PlatformerCamera : MonoBehaviour
 }
 ```
 
-Put the [Screen Shake](./screen-shake) component on a child of this camera, or on the camera with this script on a parent rig, so shake offsets never feed back into the follow logic.
+```gdscript [Godot (GDScript)]
+# platformer_camera.gd: a Camera2D that is NOT a child of the player. The script moves the
+# camera's position (its target); Camera2D's drag margins (dead zone), position smoothing (damping)
+# and limits (bounds) then decide what the screen shows.
+extends Camera2D
 
-**Cinemachine** provides dead zones, damping, look-ahead, confiners and multi-target framing as configurable components. For most 3D games it is the right starting point. The concepts above are what you tune inside it.
+@export var target: CharacterBody2D
+@export var follow_offset := Vector2(0.0, -48.0)  # pixels; up is -y
+@export var look_ahead_distance := 96.0
+@export var look_ahead_rate := 3.0  # exponential damping rate
+@export var level_bounds := Rect2i(-1600, -640, 6400, 1280)
+
+var _grounded_y: float
+var _look_ahead := 0.0
+
+
+func _ready() -> void:
+	process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS  # the player moves in physics frames
+
+	# 1. Dead zone: the camera moves only when its target leaves the middle of the screen.
+	drag_horizontal_enabled = true
+	drag_left_margin = 0.1  # fractions of half the screen
+	drag_right_margin = 0.1
+	drag_vertical_enabled = false  # vertical is handled below
+
+	# 4. Damping.
+	position_smoothing_enabled = true
+	position_smoothing_speed = 6.0
+
+	# 5. Bounds: the view never shows anything outside the level.
+	limit_left = level_bounds.position.x
+	limit_top = level_bounds.position.y
+	limit_right = level_bounds.end.x
+	limit_bottom = level_bounds.end.y
+
+	global_position = target.global_position + follow_offset
+	_grounded_y = global_position.y
+	reset_smoothing()
+
+
+func _physics_process(delta: float) -> void:
+	var t := target.global_position + follow_offset
+
+	# 2. Vertical: follow the ground height while grounded; while airborne, only follow big drops or rises.
+	if target.is_on_floor():
+		_grounded_y = t.y
+	elif t.y > _grounded_y + 128.0 or t.y < _grounded_y - 256.0:
+		_grounded_y = t.y
+
+	# 3. Look-ahead in the direction of horizontal movement, applied as an offset.
+	var vx := target.velocity.x
+	var desired := signf(vx) * look_ahead_distance if absf(vx) > 20.0 else _look_ahead
+	_look_ahead = lerpf(_look_ahead, desired, 1.0 - exp(-look_ahead_rate * delta))
+	offset.x = _look_ahead
+
+	global_position = Vector2(t.x, _grounded_y)
+```
+
+```cpp [Unreal (C++)]
+// SideScrollerCharacter.h (excerpt). USpringArmComponent's camera lag is the damping; the
+// character moves the arm's origin to a focus point with a dead zone, grounded vertical snapping,
+// look-ahead and bounds. Side view: X is horizontal, Z is up.
+UPROPERTY(VisibleAnywhere) TObjectPtr<USpringArmComponent> CameraBoom;
+UPROPERTY(VisibleAnywhere) TObjectPtr<UCameraComponent> Camera;
+
+UPROPERTY(EditAnywhere, Category = "Camera") FVector2D DeadZone = FVector2D(150.f, 100.f);   // cm
+UPROPERTY(EditAnywhere, Category = "Camera") float LookAheadDistance = 300.f;
+UPROPERTY(EditAnywhere, Category = "Camera") float LookAheadSpeed = 2.f;
+// Where the camera centre may go: the level bounds shrunk by half the view size.
+UPROPERTY(EditAnywhere, Category = "Camera") FBox2D CameraBounds = FBox2D(FVector2D(-4000.f, -500.f), FVector2D(16000.f, 3000.f));
+
+FVector2D Focus;                 // X and Z of the point the camera centres on
+double GroundedZ = 0.0;
+float LookAhead = 0.f;
+
+// SideScrollerCharacter.cpp
+#include "SideScrollerCharacter.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+
+ASideScrollerCharacter::ASideScrollerCharacter()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	CameraBoom->SetupAttachment(RootComponent);
+	CameraBoom->SetUsingAbsoluteLocation(true);           // we place it; it doesn't follow the capsule
+	CameraBoom->SetUsingAbsoluteRotation(true);           // side view: never rotates with the character
+	CameraBoom->SetWorldRotation(FRotator(0.f, -90.f, 0.f));
+	CameraBoom->TargetArmLength = 1500.f;
+	CameraBoom->bDoCollisionTest = false;
+
+	// 4. Damping: built in.
+	CameraBoom->bEnableCameraLag = true;
+	CameraBoom->CameraLagSpeed = 6.f;
+	CameraBoom->CameraLagMaxDistance = 600.f;             // never fall further behind than this
+
+	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+	Camera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+}
+
+void ASideScrollerCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	const FVector T = GetActorLocation();
+	Focus = FVector2D(T.X, T.Z);
+	GroundedZ = T.Z;
+}
+
+void ASideScrollerCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	const FVector T = GetActorLocation() + FVector(0.f, 0.f, 150.f);
+
+	// 1. Dead zone: move the focus only when the character pushes against the box edges.
+	if (T.X > Focus.X + DeadZone.X) Focus.X = T.X - DeadZone.X;
+	if (T.X < Focus.X - DeadZone.X) Focus.X = T.X + DeadZone.X;
+
+	// 2. Vertical: follow the ground height while grounded; while airborne, only follow big drops or rises.
+	if (GetCharacterMovement()->IsMovingOnGround()) GroundedZ = T.Z;
+	else if (T.Z < GroundedZ - 200.f || T.Z > GroundedZ + 400.f) GroundedZ = T.Z;
+
+	// 3. Look-ahead in the direction of horizontal movement.
+	const double Vx = GetVelocity().X;
+	const float DesiredLookAhead = FMath::Abs(Vx) > 50.0 ? static_cast<float>(FMath::Sign(Vx)) * LookAheadDistance : LookAhead;
+	LookAhead = FMath::FInterpTo(LookAhead, DesiredLookAhead, DeltaSeconds, LookAheadSpeed);
+
+	// 5. Bounds, then hand the point to the spring arm, whose lag smooths the move.
+	const double X = FMath::Clamp(Focus.X + LookAhead, CameraBounds.Min.X, CameraBounds.Max.X);
+	const double Z = FMath::Clamp(GroundedZ, CameraBounds.Min.Y, CameraBounds.Max.Y);
+	CameraBoom->SetWorldLocation(FVector(X, T.Y, Z));
+}
+```
+
+:::
+
+Put the [Screen Shake](./screen-shake) on a child of the camera, or on the camera with the follow logic on a parent rig, so shake offsets never feed back into the follow logic. Godot's shake can use `Camera2D.offset`, which this script only sets on X; add the shake to it rather than overwriting it.
+
+**Engine notes**
+
+- **Unity:** **Cinemachine** provides dead zones, damping, look-ahead, confiners and multi-target framing as configurable components. For most 3D games it is the right starting point. The concepts above are what you tune inside it.
+- **Godot:** `Camera2D` has drag margins, position smoothing and limits built in, with **Limit Smoothed** to ease into the bounds instead of stopping hard. Turn on **Editor > Draw Drag Margin** and **Draw Limits** to see them in the 2D editor. There is no built-in `Camera3D` follow; the Phantom Camera add-on fills that gap.
+- **Unreal:** the spring arm's lag (`bEnableCameraLag`, `bEnableCameraRotationLag`) smooths all axes with one speed, so per-axis damping needs your own interpolation. For level bounds and framing that apply to every camera, override `APlayerCameraManager::UpdateViewTarget`, or use a **Camera Modifier**. UE 5.5+ also ships the experimental **Gameplay Cameras** plugin with rigs built from nodes.
 
 ## When to use
 

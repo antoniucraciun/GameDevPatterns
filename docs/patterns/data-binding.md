@@ -19,11 +19,13 @@ Make the data **observable**, and **bind** UI elements to it once:
 
 Code that changes data no longer knows that UI exists, and UI no longer polls.
 
-## Example (Unity C#)
+## Example
 
-A minimal observable property and binding helpers for uGUI:
+Game data exposes values that announce their changes, and UI binds to them once. Unity has no general observable type for uGUI, so the Unity tab builds a small one. Godot uses property setters with signals, and Unreal uses the **UMG Viewmodel** plugin, whose bindings are set up in the widget designer.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -100,11 +102,7 @@ public sealed class CompositeDisposable : IDisposable
     public void Add(IDisposable d) => items.Add(d);
     public void Dispose() { foreach (var d in items) d.Dispose(); items.Clear(); }
 }
-```
 
-Game data exposes observables, and the HUD binds once:
-
-```csharp
 public class PlayerData
 {
     public readonly Observable<int> Gold = new(0);
@@ -112,6 +110,99 @@ public class PlayerData
     public readonly Observable<bool> HasQuest = new(false);
     public readonly Observable<float> MusicVolume = new(0.8f);
 }
+```
+
+```gdscript [Godot (GDScript)]
+# player_data.gd: each bindable value is a property whose setter emits a signal on change.
+# GDScript has no generics, so there is no Observable[T]; this setter-plus-signal shape is the idiom.
+class_name PlayerData
+extends RefCounted
+
+signal gold_changed(value: int)
+signal health_fraction_changed(value: float)
+signal has_quest_changed(value: bool)
+signal music_volume_changed(value: float)
+
+var gold := 0:
+	set(value):
+		if value == gold:
+			return  # no change, no signal
+		gold = value
+		gold_changed.emit(value)
+
+var health_fraction := 1.0:
+	set(value):
+		if is_equal_approx(value, health_fraction):
+			return
+		health_fraction = value
+		health_fraction_changed.emit(value)
+
+var has_quest := false:
+	set(value):
+		if value == has_quest:
+			return
+		has_quest = value
+		has_quest_changed.emit(value)
+
+var music_volume := 0.8:
+	set(value):
+		if is_equal_approx(value, music_volume):
+			return
+		music_volume = value
+		music_volume_changed.emit(value)
+```
+
+```cpp [Unreal (C++)]
+// PlayerViewModel.h: needs the UMG Viewmodel plugin ("ModelViewViewModel" module).
+// FieldNotify properties broadcast their changes; widgets bind to them in the designer.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "MVVMViewModelBase.h"
+#include "PlayerViewModel.generated.h"
+
+UCLASS(BlueprintType)
+class UPlayerViewModel : public UMVVMViewModelBase
+{
+	GENERATED_BODY()
+
+public:
+	int32 GetGold() const { return Gold; }
+	void SetGold(int32 NewGold) { UE_MVVM_SET_PROPERTY_VALUE(Gold, NewGold); }   // no change, no broadcast
+
+	float GetHealthFraction() const { return HealthFraction; }
+	void SetHealthFraction(float NewValue) { UE_MVVM_SET_PROPERTY_VALUE(HealthFraction, NewValue); }
+
+	bool GetHasQuest() const { return bHasQuest; }
+	void SetHasQuest(bool bNewValue) { UE_MVVM_SET_PROPERTY_VALUE(bHasQuest, bNewValue); }
+
+	float GetMusicVolume() const { return MusicVolume; }
+	void SetMusicVolume(float NewValue) { UE_MVVM_SET_PROPERTY_VALUE(MusicVolume, NewValue); }
+
+private:
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter, Getter, meta = (AllowPrivateAccess))
+	int32 Gold = 0;
+
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter, Getter, meta = (AllowPrivateAccess))
+	float HealthFraction = 1.f;
+
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter = SetHasQuest, Getter = GetHasQuest, meta = (AllowPrivateAccess))
+	bool bHasQuest = false;
+
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter, Getter, meta = (AllowPrivateAccess))
+	float MusicVolume = 0.8f;
+};
+```
+
+:::
+
+The HUD binds once:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+using UnityEngine.UI;
 
 public class Hud : MonoBehaviour
 {
@@ -137,7 +228,92 @@ public class Hud : MonoBehaviour
 // data.Gold.Value += 10;
 ```
 
-Unity's **UI Toolkit** has built-in runtime data binding (`dataSource` and `SetBinding`, Unity 2023.2+), and libraries such as **R3** and **UniRx** provide richer reactive properties. The idea is the same in each.
+```gdscript [Godot (GDScript)]
+# hud.gd: connect each signal, then apply the current value once.
+extends Control
+
+@export var gold_label: Label
+@export var health_bar: ProgressBar  # min 0, max 1, step 0
+@export var quest_tracker: Control
+@export var music_slider: HSlider  # min 0, max 1, step 0
+
+var _data: PlayerData
+
+
+func bind_to(data: PlayerData) -> void:
+	_data = data
+	# Connections to this node's methods are removed automatically when the HUD is freed.
+	data.gold_changed.connect(_on_gold_changed)
+	data.health_fraction_changed.connect(_on_health_changed)
+	data.has_quest_changed.connect(quest_tracker.set_visible)
+	data.music_volume_changed.connect(music_slider.set_value_no_signal)
+	_on_gold_changed(data.gold)
+	_on_health_changed(data.health_fraction)
+	quest_tracker.visible = data.has_quest
+	music_slider.set_value_no_signal(data.music_volume)
+
+	# Two-way: the slider writes back into the property.
+	music_slider.value_changed.connect(_on_music_slider_changed)
+
+
+func _on_gold_changed(gold: int) -> void:
+	gold_label.text = "%d G" % gold
+
+
+func _on_health_changed(fraction: float) -> void:
+	health_bar.value = fraction
+
+
+func _on_music_slider_changed(value: float) -> void:
+	_data.music_volume = value
+
+
+# Anywhere in gameplay — no UI code:
+# data.gold += 10
+```
+
+```cpp [Unreal (C++)]
+// The bindings themselves are made in the Widget Blueprint, not in code: add UPlayerViewModel in
+// the Viewmodels panel, then in View Bindings bind
+//   GoldText.Text          <- Gold            (through a conversion function, e.g. to "1,234 G")
+//   HealthBar.Percent      <- HealthFraction
+//   QuestTracker.Visibility <- HasQuest       (through a bool-to-visibility conversion)
+//   MusicSlider.Value      <-> MusicVolume    (two-way)
+
+// Gameplay owns the viewmodel instance and writes to it; it never touches widgets.
+// PlayerHudComponent.cpp (excerpt)
+void UPlayerHudComponent::AddGold(int32 Amount)
+{
+	ViewModel->SetGold(ViewModel->GetGold() + Amount);   // UPROPERTY() TObjectPtr<UPlayerViewModel> ViewModel;
+}
+
+void UPlayerHudComponent::OnHealthChanged(float Health, float MaxHealth)
+{
+	ViewModel->SetHealthFraction(MaxHealth > 0.f ? Health / MaxHealth : 0.f);
+}
+
+// Without the plugin: a multicast delegate per value, bound in the widget.
+void UHudWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	PlayerData->OnGoldChanged.AddUObject(this, &UHudWidget::HandleGoldChanged);
+	HandleGoldChanged(PlayerData->GetGold());            // apply the current value now
+}
+
+void UHudWidget::NativeDestruct()
+{
+	PlayerData->OnGoldChanged.RemoveAll(this);
+	Super::NativeDestruct();
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** **UI Toolkit** has built-in runtime data binding (`dataSource` and `SetBinding`, Unity 6 / 2023.2+), and libraries such as **R3** and **UniRx** provide richer reactive properties. The idea is the same in each.
+- **Godot:** there is no declarative binding for Control nodes; signals and setters are the standard way. Connecting a signal directly to a node method such as `set_visible` or `Range.set_value_no_signal` skips writing a handler.
+- **Unreal:** the UMG Viewmodel plugin arrived in UE 5.1 as experimental and is beta in later versions. Viewmodels can be created by the widget, resolved from a global collection, or set manually from code. For a derived value (such as "is overloaded"), mark a getter `UFUNCTION(BlueprintPure, FieldNotify)` and call `UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED` for it from the setters it depends on.
 
 ## When to use
 

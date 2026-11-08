@@ -45,7 +45,7 @@ Reference pages already converted: [a-star.md](../../docs/patterns/a-star.md) (C
 
 - Node.js and the .NET SDK.
 - A Unity editor install (`UNITY_EDITOR`, default `C:/Program Files/Unity/Hub/Editor/6000.6.0f1`).
-- Optional: a Unity project (`UNITY_PROJECT`, default `G:/GameDev/UnityProjects/SurvivalGame`) whose `Library/ScriptAssemblies` provides package assemblies that the editor install doesn't: `UnityEngine.UI` (uGUI), `Unity.Mathematics`, `Unity.Collections`, `Unity.Burst` and `Unity.AI.Navigation` (NavMeshSurface). To check snippets that need another package, add its assembly name to the list in `unity-check.mjs`, or add the page to `SKIP` with a comment.
+- Optional: a Unity project (`UNITY_PROJECT`, default `G:/GameDev/UnityProjects/SurvivalGame`) whose `Library/ScriptAssemblies` provides package assemblies that the editor install doesn't: `UnityEngine.UI` (uGUI), `Unity.TextMeshPro`, `Unity.InputSystem`, `Unity.Mathematics`, `Unity.Collections`, `Unity.Burst` and `Unity.AI.Navigation` (NavMeshSurface). To check snippets that need another package, add its assembly name to the list in `unity-check.mjs`, or add the page to `SKIP` with a comment.
 - Pages in `SKIP` (currently `entity-component-system`, which needs Entities plus matching source generators) must be checked inside a real Unity project instead.
 
 Godot and Unreal tabs are not compiled by these tools.
