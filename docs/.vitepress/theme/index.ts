@@ -17,6 +17,7 @@ import BspDungeonViz from './viz/BspDungeonViz.vue'
 import NetSyncViz from './viz/NetSyncViz.vue'
 import SteeringViz from './viz/SteeringViz.vue'
 import DoubleBufferViz from './viz/DoubleBufferViz.vue'
+import GameLoopViz from './viz/GameLoopViz.vue'
 import './custom.css'
 
 export default {
@@ -42,5 +43,6 @@ export default {
     app.component('NetSyncViz', NetSyncViz)
     app.component('SteeringViz', SteeringViz)
     app.component('DoubleBufferViz', DoubleBufferViz)
+    app.component('GameLoopViz', GameLoopViz)
   },
 } satisfies Theme

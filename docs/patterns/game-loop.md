@@ -30,6 +30,8 @@ The key decision is how the loop measures and spends time:
 
 Both of the last two variants give you **frame rate independence**: because the simulation advances by the real time that has passed, not by a fixed amount per frame, the game runs at the same speed at 30 FPS and at 144 FPS.
 
+<GameLoopViz />
+
 ## Pseudocode
 
 What one frame does, and where your own systems plug in. The engines run this loop for you; a custom engine writes it out.
@@ -149,20 +151,6 @@ public:
 ```
 
 :::
-
-A hand-written loop in a custom engine, in any language:
-
-```
-previous = clock.now()
-while running:
-    current  = clock.now()
-    elapsed  = current - previous
-    previous = current
-
-    process_input()
-    update(elapsed)
-    render()
-```
 
 **Engine notes**
 
