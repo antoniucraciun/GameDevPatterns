@@ -30,6 +30,45 @@ Selector
 └── Action    [patrol]  : Patrol
 ```
 
+## Pseudocode
+
+A minimal reactive tree: it is ticked from the root every frame.
+
+```text
+// Every node answers one question per tick: Success, Failure or Running.
+Sequence(children):              // AND: all must succeed, in order
+    tick():
+        for each child in children:
+            status ← child.tick()
+            if status is not Success:
+                return status    // Failure or Running stops here
+        return Success
+
+Selector(children):              // OR: the first child that doesn't fail wins
+    tick():
+        for each child in children:
+            status ← child.tick()
+            if status is not Failure:
+                return status    // Success or Running stops here
+        return Failure
+
+Condition(check):
+    tick(): return Success if check() else Failure
+
+Action(do):
+    tick(): return do()          // often Running for several ticks
+
+// The guard: earlier children have higher priority.
+root ← Selector(
+    Sequence(Condition(is health low), Action(move to cover)),
+    Sequence(Condition(can see player), Condition(in attack range), Action(attack)),
+    Sequence(Condition(can see player), Action(move to player)),
+    Action(patrol))
+
+every frame:
+    root.tick()                  // from the root, so a higher branch can interrupt
+```
+
 ## Example
 
 A guard that takes cover when hurt, attacks a visible player in range, chases a visible player, and otherwise patrols. Unity and Godot have no built-in behaviour tree, so the first group is a minimal one written from scratch. Unreal ships Behavior Trees and Blackboards in its AIModule, so its tabs show the custom C++ nodes you plug into a tree asset instead.

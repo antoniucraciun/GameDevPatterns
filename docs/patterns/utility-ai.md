@@ -28,6 +28,46 @@ Sleep = curve(tiredness) × curve(is night) × curve(1 − threat)
 
 Designers tune behaviour by editing curves rather than adding rules.
 
+## Pseudocode
+
+```text
+context = the agent's inputs, each normalised to 0..1
+          // hunger, tiredness, threat, health, food nearby, is night
+
+Consideration:
+    input                        // which value in context it reads
+    curve                        // the designer's response curve
+    score(context): return clamp(curve(context[input]), 0, 1)
+
+Action:
+    considerations
+    weight                       // designer bias, around 1
+
+    score(context):
+        result ← 1
+        for each consideration c:
+            result ← result × c.score(context)
+            if result is 0: return 0           // vetoed
+        // Compensation: undo the penalty for having many considerations.
+        modification ← 1 − 1 / number of considerations
+        result ← result + (1 − result) × modification × result
+        return result × weight
+
+Reasoner:
+    actions, current
+    commitment_bonus             // stickiness, so near-equal scores don't flip
+
+    every decision interval:
+        best ← none, best_score ← 0
+        for each action a in actions:
+            s ← a.score(context)
+            if a is current: s ← s + commitment_bonus
+            if s > best_score: best ← a, best_score ← s
+        if best is not current:
+            current ← best
+            start the behaviour for best       // move, eat, sleep, ...
+```
+
 ## Example
 
 Considerations and actions as data assets, each consideration shaping one input with a curve the designer edits visually: `AnimationCurve` in Unity, `Curve` in Godot, `FRuntimeFloatCurve` in Unreal.

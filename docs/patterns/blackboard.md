@@ -25,6 +25,48 @@ Useful extras:
 | **Timestamps** | "Last seen 4 s ago" lets behaviour fade from *chase* to *search* to *give up*. |
 | **Parent blackboard** | A squad or global blackboard that agents fall back to for shared facts. |
 
+## Pseudocode
+
+```text
+Blackboard:
+    entries      // key → (value, time it was written)
+    parent       // e.g. the squad's blackboard, or none
+    on_changed   // listeners told which key changed
+
+    set(key, value):
+        changed ← key is missing or its value differs from value
+        entries[key] ← (value, now)          // always refresh the time
+        if changed: tell on_changed about key
+
+    get(key):
+        if key is in entries: return its value
+        if parent exists: return parent.get(key)
+        return unknown
+
+    age(key):                                // how fresh is this fact?
+        if key is in entries: return now − its time
+        if parent exists: return parent.age(key)
+        return infinity
+
+    clear(key):
+        if key was removed from entries: tell on_changed about key
+
+// Sensors write facts...
+on player seen:  blackboard.set(last known position, player position)
+on noise heard:  blackboard.set(noise location, noise position)
+
+// ...and reusable tree nodes read them, knowing only a key.
+HasRecent(key, max_age):  Success if blackboard.age(key) ≤ max_age
+MoveToKey(key):           head for blackboard.get(key); Running until there
+
+// Chase a fresh sighting, search an older one, check a noise, else patrol.
+Selector(
+    Sequence(HasRecent(last known position, 1 s),  chase),
+    Sequence(HasRecent(last known position, 10 s), MoveToKey(last known position)),
+    Sequence(HasRecent(noise location, 8 s),       MoveToKey(noise location)),
+    patrol)
+```
+
 ## Example
 
 A guard's memory: the target, where it was last seen, where a noise came from, all with timestamps so the tree can ask "how fresh is this?". Unreal has blackboards built in (`UBlackboardComponent` plus a Blackboard asset), so its tabs use those; Unity and Godot get a small class.

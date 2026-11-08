@@ -21,6 +21,44 @@ The cost depends on the **size of the map, not the number of units**. 10 units o
 
 <FlowFieldViz />
 
+## Pseudocode
+
+```text
+cost[cell]         = 1 for floor, more for mud, WALL for impassable
+integration[cell]  = total cost from cell to the goal, ∞ until reached
+direction[cell]    = unit vector toward the cheapest neighbour
+
+build(goal):
+    set every integration to ∞ and every direction to zero
+    // 1. Integration field: flood outward from the goal (4-way).
+    integration[goal] ← 0
+    queue ← [goal]
+    while queue is not empty:
+        c ← take the first cell out of queue
+        for each of the 4 neighbours n of c that is not a WALL:
+            total ← integration[c] + cost[n]
+            if total < integration[n]:
+                integration[n] ← total
+                add n to queue          // re-queue whenever it improves
+
+    // 2. Flow field: point each reached cell at its cheapest neighbour (8-way).
+    for each cell c that is not a WALL and was reached:
+        best ← integration[c]
+        for each of the 8 neighbours n of c:
+            if n is diagonal and either cell beside the diagonal is a WALL:
+                skip it                 // don't cut between two walls
+            if integration[n] < best:
+                best ← integration[n]
+                direction[c] ← normalised (n − c)
+
+// Engine wiring: one owner, many readers.
+when the goal enters a new cell, at most every 0.25 s:
+    build(goal cell)
+every frame, for each unit:
+    desired ← direction[cell under the unit] × max_speed   // plus separation
+    move velocity toward desired by at most acceleration × dt
+```
+
 ## Example
 
 The **core** builds the field: a cost grid, an integration field flooded out from the goal, and a direction per cell. The **engine wiring** marks walls from the level's collision, rebuilds the field when the goal changes cell, and moves units along it.
@@ -71,7 +109,7 @@ public class FlowField
     // Rebuild the whole field toward a goal. Cost depends on map size, not unit count.
     public void Build(Vector3 goalWorld)
     {
-        for (int i = 0; i < integration.Length; i++) integration[i] = ushort.MaxValue;
+        for (int i = 0; i < integration.Length; i++) { integration[i] = ushort.MaxValue; direction[i] = Vector2.zero; }
 
         var goal = CellOf(goalWorld);
         if (!InBounds(goal.x, goal.y)) return;

@@ -20,6 +20,45 @@ Describe actions declaratively, and let a **planner** find the sequence:
 
 Adding *ThrowGrenade* (requires `HasGrenade`, gives `EnemyDead`, costs 3) is just a new action. The planner automatically uses it when it is the cheapest way to the goal.
 
+## Pseudocode
+
+The planner is [A*](./a-star) where a node is a whole world state and an edge is an action.
+
+```text
+state = a set of facts that are true (has ammo, in range, ...)
+
+Action:
+    requires, adds, removes      // sets of facts
+    cost
+    can_run(state):  requires are all in state
+    apply(state):    return (state + adds) - removes
+
+plan(start, goal, actions):
+    g[start] ← 0                 // cheapest known cost to reach each state
+    add (start, h(start)) to open
+    while open is not empty and the node budget is not used up:
+        state ← take the lowest-f entry out of open
+        if every goal fact is in state:
+            return follow came_from back from state to start
+
+        for each action a that can_run(state):
+            next ← a.apply(state)
+            cost ← g[state] + a.cost
+            if next was reached before at cost or less:
+                skip it
+            g[next] ← cost
+            came_from[next] ← (state, a)
+            add (next, cost + h(next)) to open
+    return no plan
+
+h(state): number of goal facts not yet in state
+
+// The agent runs the plan step by step, and plans again from the
+// current world state when a step fails or a relevant fact changes.
+plan ← plan(current facts, enemy dead, soldier actions)
+    // → pick up ammo, reload, move in range, shoot   (cost 6, beats the knife's 7)
+```
+
 ## Example
 
 World state as a bitmask makes states cheap to copy, compare and hash. The **core** is an A* search over those states with no engine types; the **domain** is a soldier's action set, which is all a designer writes.
@@ -90,7 +129,7 @@ public static class GoapPlanner
         return null;
     }
 
-    // Number of goal facts still missing: never overestimates if every action costs at least 1.
+    // Number of goal facts still missing: never overestimates if every action costs at least 1 and adds at most one goal fact.
     static float Heuristic(Fact s, Fact goal) => BitCount((ulong)(goal & ~s));
 
     static int BitCount(ulong v) { int c = 0; while (v != 0) { v &= v - 1; c++; } return c; }
@@ -170,7 +209,7 @@ static func plan(start: int, goal: int, actions: Array[GoapAction], max_nodes :=
 	return []
 
 
-## Number of goal facts still missing: never overestimates if every action costs at least 1.
+## Number of goal facts still missing: never overestimates if every action costs at least 1 and adds at most one goal fact.
 static func _heuristic(state: int, goal: int) -> float:
 	var missing := goal & ~state
 	var count := 0

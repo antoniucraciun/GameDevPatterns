@@ -21,6 +21,46 @@ Add an AI that controls **the game**, not a character. The director **observes**
 
 The result is a rhythm: tension, release, tension. It adapts to skill, because skilled players spend less time at high intensity, so they get more frequent build-ups. Every session plays out differently.
 
+## Pseudocode
+
+```text
+Director:
+    intensity ← 0        // 0..1: rises fast with danger, decays slowly
+    phase ← build-up     // build-up, peak or relax
+    pressure ← 0         // 0..1: how hard to push right now
+    budget ← 0           // threat points the spawner may spend
+
+    // Stress events push intensity up quickly.
+    on player damaged(amount):   intensity ← min(1, intensity + 2 × amount / max health)
+    on enemy killed near player: intensity ← min(1, intensity + 0.03)
+
+    every frame (dt):
+        // Continuous signals hold intensity up; otherwise it decays.
+        health_stress ← 1 − player health fraction
+        crowd_stress  ← min(1, enemies within 15 m / 12)
+        intensity ← max(intensity − decay × dt,
+                        0.5 × health_stress + 0.4 × crowd_stress)
+
+        if phase is build-up:
+            pressure ← min(1, pressure + dt / 40)      // ramp up over about 40 s
+            if intensity ≥ peak_threshold: enter(peak, 6 s)
+        if phase is peak:
+            pressure ← 1                               // hold the climax briefly
+            if its time is up: enter(relax, 25 s)
+        if phase is relax:
+            pressure ← 0                               // breathing room
+            if its time is up and intensity < 0.3: enter(build-up, 0 s)
+
+        // The director decides how much; the spawner decides what and where.
+        budget ← budget + pressure × max_budget_per_second × dt
+        budget ← budget − spawner.spend(budget)        // off-screen spawns only
+
+    enter(next, duration):
+        phase ← next; the phase ends after duration
+        if next is relax:    spawner.maybe drop supplies near the player
+        if next is build-up: pressure ← 0.2
+```
+
 ## Example
 
 An intensity meter fed by stress signals, a build-up / peak / relax cycle, and a spawn budget that follows the cycle. The director only decides *how much* pressure to apply; a spawner (left to the reader in each tab) decides what to spawn and where.
