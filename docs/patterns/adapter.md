@@ -18,6 +18,41 @@ Define the interface **your game wants**, then write an **adapter** per external
 
 All platform `#if`s and SDK quirks live in the adapters. Gameplay code never sees them.
 
+## Pseudocode
+
+```text
+// The interface the game wants: typed, platform-neutral.
+Achievements:
+    unlock(id)                         // id is one of the game's own:
+    set_progress(id, current, total)   // FirstBlood, Centurion, ...
+
+// Editor, tests, platforms without achievements.
+NullAchievements is Achievements:
+    unlock(id):  log "unlock " + id
+    set_progress(id, current, total):  do nothing
+
+// One adapter per SDK: translate ids, call the SDK, absorb its quirks.
+SteamAchievements is Achievements:
+    api_names ← { FirstBlood → "ACH_FIRST_BLOOD",
+                  Centurion  → "ACH_KILL_100", ... }   // in one place
+
+    unlock(id):
+        if the Steam SDK is not running: return       // SDK quirk
+        steam.set_achievement(api_names[id])
+        steam.store_stats()                           // Steam needs an explicit store
+
+    set_progress(id, current, total):
+        steam.indicate_progress(api_names[id], current, total)
+
+// The bootstrapper chooses once, per platform.
+create_achievements():
+    if running on Steam outside the editor: return new SteamAchievements
+    otherwise:                              return new NullAchievements
+
+// Gameplay never knows which one it has:
+achievements.unlock(Centurion)
+```
+
 ## Example
 
 The game wants a simple, typed achievements API. Each platform SDK has its own shape; an adapter per platform translates between them.

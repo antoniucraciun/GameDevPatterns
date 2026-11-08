@@ -18,6 +18,46 @@ Put a **facade** in front of the subsystem: a small, task-oriented interface tha
 
 A facade does not stop advanced code from using the subsystem directly when it really needs to. It makes the **common case simple and correct**.
 
+## Pseudocode
+
+```text
+// Data: what a sound is, not how to play it.
+SoundCue:
+    variants, mixer_group, volume, pitch_variation, spatial
+
+// The facade: four intent-level calls over pools, mixers and fades.
+Audio:
+    sfx_pool                       // reusable sound players
+    music_a, music_b               // two players, so tracks can crossfade
+    current_music ← music_a
+
+    play_sfx(cue, position):  play(cue, position, cue.spatial)
+    play_ui(cue):             play(cue, nowhere, spatial = false)
+
+    play(cue, position, spatial):
+        if cue has no variants: return
+        player ← take one from sfx_pool
+        put player at position
+        player plays a random variant, through cue.mixer_group,
+            at cue.volume, pitch 1 ± random(cue.pitch_variation),
+            3D if spatial, otherwise 2D
+        when player finishes: return it to sfx_pool
+
+    play_music(track, fade_seconds):
+        next ← whichever of music_a, music_b is not current_music
+        next starts track at volume 0
+        over fade_seconds: raise next to full, lower current_music to 0
+        then stop current_music
+        current_music ← next
+
+    duck_music(duck):
+        music mixer volume ← -10 dB if duck, else 0 dB
+
+// Gameplay sees only this:
+Audio.play_sfx(footstep_cue, player position)
+Audio.play_music(boss_theme)
+```
+
 ## Example
 
 An audio facade: one small API for gameplay (play a sound here, play this music, duck the music) over pooling, mixer routing, variation, spatialisation and crossfades.
@@ -160,6 +200,9 @@ func _ready() -> void:
 
 
 func play_sfx(cue: SoundCue, position: Vector3) -> void:
+	if not cue.spatial:
+		play_ui(cue)  # non-spatial cues play in 2D
+		return
 	if cue.variants.is_empty():
 		return
 	var player := _free_player(_pool_3d) as AudioStreamPlayer3D

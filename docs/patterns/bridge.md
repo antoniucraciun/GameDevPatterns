@@ -40,6 +40,47 @@ It is easy to confuse Bridge with its neighbours, because the code looks alike: 
 
 A bridge is often described as "a strategy whose holder also has subclasses". The difference is intent: a strategy is about swapping an algorithm, a bridge is about keeping two hierarchies from multiplying into each other.
 
+## Pseudocode
+
+```text
+// Implementor: WHAT happens to each target.
+Element:
+    tint
+    apply(target, direction, power)
+
+Fire is an Element:
+    apply(target, direction, power):
+        target takes power damage
+        target gains "burning" for 3 seconds
+
+Force is an Element:
+    apply(target, direction, power):
+        target takes power × 0.25 damage
+        push target along direction × power     // knockback instead of damage
+
+// Abstraction: HOW the spell finds its targets.
+Delivery:
+    element                       // the bridge
+    cast(origin, direction, power)
+
+Beam is a Delivery:
+    range
+    cast(origin, direction, power):
+        target ← first hittable thing along a ray from origin, up to range
+        if target found: element.apply(target, direction, power)
+
+Nova is a Delivery:
+    radius
+    cast(origin, direction, power):
+        for each hittable target within radius of origin, except the caster:
+            away ← direction from origin to target
+            element.apply(target, away, power × 0.5)   // everyone, for less
+
+// Any delivery takes any element: two choices, no class per pair.
+spell ← new Nova(element = new Force, radius = 6)
+spell.cast(caster position, caster forward, 20)
+```
+
 ## Example
 
 Spells built from a delivery and an element. The first group defines both hierarchies; the second lets a designer combine them on a caster.

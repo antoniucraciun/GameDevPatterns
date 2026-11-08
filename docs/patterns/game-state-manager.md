@@ -23,6 +23,53 @@ Apply the [State](./state) pattern to the **game itself**. One manager owns the 
 
 All flow goes through `manager.ChangeTo(...)`. Transitions are **asynchronous**, because scene loads take time, and **guarded**, so a second transition request during a load is queued rather than interleaved. Every other system **reacts** to state changes through an event instead of inspecting UI panels to work out what is going on.
 
+## Pseudocode
+
+```text
+GameState:
+    enter()      // may wait, e.g. for a scene load
+    exit()       // may wait
+    tick()
+
+GameStateManager:
+    current ← none
+    is_transitioning ← false
+    pending ← none                    // one queued request; the latest wins
+    changed                           // event (from, to)
+
+    change_to(next):
+        if is_transitioning:
+            pending ← next            // don't interleave: run it afterwards
+            return
+        is_transitioning ← true
+        previous ← current
+        if previous exists: wait for previous.exit()
+        current ← next
+        wait for next.enter()
+        is_transitioning ← false      // even if enter or exit failed
+        raise changed(previous, next)
+        if pending exists:
+            queued ← pending;  pending ← none
+            change_to(queued)
+
+    every frame:
+        if not is_transitioning and current exists: current.tick()
+
+LoadLevel(level) is a GameState:
+    enter():
+        show the loading screen;  load level additively and wait
+        hide the loading screen
+        manager.change_to(Playing(level))   // queued until this enter ends
+
+Playing(level) is a GameState:
+    tick(): if pause pressed: manager.change_to(Paused(resume_to = this))
+
+Paused(resume_to) is a GameState:
+    enter(): push a time-scale request of 0;  show the pause menu
+    exit():  release that request;  hide the pause menu
+    tick():  if pause pressed: manager.change_to(resume_to)
+```
+
 ## Example
 
 A manager that owns the top-level flow (menu, loading, playing, paused) with asynchronous enter and exit, and queues a change requested mid-transition.

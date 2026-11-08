@@ -24,6 +24,46 @@ Make **individual objects** (leaves) and **groups** (composites) implement **the
 
 Callers hold an `ICommandable` and call `MoveTo(point)` without knowing whether it is one unit or a thousand. New grouping levels need no new code, because a composite can contain composites.
 
+## Pseudocode
+
+```text
+// One interface for a single unit and for any group.
+Commandable:
+    unit_count()
+    total_health()
+    center()
+    move_to(destination)
+    attack(target)
+
+Unit is a Commandable:                // leaf
+    health
+    unit_count():         return 1
+    total_health():       return health
+    center():             return its position
+    move_to(destination): set its navigation destination
+    attack(target):       set its attack target
+
+Group is a Commandable:               // composite
+    members                           // units and other groups
+    add(m) / remove(m)                // only groups have these
+
+    unit_count():   return sum of m.unit_count() over members
+    total_health(): return sum of m.total_health() over members
+    center():       // weighted by size, so a big squad counts more
+        return sum of (m.center() × m.unit_count()) ÷ unit_count()
+
+    move_to(destination):             // delegate, adding a formation
+        columns ← ceiling(√ number of members)
+        for each member at index i:
+            offset ← (i mod columns, i div columns) × 3 on the ground
+            member.move_to(destination + offset)
+
+    attack(target): for each member m: m.attack(target)
+
+// Callers never ask what kind of selection they hold:
+selection.move_to(click_point)        // one unit, a squad, or the army
+```
+
 ## Example
 
 RTS selection: a unit, a squad and an army all answer to the same commands, and groups can contain groups.

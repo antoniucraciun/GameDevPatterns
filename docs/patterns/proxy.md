@@ -35,6 +35,44 @@ It is easy to confuse Proxy with its neighbours, because all three wrap another 
 | [Decorator](./decorator) | Same | Adds *behaviour*, and is stacked freely by the caller. |
 | [Adapter](./adapter) | Different | *Converts* one interface into another. |
 
+## Pseudocode
+
+Both proxies from the Example: a virtual proxy that loads on first use, and a protection proxy that checks permissions.
+
+```text
+VoiceLines:                          // the subject interface
+    play(line, speaker)
+
+VoiceBank is VoiceLines:             // real subject: expensive to create
+    clips ← every clip in its folder, loaded when created
+    play(line, speaker): speaker plays clips[line], or warn if missing
+
+LazyVoiceBank is VoiceLines:         // virtual proxy
+    folder                           // only a path until first use
+    real ← none
+    play(line, speaker):
+        if real is none: real ← new VoiceBank(folder)   // first call pays
+        real.play(line, speaker)                         // then just forward
+    release():                       // only the proxy has this
+        unload real;  real ← none    // the next play loads it again
+
+// Each NPC: release the bank when the player is far away.
+if bank is loaded and distance to player > release_distance: bank.release()
+
+SandboxedWorldApi is WorldApi:       // protection proxy for one mod
+    real, mod_name, permissions, gold_given ← 0
+    spawn_item(item, position):
+        if allowed("spawn"): real.spawn_item(item, position)
+    give_gold(amount):
+        if not allowed("economy"): return
+        granted ← clamp(amount, 0, 1000 - gold_given)   // cap, not just allow
+        gold_given ← gold_given + granted
+        if granted > 0: real.give_gold(granted)
+    allowed(permission):
+        if permission is in permissions: return true
+        warn "<mod_name> needs <permission>";  return false
+```
+
 ## Example
 
 ### Virtual proxy: load on first use
