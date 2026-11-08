@@ -6,7 +6,7 @@
 
 ## Problem
 
-The player controller checks `Input.GetKeyDown(KeyCode.Space)`. Then gamepad support is needed, so the check grows into `Space || JoystickButton0`. Then a player asks to rebind jump. Then the inventory screen also uses Space, and opening it makes the character jump. Then the AI should drive the same controller, and the replay system should feed it recorded input. Every one of these changes touches gameplay code, because gameplay talks to *keys* instead of *intentions*.
+The player controller checks whether Space was pressed. Then gamepad support is needed, so the check grows into `Space || JoystickButton0`. Then a player asks to rebind jump. Then the inventory screen also uses Space, and opening it makes the character jump. Then the AI should drive the same controller, and the replay system should feed it recorded input. Every one of these changes touches gameplay code, because gameplay talks to *keys* instead of *intentions*.
 
 ## Solution
 
@@ -409,12 +409,12 @@ void AChaseAIController::Tick(float DeltaSeconds)
 ## When not to use
 
 - Game jams and prototypes with one device and fixed controls. Reading input directly is faster.
-- Duplicating what Unity's Input System already does. Its actions and bindings are an input abstraction; build on them instead of wrapping them again.
+- Duplicating what the engine's input system already does. Unity's Input System, Godot's Input Map and Unreal's Enhanced Input are input abstractions with actions and bindings; build on them instead of wrapping them again.
 
 ## Pitfalls
 
 - **Raw input leaking back.** A single `Keyboard.current.spaceKey` in gameplay code bypasses rebinding and context switching. Search for direct device access and route it through actions.
-- **One-frame actions in `FixedUpdate`.** `WasPressedThisFrame` is a frame concept. Latch presses in `Update` (see [Input Buffer](./input-buffer)) or use callbacks.
+- **One-frame actions in the fixed step.** Unity's `WasPressedThisFrame` is a frame concept, so checking it in `FixedUpdate` misses or doubles presses. Latch presses in the per-frame update (see [Input Buffer](./input-buffer)) or use callbacks.
 - **Overlapping maps.** Leaving *Gameplay* and *UI* enabled together means Escape both pauses and closes the menu. Enable exactly the maps the current context needs.
 - **Rebinding conflicts.** Binding Jump to the same button as Attack silently breaks one of them. Detect conflicts and offer to swap.
 - **Displaying the wrong glyphs.** Prompts that always say "Press Space" confuse gamepad players. Show bindings from the action (`GetBindingDisplayString`) for the active device.

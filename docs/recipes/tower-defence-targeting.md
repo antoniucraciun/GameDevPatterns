@@ -249,7 +249,7 @@ public class Projectile : MonoBehaviour
 ## Where the patterns meet: pitfalls
 
 - **Scanning every enemy per tower.** `foreach (var e in Enemy.Active)` per tower is 50 × 400 distance checks per frame, every frame. Rebuild one grid per frame and query it. Size cells close to the most common tower range.
-- **Rebuilding the grid after towers query it.** If towers update before the grid rebuild, they see last frame's positions. Rebuild first, using Script Execution Order or a central update.
+- **Rebuilding the grid after towers query it.** If towers update before the grid rebuild, they see last frame's positions. Rebuild first, using the engine's update-order settings or a central update.
 - **Stale subscriptions on pooled objects.** A projectile that does not unsubscribe from its old target receives that enemy's `Died` event on a *later* flight, and drops its new target. Unsubscribe on every target change and on release.
 - **Homing on pooled enemies.** If enemies are pooled too, a reused enemy is the same object with a new life, and a projectile still tracking it would hit the new enemy. Clearing the target on `Died`, as above, prevents this.
 - **Strategies with state.** A shared `TargetingStrategy` asset storing "the last target" mixes towers up. Keep strategies stateless, and keep per-tower state on the tower.

@@ -227,14 +227,14 @@ private:
 
 ## When not to use
 
-- Purely visual or UI animation: tweens, camera smoothing, UI fades. Run them per frame with `Time.deltaTime`, or they stutter at frame rates that don't match the step.
+- Purely visual or UI animation: tweens, camera smoothing, UI fades. Run them per frame with the frame delta, or they stutter at frame rates that don't match the step.
 - Reading input. Sample it every frame and hand it to the fixed step, or presses that land between steps get lost.
 - Simple non-physics games where frame-rate independence via `deltaTime` is enough and determinism doesn't matter.
 
 ## Pitfalls
 
-- **One-frame inputs lost or doubled.** `GetKeyDown` checked in `FixedUpdate` can miss a press (zero steps this frame) or fire twice (two steps). Latch inputs in `Update` and consume them in the fixed step.
-- **Spiral of death.** Clamp frame time (Unity's *Maximum Allowed Timestep*) so a hitch does not demand hundreds of catch-up steps.
+- **One-frame inputs lost or doubled.** Unity's `GetKeyDown` checked in `FixedUpdate` can miss a press (zero steps this frame) or fire twice (two steps). Latch inputs in the per-frame update and consume them in the fixed step. Godot's `is_action_just_pressed()` tracks physics frames and is safe in `_physics_process`; Unreal's input events fire per frame, so latch them the same way for any fixed-step logic of your own.
+- **Spiral of death.** Clamp frame time (Unity's *Maximum Allowed Timestep*, Godot's *Max Physics Steps per Frame*, Unreal's *Max Substeps*) so a hitch does not demand hundreds of catch-up steps.
 - **Visible stutter without interpolation** when the display rate is not a multiple of the step rate.
 - A fixed step alone does not make floating-point math deterministic across platforms. See [Determinism](./determinism).
 

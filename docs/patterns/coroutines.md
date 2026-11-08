@@ -12,7 +12,7 @@ A door opens over two seconds, waits, plays a sound, then closes. Written in `Up
 
 Write the sequence as **one function that pauses itself**. At each `yield` (or `await`), the function hands control back to the engine and resumes later: next frame, after a delay, or when a condition becomes true. Local variables survive across pauses, so the code reads top to bottom.
 
-Unity offers two forms:
+Each engine offers this differently. Unity has two forms:
 
 | | Coroutines (`IEnumerator`) | `async` / `Awaitable` (Unity 2023.1+) |
 | --- | --- | --- |
@@ -22,6 +22,10 @@ Unity offers two forms:
 | Return values | Not directly | `Awaitable<T>` |
 | Stops when | The GameObject is disabled or destroyed, or `StopCoroutine` | It doesn't, unless you pass a cancellation token |
 | Error handling | Exceptions are logged, and the coroutine stops | `try/catch` works normally |
+
+In **Godot**, any function that uses `await` is a coroutine: `await get_tree().process_frame` waits a frame, and `await get_tree().create_timer(2.0).timeout` waits two seconds. It can await any signal, and returns a value to a caller that awaits it.
+
+**Unreal** C++ has no built-in coroutines. Sequences use timers (`FTimerManager`), Blueprint latent nodes such as `Delay`, or **Timelines**; plugins such as UE5Coro add C++20 `co_await`.
 
 ## Example
 
@@ -224,21 +228,21 @@ Coroutines and async functions are perfect for **sequences**: cutscenes, tutoria
 
 - Scripted sequences with waits: cutscenes, tutorials, intros, scripted events, wave timing.
 - Spreading work over frames (see [Time Slicing](./time-slicing)).
-- Waiting for asynchronous operations: scene loads, web requests, Addressables.
+- Waiting for asynchronous operations: scene loads, web requests, asset streaming.
 
 ## When not to use
 
 - Long-lived state machines that need to be inspected, saved or interrupted cleanly. Use [State](./state); a coroutine's state is hidden in its stack and can't be serialised.
-- Logic that must keep running when its GameObject is disabled. Coroutines stop silently.
-- Heavy background work. Coroutines run on the main thread, so they do not make work parallel; use `async`/`await` with threads or the [Job System](./job-system).
+- Logic that must keep running after its owner is disabled or freed. Unity coroutines stop silently when their GameObject is disabled, Godot coroutines never resume once their node is freed, and Unreal timers are cleared with their object.
+- Heavy background work. Coroutines run on the main thread, so they do not make work parallel; use worker threads or the [Job System](./job-system).
 
 ## Pitfalls
 
-- **Stopped by disabling.** Coroutines stop silently when their GameObject is deactivated, and do not resume when it is re-enabled. Run long-lived sequences on an object that stays active.
-- **Async that never stops.** `async` methods keep running after their object is destroyed, unless they use `destroyCancellationToken`. Always pass a token to waits in MonoBehaviours.
-- **Allocations.** `new WaitForSeconds(...)` allocates each time. Cache it in a field when used in a loop, or use `yield return null` with your own timer.
-- **Hidden state.** Many coroutines running at once on one object, starting and stopping each other, are hard to debug. Keep a handle (`Coroutine running`) and stop the old one before starting a new one.
-- **Frame-rate-dependent loops.** `yield return null` loops that move a fixed amount per frame run faster at higher frame rates. Use `Time.deltaTime`, as above.
+- **Stopped with their owner.** Unity coroutines stop silently when their GameObject is deactivated, and do not resume when it is re-enabled. Godot coroutines never resume once their node is freed. Unreal timers are cleared when their object is destroyed. Run long-lived sequences on an owner that stays alive.
+- **Async that outlives its object.** Unity `async` methods keep running after their object is destroyed, unless they use `destroyCancellationToken`; always pass a token to waits in MonoBehaviours. In Godot, a coroutine can resume after its node has left the tree, so check `is_inside_tree()` after long waits. In Unreal, bind timer and latent callbacks with weak delegates.
+- **Allocations (Unity).** `new WaitForSeconds(...)` allocates garbage each time. Cache it in a field when used in a loop, or use `yield return null` with your own timer. GDScript and Unreal C++ timers are not garbage-collected, so this is a Unity concern.
+- **Hidden state.** Many coroutines running at once on one object, starting and stopping each other, are hard to debug. Keep a handle (Unity's `Coroutine`, Unreal's `FTimerHandle`, or a run counter in Godot that an old coroutine checks after each `await`) and stop the old one before starting a new one.
+- **Frame-rate-dependent loops.** Loops that wait one frame and move a fixed amount run faster at higher frame rates. Scale by the frame delta (`Time.deltaTime`, `delta`, `DeltaSeconds`), as above.
 - **Time scale.** `WaitForSeconds` uses scaled time and never finishes while the game is paused. Use `WaitForSecondsRealtime` for UI and pause menus.
 
 ## Related

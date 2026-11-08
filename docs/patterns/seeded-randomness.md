@@ -15,7 +15,7 @@ Treat randomness as **explicit, owned state**:
 1. **Seeded generators.** The same seed always produces the same sequence.
 2. **Separate streams per system.** World generation, loot, AI and VFX each own a generator. Adding a sparkle effect cannot change which sword drops.
 3. **Derived seeds.** Do not store one seed per chunk, room or enemy. *Derive* them by hashing the parent seed with a stable key: `Hash(worldSeed, chunkX, chunkY)`. Each chunk is then reproducible on its own, in any generation order.
-4. **A generator you own.** `System.Random`'s algorithm is not guaranteed to stay the same across .NET versions, and `UnityEngine.Random` is global state. For seeds that must work across game versions and platforms, such as shared world seeds or daily challenges, ship your own small PRNG.
+4. **A generator you own.** Built-in generators make no such promise: `System.Random`'s algorithm may change between .NET versions, Unity's `UnityEngine.Random` and Godot's global `randf()` are shared global state, and Unreal's `FMath::Rand` depends on the platform's C runtime. For seeds that must work across game versions and platforms, such as shared world seeds or daily challenges, ship your own small PRNG.
 5. **Saveable state.** Store the generator's internal state in save files and replays, not just the original seed.
 
 ## Example

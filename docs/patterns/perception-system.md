@@ -6,7 +6,7 @@
 
 ## Problem
 
-Each enemy script decides for itself whether it can see the player: one uses a distance check, another a raycast, a third forgets the field of view. Gunshots alert enemies through the gun calling `FindObjectsOfType<Enemy>()`. Enemies react *instantly* to a pixel of the player at the edge of their vision, then forget them the moment they step behind a pillar. With 50 enemies raycasting every frame, the AI is both unfair and expensive.
+Each enemy script decides for itself whether it can see the player: one uses a distance check, another a raycast, a third forgets the field of view. Gunshots alert enemies through the gun searching the whole scene for enemies. Enemies react *instantly* to a pixel of the player at the edge of their vision, then forget them the moment they step behind a pillar. With 50 enemies raycasting every frame, the AI is both unfair and expensive.
 
 ## Solution
 

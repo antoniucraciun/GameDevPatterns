@@ -154,13 +154,13 @@ public:
 
 ## When not to use
 
-- Dependencies that only a few objects need. Pass them in via a serialized field, a constructor or [Dependency Injection](./dependency-injection) so the dependency is visible.
+- Dependencies that only a few objects need. Pass them in via an editor-assigned field, a constructor or [Dependency Injection](./dependency-injection) so the dependency is visible.
 - As a way to reach everything from everywhere. If most classes call the locator, it is a [Singleton](./singleton) with extra steps, and it hides what depends on what.
 - Small games with one implementation of each service and no tests that need fakes.
 
 ## Pitfalls
 
-- **Hidden dependencies.** A class's needs are no longer visible in its constructor. Keep lookups at the edges (in `Awake`) and cache them, rather than calling `Get` throughout the logic.
+- **Hidden dependencies.** A class's needs are no longer visible in its constructor. Keep lookups at the edges (in startup callbacks) and cache them, rather than calling `Get` throughout the logic.
 - **Order of registration.** Something may ask for a service before it is registered. Use a bootstrap scene, or fall back to a null object.
 - **It is still global state.** If most of your code needs the locator, [Dependency Injection](./dependency-injection) is usually the better tool.
 

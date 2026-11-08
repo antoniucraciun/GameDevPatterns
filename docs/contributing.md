@@ -58,7 +58,7 @@ Every pattern page uses the same sections, in this order:
 | Intent (quote under the title) | One sentence on what the pattern lets you do. |
 | Problem | A concrete game situation that hurts without the pattern. |
 | Solution | The idea, its participants, and how they interact. |
-| Example | Short, compilable code in tabs for Unity, Godot and Unreal. See [Engine examples](#engine-examples). Pages not converted yet still have a single **Example (Unity C#)**. |
+| Example | Short, compilable code in tabs for Unity, Godot and Unreal. See [Engine examples](#engine-examples). |
 | When to use | Situations where it pays off. |
 | When not to use | Situations where it costs more than it saves, each naming the simpler code or better-fitting pattern to use instead. See [Keep It Simple](./keep-it-simple). |
 | Pitfalls | How it goes wrong when you do use it, and what to do instead. |
@@ -82,6 +82,8 @@ Each code example has three tabs, written as a VitePress code group. The tab nam
 
 :::
 ````
+
+The build fails if a pattern page has no `## Example` heading, or if any `::: code-group` on a pattern or recipe page doesn't have exactly these three tabs in this order.
 
 - **Core and Engine wiring.** When the pattern has logic that doesn't need the engine (a pathfinder, a stat calculator, a state machine), put it in a **Core** tab group with no scene types, and the code that connects it to the engine in an **Engine wiring** group. Readers can then lift the core into tests or another engine. If the pattern *is* the engine integration (camera smoothing, trigger volumes), use a single tab group.
 - **Idiomatic per engine.** Write each tab the way that engine's developers would: `MonoBehaviour` and `[SerializeField]` in Unity, nodes, `@export` and signals in Godot 4, `UCLASS`/`UPROPERTY` actors and components in Unreal Engine 5. Don't transliterate C# into the other languages.

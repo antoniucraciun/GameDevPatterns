@@ -15,7 +15,7 @@ One reusable **trigger volume** component handles the mechanics, and designers w
 - A trigger **collider** defines the region.
 - A **filter** decides what counts: layers, tags, required components (`Player`, `IDamageable`), and optionally requirements such as a [Gameplay Tag](./tags).
 - **Occupancy tracking** counts *objects*, not colliders. A character with three colliders counts once, and objects destroyed or disabled inside the volume are removed properly.
-- **Events**: `OnFirstEnter` (empty → occupied), `OnLastExit` (occupied → empty), and per-object `OnEnter` / `OnExit`. Exposed as `UnityEvent`s so designers connect doors, lights, music and cutscenes in the inspector.
+- **Events**: `OnFirstEnter` (empty → occupied), `OnLastExit` (occupied → empty), and per-object `OnEnter` / `OnExit`. Exposed as events designers can wire in the editor (`UnityEvent`s, Godot signals, Blueprint-assignable delegates) to connect doors, lights, music and cutscenes.
 - **Modes**: fire once (cutscene), fire every time (music zone), or with a cooldown (trap).
 
 ## Example
@@ -299,16 +299,16 @@ Designer wiring, no code (UnityEvents in the inspector, signals in Godot's Node 
 
 ## Pitfalls
 
-- **No Rigidbody, no events.** Unity sends trigger messages only if at least one of the two objects has a Rigidbody (kinematic is fine). Static trigger + CharacterController works, static trigger + static collider does not.
+- **Missing overlap requirements.** Unity sends trigger messages only if at least one of the two objects has a Rigidbody (kinematic is fine): static trigger + CharacterController works, static trigger + static collider does not. Unreal needs **Generate Overlap Events** on both components. In Godot, the `Area3D` must be monitoring and its collision mask must include the other object's layer.
 - **Multiple colliders.** Counting colliders instead of objects makes a character "enter" several times. Count by owner, as above.
-- **Destroyed or disabled occupants.** They never send `OnTriggerExit`. Clean up explicitly, or a pad stays pressed forever.
+- **Destroyed or disabled occupants.** They may never send an exit event (Unity never sends `OnTriggerExit` for them). Clean up explicitly, or a pad stays pressed forever.
 - **Fast objects tunnelling through.** A thin trigger can be skipped entirely by a fast object between physics steps. Make triggers thick, or use continuous collision detection on the fast object.
-- **Teleporting in or out.** Moving a transform directly may not generate enter/exit until the next physics step, or at all. Call `Physics.SyncTransforms`, or handle teleports explicitly.
-- **Logic in UnityEvents that should be code.** Long chains of inspector-wired events are hard to debug. Keep volumes for simple wiring, and move complex logic into scripts that the volume calls.
+- **Teleporting in or out.** Moving an object directly may not generate enter/exit until the next physics step, or at all. Handle teleports explicitly (in Unity, `Physics.SyncTransforms` helps).
+- **Logic in editor-wired events that should be code.** Long chains of editor-wired events are hard to debug. Keep volumes for simple wiring, and move complex logic into scripts that the volume calls.
 
 ## Related
 
-- [Observer](./observer) — enter and exit are events, and UnityEvents let designers subscribe.
+- [Observer](./observer) — enter and exit are events, and editor-wired events (UnityEvents, signals, Blueprint events) let designers subscribe.
 - [Interaction System](./interaction-system) — the explicit, button-press counterpart.
 - [Checkpoint / Respawn](./checkpoint) — checkpoints are usually trigger volumes.
 - [Quest System](./quest-system) — "reach the location" objectives listen to area-entered events.

@@ -6,13 +6,13 @@
 
 ## Problem
 
-Each small operation has a fixed overhead that has nothing to do with the work itself. Drawing one rock costs a draw call: the CPU sets up state, validates and submits to the GPU, and 3,000 rocks cost 3,000 of those even though each is tiny. 500 agents each calling `Physics.Raycast` pay the per-call cost 500 times, on the main thread, one after another. Writing a save file one line at a time, sending one network packet per event, rebuilding a UI canvas for each changed label: the pattern repeats everywhere. The overhead, not the work, becomes the bottleneck.
+Each small operation has a fixed overhead that has nothing to do with the work itself. Drawing one rock costs a draw call: the CPU sets up state, validates and submits to the GPU, and 3,000 rocks cost 3,000 of those even though each is tiny. 500 agents each casting a ray pay the per-call cost 500 times, on the main thread, one after another. Writing a save file one line at a time, sending one network packet per event, rebuilding a UI canvas for each changed label: the pattern repeats everywhere. The overhead, not the work, becomes the bottleneck.
 
 ## Solution
 
 **Collect similar operations and submit them together**, so the fixed cost is paid once per batch rather than once per item.
 
-In rendering, Unity provides several kinds of batching:
+In rendering, every engine batches for you in several ways. Unity provides:
 
 | Technique | What it batches | Requirements |
 | --- | --- | --- |
@@ -21,11 +21,13 @@ In rendering, Unity provides several kinds of batching:
 | **Static batching** | Combines static meshes sharing a material into large buffers | Objects marked *Batching Static*. Uses more memory. |
 | **`Graphics.RenderMeshInstanced`** | Your own instanced drawing from code | You provide the matrices (see [Flyweight](./flyweight)). |
 
+Godot batches 2D canvas items automatically and draws many copies of a mesh with `MultiMeshInstance3D`. Unreal uses Instanced and Hierarchical Instanced Static Mesh components, **Merge Actors** in the editor, and Nanite, which batches by material.
+
 Outside rendering, the same idea applies:
 
-- **Physics queries:** `RaycastCommand`, `SpherecastCommand` and `OverlapSphereCommand` run thousands of queries as one job across worker threads.
+- **Physics queries:** Unity's `RaycastCommand`, `SpherecastCommand` and `OverlapSphereCommand` run thousands of queries as one job across worker threads, and Unreal's async traces return results a frame later. Godot has no batched query API, so spread the queries over frames instead.
 - **Network:** collect messages for a tick and send one packet. See [Interest Management](./interest-management).
-- **UI:** change many values, then rebuild once (Canvas rebuilds happen once per frame, so avoid forcing them manually).
+- **UI:** change many values, then rebuild once (UI systems rebuild layout once per frame, so avoid forcing it manually).
 - **Saves, logs and analytics:** buffer writes and flush in one operation.
 
 ## Example

@@ -27,7 +27,7 @@ Damage
 - **Hierarchical matching.** Asking "has `State.Debuff`?" is true if the container holds *any* debuff. "Cleanse all debuffs" and "immune to all debuffs" become one query.
 - **Reference counting.** The container counts each tag. Two stuns add the tag twice, and the character stays stunned until *both* have been removed.
 - **Queries.** *Has any of*, *has all of*, *has none of*. An ability can declare "blocked by `State.Debuff.Stun` or `State.Debuff.Silence`, requires `State.Grounded`".
-- **Typo-proof tags.** Tags are assets (or interned constants) picked from a list in the inspector, not free strings.
+- **Typo-proof tags.** Tags are assets (or interned constants) picked from a list in the editor, not free strings.
 
 Unreal Engine's Gameplay Ability System popularised this approach. The pattern works in any engine.
 

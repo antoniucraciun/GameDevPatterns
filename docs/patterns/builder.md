@@ -312,7 +312,7 @@ private:
 ## When not to use
 
 - Objects with only a few required fields. A constructor or object initializer is clearer.
-- Unity components configured in the editor. Prefabs and the Inspector are already the builder.
+- Objects configured in the editor. Unity prefabs, Godot scenes and Unreal Blueprints, edited in the Inspector or Details panel, are already the builder.
 - One-off construction in a single place. A builder pays off when assembly rules are reused or easy to get wrong.
 
 ## Pitfalls

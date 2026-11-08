@@ -333,7 +333,7 @@ void UPredictedMovementComponent::ClientReceiveState_Implementation(const FPredi
 
 ## Pitfalls
 
-- **Non-deterministic simulation.** Different code paths, `Time.deltaTime` instead of a fixed step, or physics that is not replayable all cause constant corrections and rubber-banding. Keep predicted logic in pure functions driven by a [Fixed Timestep](./fixed-timestep).
+- **Non-deterministic simulation.** Different code paths, the variable frame delta instead of a fixed step, or physics that is not replayable all cause constant corrections and rubber-banding. Keep predicted logic in pure functions driven by a [Fixed Timestep](./fixed-timestep).
 - **Predicting things you do not control.** Other players and server-driven objects are usually interpolated, not predicted.
 - **Hard snaps on correction.** Smooth the visual position toward the corrected state over a few frames, while the simulation state snaps instantly.
 - **Irreversible side effects.** Kill confirmations and loot pickups should wait for the server, even if their effects are predicted.

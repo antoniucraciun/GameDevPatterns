@@ -6,7 +6,7 @@
 
 ## Problem
 
-A chest should drop common items often, rare items sometimes and legendaries almost never. Hard-coding this as `if (Random.value < 0.01f) ... else if (Random.value < 0.1f) ...` is wrong (each branch rolls again) and impossible for designers to tune. Pure randomness also feels unfair. A 10% drop can fail 40 times in a row, and players remember that much more vividly than the times they got lucky.
+A chest should drop common items often, rare items sometimes and legendaries almost never. Hard-coding this as `if (rand() < 0.01) ... else if (rand() < 0.1) ...` is wrong (each branch rolls again) and impossible for designers to tune. Pure randomness also feels unfair. A 10% drop can fail 40 times in a row, and players remember that much more vividly than the times they got lucky.
 
 ## Solution
 
@@ -298,11 +298,11 @@ The example passes an explicit stream (`System.Random`, `RandomNumberGenerator`,
 ## When not to use
 
 - Choices where players expect fairness over a session, such as card draws. Use a shuffled bag or pity timers.
-- A few equally likely options. `Random.Range` is enough.
+- A few equally likely options. A single random index is enough.
 
 ## Pitfalls
 
-- **Rolling once per branch** (`if (Random.value < a) … else if (Random.value < b)`) silently changes the probabilities. Roll once and compare against cumulative weights.
+- **Rolling once per branch** (`if (rand() < a) … else if (rand() < b)`) silently changes the probabilities. Roll once and compare against cumulative weights.
 - **Shared global RNG.** Unrelated systems consuming random numbers make outcomes impossible to reproduce. Use separate seeded streams.
 - **Displayed odds must be true.** Pity systems change the effective probability. Many platforms and regions legally require accurate odds disclosure for paid random rewards.
 - **Large tables rolled very often.** Precompute cumulative weights and binary-search them, or use the alias method for O(1) picks.

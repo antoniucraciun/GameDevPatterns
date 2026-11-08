@@ -6,7 +6,7 @@
 
 ## Problem
 
-Input handling often calls gameplay methods directly: `if (Input.GetKeyDown(KeyCode.Space)) player.Jump();`. That works until you need rebindable controls, AI that drives the same character, undo in a level editor, a replay system, or sending player actions to a server. Every one of these needs the action as *data*, not as a method call that has already happened.
+Input handling often calls gameplay methods directly: `if (jumpPressed) player.Jump();`. That works until you need rebindable controls, AI that drives the same character, undo in a level editor, a replay system, or sending player actions to a server. Every one of these needs the action as *data*, not as a method call that has already happened.
 
 ## Solution
 

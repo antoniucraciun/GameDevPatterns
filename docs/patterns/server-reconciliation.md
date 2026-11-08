@@ -388,7 +388,7 @@ void UReconcilingMovementComponent::TickComponent(float DeltaTime, ELevelTick Ti
 ## Pitfalls
 
 - **Simulation mismatch.** If client and server simulate differently (different code paths, variable `deltaTime`, physics that cannot be re-run), every update produces a correction. Share one pure simulation function, and see [Determinism](./determinism).
-- **Replaying things that cannot be replayed.** Engine physics and animation-driven root motion cannot be rewound and re-stepped cheaply. Use kinematic, code-driven movement for predicted entities, or a physics engine that supports manual stepping (`Physics.Simulate`) and accept the cost.
+- **Replaying things that cannot be replayed.** Engine physics and animation-driven root motion cannot be rewound and re-stepped cheaply. Use kinematic, code-driven movement for predicted entities, or a physics engine that supports manual stepping (such as Unity's `Physics.Simulate`) and accept the cost.
 - **Input starvation.** If the server runs out of queued inputs because of jitter, it either stalls the player or guesses. Keep a small input buffer on the server (a few ticks), and send recent inputs redundantly so one lost packet does not create a gap.
 - **Replaying side effects.** Replay must not re-trigger sounds, particles or "you fired" events. Separate simulation from presentation, and only present the final result.
 - **Unbounded pending lists.** If acknowledgements stop arriving, `pending` grows forever. Cap it, and treat a long silence as a disconnect.

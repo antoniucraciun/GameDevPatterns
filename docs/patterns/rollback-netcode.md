@@ -336,7 +336,7 @@ The state is plain data, so saving and restoring are plain copies (in GDScript, 
 ## Pitfalls
 
 - **Non-determinism.** If resimulating does not reproduce exactly what the other side computed, the games diverge. Same rules as [Deterministic Lockstep](./deterministic-lockstep): fixed-point math, no engine physics, no unordered iteration, checksums.
-- **Expensive state.** Saving the whole state every frame, and resimulating 8 frames in one, requires a compact state and a fast simulation. Keep game logic separate from Unity objects, in plain data that can be copied.
+- **Expensive state.** Saving the whole state every frame, and resimulating 8 frames in one, requires a compact state and a fast simulation. Keep game logic separate from engine objects (GameObjects, nodes, actors), in plain data that can be copied.
 - **Visible corrections.** A long rollback can make a character teleport, or a hit that seemed to land vanish. A small input delay reduces this, and so do animations with a few frames of startup that hide corrections.
 - **Side effects during resimulation.** Sounds, particles, hit stop and controller rumble must not fire again for frames that are resimulated. Trigger presentation from rendered state changes, not from inside `Step`.
 - **Rollback limit.** With very high latency, the game would need to roll back too far. Cap it, and slow down or pause when the opponent falls too far behind.

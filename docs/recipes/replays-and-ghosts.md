@@ -240,7 +240,7 @@ public class TimeTrial : MonoBehaviour
 - **Recording what the devices said instead of what the step consumed.** Record the exact `RaceInput` passed to `Advance`. Re-sampling devices for the recording, or recording in `Update`, misaligns steps.
 - **The ghost using the player's seed.** Each run has its own seed, and the ghost must replay the seed *from its recording*, or its wind gusts differ and it drifts off course.
 - **Old recordings after a gameplay change.** Any change to handling, track or gust timing invalidates saved ghosts. Store the game version, and re-verify or discard on mismatch. The checksums catch any mismatch the version check misses.
-- **Physics engine in the loop.** Driving the car with a Rigidbody makes PhysX part of the simulation, and it is not guaranteed to replay identically. Use simple custom movement for anything that must replay.
+- **Physics engine in the loop.** Driving the car with a Rigidbody makes the engine's physics part of the simulation, and it is not guaranteed to replay identically. Use simple custom movement for anything that must replay.
 - **Rendering without interpolation.** Views snapped to simulation positions stutter whenever the frame rate is not a multiple of 50 Hz. Keep the previous and current state, as `RaceSim` does.
 
 ## Variations

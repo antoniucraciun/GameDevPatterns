@@ -6,11 +6,11 @@
 
 ## Problem
 
-Creating an enemy properly takes more than `Instantiate(prefab)`. The prefab must be looked up, an instance taken from a pool, stats applied from its [type](./type-object), services injected, it must be registered with the AI director and the minimap, and it must be scaled for difficulty. The spawner, the boss's summon ability, the debug console and the tutorial each do this slightly differently, and each forgets a different step. Changing how enemies are created means finding every place that creates them.
+Creating an enemy properly takes more than instancing a template (`Instantiate`, `instantiate()`, `SpawnActor`). The template must be looked up, an instance taken from a pool, stats applied from its [type](./type-object), services injected, it must be registered with the AI director and the minimap, and it must be scaled for difficulty. The spawner, the boss's summon ability, the debug console and the tutorial each do this slightly differently, and each forgets a different step. Changing how enemies are created means finding every place that creates them.
 
 ## Solution
 
-Put creation in **one object whose job is creating things**: a factory. Callers say *what* they want ("a goblin at this position"), and the factory decides *how*: which prefab, pooled or new, which dependencies, which registrations.
+Put creation in **one object whose job is creating things**: a factory. Callers say *what* they want ("a goblin at this position"), and the factory decides *how*: which template (prefab, scene or Blueprint), pooled or new, which dependencies, which registrations.
 
 Common variations:
 
@@ -275,20 +275,20 @@ Callers depend on the factory interface, so tests can pass a fake factory that r
 
 ## When to use
 
-- Creation involves more than `new` or `Instantiate`: pooling, data lookup, injection, registration.
+- Creation involves more than `new` or the engine's spawn call: pooling, data lookup, injection, registration.
 - Many places create the same kinds of objects.
 - Objects are chosen by ID from data, the network or the console.
 - Families of objects must be swapped together (platforms, themes, difficulty sets).
 
 ## When not to use
 
-- Creation that is just `new` or `Instantiate` with no extra steps. A factory class adds a layer with nothing in it.
+- Creation that is just `new` or the engine's spawn call with no extra steps. A factory class adds a layer with nothing in it.
 - A single place that creates the object. Keep the creation code there until a second caller appears.
 - When the "factory" would be a giant `switch` on a type ID that grows with every new kind. Use [Type Object](./type-object) or a registry instead.
 
 ## Pitfalls
 
-- **Factories for trivial objects.** A factory that wraps a single `new Vector3(...)` is ceremony. Introduce one when creation has real steps.
+- **Factories for trivial objects.** A factory that wraps a single constructor call is ceremony. Introduce one when creation has real steps.
 - **God factories.** One factory that creates enemies, items, UI and effects grows huge. Use one factory per family of objects.
 - **Destruction not going through the factory.** If creation registers and pools, destruction must unregister and release. Pair `Create` with `Despawn` in the same class, and make it the only way to remove objects.
 - **Stringly-typed IDs.** A typo in `"gobiln"` fails at runtime. Validate IDs at load time, or prefer references to type assets in serialised data.

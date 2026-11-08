@@ -6,7 +6,7 @@
 
 ## Problem
 
-Some things really exist once: the audio mixer, the save system, the platform's achievements API. Code all over the game needs them. Dragging a reference through every prefab and constructor is tedious, so you want a way to say "give me *the* audio manager" from anywhere, and to be sure there are never two.
+Some things really exist once: the audio mixer, the save system, the platform's achievements API. Code all over the game needs them. Dragging a reference through every scene object and constructor is tedious, so you want a way to say "give me *the* audio manager" from anywhere, and to be sure there are never two.
 
 ## Solution
 
@@ -211,12 +211,12 @@ A safer middle ground: keep the single instance, but hide the concrete class beh
 
 ## Pitfalls
 
-- **Hidden dependencies.** A class that calls `AudioManager.Instance` deep inside a method depends on it, but nothing in its constructor or inspector says so.
-- **Initialisation order.** `Instance` is null if read before the singleton's `Awake` runs, such as from another object's `Awake`. Script Execution Order settings are a fragile fix. A bootstrap scene that creates services first is a robust one.
-- **Disabled Domain Reload.** Static fields keep values from the previous play session and point at destroyed objects. Reset them with `RuntimeInitializeOnLoadMethod`.
-- **Duplicates across scenes.** Every scene that contains the prefab creates one. Guard in `Awake`, as above, or create it from code only.
+- **Hidden dependencies.** A class that calls `AudioManager.Instance` deep inside a method depends on it, but nothing in its constructor or editor fields says so.
+- **Initialisation order.** `Instance` is null if read before the singleton's startup callback runs, such as from another object's. Unity's Script Execution Order settings are a fragile fix. A bootstrap scene that creates services first is a robust one. Godot autoloads and Unreal subsystems are created by the engine before gameplay objects, which avoids the problem.
+- **Statics surviving editor play sessions.** With Domain Reload disabled in Unity, and in Unreal's Play In Editor, static fields keep values from the previous play session and point at destroyed objects. Reset them when play starts (`RuntimeInitializeOnLoadMethod` in Unity). Godot runs the game in a separate process, so it starts clean.
+- **Duplicates across scenes.** Every scene that contains the singleton object creates one. Guard in its startup callback, as above, or create it from code only.
 - **Testing.** You cannot substitute a fake `SaveService` in a unit test without changing the singleton itself.
-- **Lazy creation of a MonoBehaviour** (`new GameObject().AddComponent<T>()` inside the getter) can silently create a new instance while the application is quitting, which leaks objects in the editor. Prefer explicit creation.
+- **Lazy creation of a scene object** (Unity's `new GameObject().AddComponent<T>()` inside the getter) can silently create a new instance while the application is quitting, which leaks objects in the editor. Prefer explicit creation.
 
 ## Related
 

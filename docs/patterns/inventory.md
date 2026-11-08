@@ -6,7 +6,7 @@
 
 ## Problem
 
-The first inventory is a `List<GameObject>`. Then potions need to stack to 20, swords must not stack, a sword needs its own durability, the chest and the player's bag need to share logic, dragging an item onto a full stack should split the overflow, and the whole thing needs saving. Every one of these hits a different shortcut, and the "inventory" becomes a tangle of special cases for each item kind.
+The first inventory is a list of scene objects. Then potions need to stack to 20, swords must not stack, a sword needs its own durability, the chest and the player's bag need to share logic, dragging an item onto a full stack should split the overflow, and the whole thing needs saving. Every one of these hits a different shortcut, and the "inventory" becomes a tangle of special cases for each item kind.
 
 ## Solution
 

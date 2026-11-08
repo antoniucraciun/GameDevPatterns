@@ -182,7 +182,7 @@ Unity 6 renamed `Rigidbody2D.velocity` to `linearVelocity`. In earlier versions,
 - **Consuming only one of the two timestamps.** If only the press is consumed, the coyote window allows a second jump in mid-air. If only the coyote window is consumed, a buffered press can fire again on landing.
 - **Ground check while rising.** Without the `linearVelocity.y <= 0` guard, the step right after take-off still reports grounded, which refreshes coyote time and allows a double jump.
 - **Releasing Jump before the jump starts.** If Jump is tapped and released inside the buffer window, the jump fires at full height after the release has already been handled. To fix it, record whether Jump is still held, and cut the jump right away if it is not.
-- **Tuning in the wrong place.** All the feel numbers are serialised fields, so designers can adjust them in Play mode.
+- **Tuning in the wrong place.** All the feel numbers are serialised fields, so designers can adjust them while the game runs in the editor.
 
 ## Variations
 

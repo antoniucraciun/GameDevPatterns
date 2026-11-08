@@ -6,7 +6,7 @@
 
 ## Problem
 
-Every frame, gameplay code creates short-lived data: lists of nearby enemies, raycast hit buffers, path candidates, temporary arrays for sorting, strings for the debug overlay. In C#, each `new List<T>()` or array is a heap allocation that the garbage collector must later find and free. A few kilobytes per frame becomes megabytes per minute, and the collector pauses the game to clean up, which causes regular hitches. The data's lifetime is obvious ("only this frame"), but the allocator does not know it.
+Every frame, gameplay code creates short-lived data: lists of nearby enemies, raycast hit buffers, path candidates, temporary arrays for sorting, strings for the debug overlay. In a garbage-collected language such as C# (Unity, Godot .NET), each `new List<T>()` or array is a heap allocation that the garbage collector must later find and free. In C++ each one is a call into the general-purpose allocator, which costs time and fragments memory. A few kilobytes per frame becomes megabytes per minute, and the collector pauses the game to clean up, which causes regular hitches. The data's lifetime is obvious ("only this frame"), but the allocator does not know it.
 
 ## Solution
 
@@ -16,7 +16,7 @@ Allocate from an **arena**: one large block of memory with a pointer to its firs
 - **Never free individual allocations.**
 - **Reset** the whole arena at once when its lifetime ends: every frame, every level or every job. Resetting is also O(1), moving the pointer back to the start.
 
-Because everything in an arena dies together, there is nothing for a garbage collector to track and no fragmentation. The cost is a strict rule: **nothing allocated from the arena may be used after the reset.**
+Because everything in an arena dies together, there is nothing for a garbage collector or general-purpose allocator to track, and no fragmentation. The cost is a strict rule: **nothing allocated from the arena may be used after the reset.**
 
 Common arenas in games:
 
@@ -24,9 +24,9 @@ Common arenas in games:
 | --- | --- | --- |
 | **Frame** | One frame | Query results, temporary buffers, debug strings |
 | **Level** | One level | Navigation data, level-specific tables |
-| **Job** | One job | Scratch memory inside a Burst job |
+| **Job** | One job | Scratch memory inside one worker-thread job |
 
-In Unity, `Allocator.Temp` *is* a per-frame arena for native memory, and the Entities package exposes a rewindable world update allocator. In managed C#, the closest equivalent is a set of buffers allocated once and **reused** every frame.
+Engines ship their own arenas: Unity's `Allocator.Temp` *is* a per-frame arena for native memory (and the Entities package exposes a rewindable world update allocator), and Unreal has `FMemStack` with `FMemMark`. GDScript has no manual memory management at all. In managed C# and GDScript, the closest equivalent is a set of buffers allocated once and **reused** every frame.
 
 ## Example
 
@@ -258,12 +258,12 @@ private:
 ## When to use
 
 - Short-lived data with a clear, shared lifetime: per-frame queries, per-job scratch space, per-level loading data.
-- Hot paths where garbage collection pauses are visible: mobile, VR, consoles, high frame-rate games.
-- Inside Burst jobs, which use `Allocator.Temp` for scratch memory.
+- Hot paths where allocation cost or garbage collection pauses are visible: mobile, VR, consoles, high frame-rate games.
+- Scratch memory inside worker-thread jobs: `Allocator.Temp` in Unity's Burst jobs, an `FMemMark` on the thread's `FMemStack` in Unreal.
 
 ## When not to use
 
-- Typical gameplay code in C#. The garbage collector and pooling are usually enough.
+- Typical gameplay code. The engine's allocator or garbage collector, plus pooling, is usually enough.
 - Data with mixed or unknown lifetimes. An arena frees everything at once, so a long-lived item leaks the whole arena.
 - Teams unfamiliar with unsafe or native memory. Use-after-free bugs are hard to find.
 
@@ -272,12 +272,12 @@ private:
 - **Use after reset.** The classic arena bug: data from last frame read this frame looks valid, but has been overwritten. Never store arena data in fields. `Span<T>` helps, because the compiler rejects it.
 - **Wrong lifetime.** Data that must outlive the frame (a path the unit keeps following) must be copied to persistent memory, not left in the frame arena.
 - **Running out of space.** A fixed arena that fills up must either grow, which allocates and can hitch, or fail. Profile peak usage and size accordingly, and log growth in development builds.
-- **Reset order.** Resetting before a late consumer runs (UI in `LateUpdate`, rendering callbacks) corrupts its data. Reset at one well-defined point, after all users.
+- **Reset order.** Resetting before a late consumer runs (UI that updates after gameplay, rendering callbacks) corrupts its data. Reset at one well-defined point, after all users.
 - **Holding references in managed arenas.** Buffers of reference types keep objects alive until cleared. Clear them on reset, as above, or store only value types.
 
 ## Related
 
 - [Object Pool](./object-pool) — reuses individual objects. An arena reuses whole blocks at once.
 - [Data Locality](./data-locality) — arenas give contiguous memory for free.
-- [Job System](./job-system) — `Allocator.Temp` and `TempJob` are arena-style allocators for jobs.
+- [Job System](./job-system) — jobs need short-lived scratch memory, which arenas provide (Unity's `Allocator.Temp` and `TempJob` are arena-style allocators for jobs).
 - [Spatial Partition](./spatial-partition) — grids rebuilt every frame are natural arena users.

@@ -346,10 +346,10 @@ Serialise the replay (`JsonUtility` in Unity, a `.tres`/`.res` resource in Godot
 
 ## Pitfalls
 
-- **Hidden non-determinism breaks input replays.** Common causes are `Time.deltaTime`, unseeded or shared `Random`, iterating a `Dictionary` or `HashSet` (order is not guaranteed), physics engines that are not deterministic, floating-point differences across platforms, and reading wall-clock time. Add periodic state checksums to the replay, so a desync is caught at the exact step it happens.
+- **Hidden non-determinism breaks input replays.** Common causes are the variable frame delta, unseeded or shared `Random`, iterating a `Dictionary` or `HashSet` (order is not guaranteed), physics engines that are not deterministic, floating-point differences across platforms, and reading wall-clock time. Add periodic state checksums to the replay, so a desync is caught at the exact step it happens.
 - **Version mismatches.** Any gameplay change invalidates old replays. Store the game version and refuse, or warn, on mismatch.
 - **Seeking needs keyframes.** To jump to minute 10 of an input replay, you must simulate 10 minutes or store occasional full snapshots.
-- **Inputs sampled in `Update`** but consumed in `FixedUpdate` are recorded at the wrong granularity. Record exactly what each simulation step consumed.
+- **Inputs sampled per frame** but consumed in the fixed step are recorded at the wrong granularity. Record exactly what each simulation step consumed.
 
 ## Related
 

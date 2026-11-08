@@ -6,7 +6,7 @@
 
 ## Problem
 
-A tester needs to check the final boss. Reaching it takes forty minutes of play. A bug only appears with 999 gold and the fire sword equipped. On a phone build, there is no inspector to tweak a value or see what state the AI is in. Every team ends up adding a secret key combination here and a debug button there, scattered through the code and inconsistently stripped from release builds.
+A tester needs to check the final boss. Reaching it takes forty minutes of play. A bug only appears with 999 gold and the fire sword equipped. On a phone build, there is no editor to tweak a value or see what state the AI is in. Every team ends up adding a secret key combination here and a debug button there, scattered through the code and inconsistently stripped from release builds.
 
 ## Solution
 
@@ -15,7 +15,7 @@ Build one **console**: a text box that opens with a key (often the backtick), wh
 - **Registration by attribute.** Any static method tagged `[ConsoleCommand("give")]` becomes a command. Features add their own cheats next to the code they affect, without touching the console.
 - **Argument parsing.** The console converts typed arguments (`give sword 3`) into the method's parameter types.
 - **Discoverability.** A `help` command lists every command with its description. Autocomplete and history (arrow up) make it fast to use.
-- **Output.** Commands return or log text, and the console also mirrors `Debug.Log` so errors are visible on device.
+- **Output.** Commands return or log text, and the console also mirrors the engine's log so errors are visible on device.
 - **Stripped from release.** The whole system compiles only in the editor and development builds.
 
 ## Example
@@ -384,7 +384,7 @@ void UMyCheatManager::TeleportTo(float X, float Y, float Z)
 ## When not to use
 
 - Shipping to players without stripping or locking it. Cheats left in can break competitive or economy games.
-- Game jams and very small projects. Inspector buttons and keyboard shortcuts are faster to add.
+- Game jams and very small projects. Editor-only buttons and keyboard shortcuts are faster to add.
 
 ## Pitfalls
 

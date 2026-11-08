@@ -6,7 +6,7 @@
 
 ## Problem
 
-Every object counts down its own timers in `Update`: `cooldown -= Time.deltaTime; if (cooldown <= 0) ...`. A trap fires every 3 seconds, a buff expires after 10, a door closes after 5, a respawn happens after 8. Hundreds of objects each run an `Update` mostly to subtract a number. Timers are inconsistent: some use scaled time, some unscaled, some forget to reset. Cancelling "the door close timer" when the door is destroyed is easy to forget, so callbacks run on destroyed objects.
+Every object counts down its own timers in its per-frame update: `cooldown -= dt; if (cooldown <= 0) ...`. A trap fires every 3 seconds, a buff expires after 10, a door closes after 5, a respawn happens after 8. Hundreds of objects each run an update mostly to subtract a number. Timers are inconsistent: some use scaled time, some unscaled, some forget to reset. Cancelling "the door close timer" when the door is destroyed is easy to forget, so callbacks run on destroyed objects.
 
 ## Solution
 
@@ -276,7 +276,7 @@ void ADoor::Close() { /* close */ }
 
 ## Pitfalls
 
-- **Callbacks on destroyed objects.** Without owner checks or cancellation, `Close()` runs on a destroyed door and throws. Pass an owner, or cancel in `OnDestroy`.
+- **Callbacks on destroyed objects.** Without owner checks or cancellation, `Close()` runs on a destroyed door and throws. Pass an owner, or cancel when the owner is destroyed.
 - **Capturing loop variables or large objects.** Lambdas keep captured objects alive until the timer fires or is cancelled. Avoid long timers capturing big data.
 - **Drift in repeating timers.** Rescheduling from "now" instead of the due time makes "every 0.5 s" slowly drift. Rescheduling from the due time keeps the rhythm.
 - **Catch-up storms.** After a long hitch, a 0.1 s repeating timer could be overdue 50 times. Decide whether to catch up or skip. Here, overdue repeats are skipped.
@@ -286,6 +286,6 @@ void ADoor::Close() { /* close */ }
 ## Related
 
 - [Update Method](./update-method) — what timers replace for objects that only wait.
-- [Coroutines](./coroutines) — an alternative for sequences, tied to a GameObject's lifetime.
+- [Coroutines](./coroutines) — an alternative for sequences, tied to their owner's lifetime.
 - [Time Scale](./time-scale) — scaled versus unscaled clocks.
 - [Status Effects](./status-effects) — durations and ticks can run on a scheduler.

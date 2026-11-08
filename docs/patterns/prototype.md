@@ -1,6 +1,6 @@
 # Prototype
 
-> Create new objects by cloning a configured example (Unity prefabs).
+> Create new objects by cloning a configured example (prefabs, scenes, Blueprint defaults).
 
 **Category:** Architecture & Structure
 
@@ -12,12 +12,12 @@ A spawner needs to create goblins, but a goblin is not just a class. It is a spe
 
 Create new objects by **copying an existing, fully configured one**: the **prototype**. The code that creates the copy does not need to know what the object contains.
 
-In Unity this pattern is everywhere:
+Game engines use this pattern everywhere:
 
-- **Prefabs** are prototypes stored as assets. `Instantiate(prefab)` clones them, components, values and children included.
-- **Prefab variants** are prototypes of prototypes: an "Elite Goblin" variant overrides a few values of "Goblin" and inherits the rest.
-- **`Instantiate(anyGameObject)`** clones a *runtime* object in its current state, including changes made during play.
-- For **plain C# data**, a `Clone()` method copies configured objects. The critical question is how deep the copy goes.
+- **Stored prototypes.** Unity **prefabs**, Godot **scenes** (`PackedScene.instantiate()`) and Unreal **Blueprint classes** (spawned from their class defaults) are configured objects saved as assets, cloned with their components, values and children.
+- **Prototypes of prototypes.** Unity **prefab variants**, Godot **inherited scenes** and Unreal **child Blueprints** override a few values of a parent ("Elite Goblin" from "Goblin") and inherit the rest.
+- **Runtime clones.** Unity's `Instantiate(anyGameObject)`, Godot's `Node.duplicate()` and Unreal's `SpawnActor` with a `Template` actor clone an object that already exists in the game, including changes made during play.
+- For **plain data**, a `Clone()` method copies configured objects. The critical question is how deep the copy goes.
 
 ## Example
 
@@ -196,27 +196,27 @@ struct FCharacterLoadout
 
 ## When to use
 
-- Spawning configured objects whose setup lives in data or the editor (prefabs, variants).
+- Spawning configured objects whose setup lives in data or the editor (prefabs, scenes, Blueprints and their variants).
 - Variations created at runtime that you then need many copies of: buffed enemies, player-customised units, procedurally assembled objects.
 - Templates and presets: starting loadouts, character presets, level chunks.
 
 ## When not to use
 
-- Unity prefabs and prefab variants already cover most uses. Don't build a separate cloning system on top unless you clone runtime-modified objects.
+- The engine's own templates already cover most uses: Unity prefabs and variants, Godot scenes and inherited scenes, Unreal Blueprints and child Blueprints. Don't build a separate cloning system on top unless you clone runtime-modified objects.
 - Objects with references to scene objects or external resources. Shallow copies share them and deep copies are hard to get right; use a [Factory](./factory) or [Builder](./builder) that sets them up explicitly.
-- Simple objects with no setup. `new` or `Instantiate` is clearer.
+- Simple objects with no setup. `new` or the engine's spawn call is clearer.
 
 ## Pitfalls
 
 - **Shallow copies.** Cloned objects that share a list with the prototype change each other. Write explicit deep-copy methods for data that contains collections or references.
-- **Runtime prototypes in the scene.** A template GameObject left active takes part in the game (it moves, it counts as an enemy). Deactivate it, or keep it outside the scene's gameplay registries.
-- **Cloning unwanted state.** `Instantiate` copies *current* state: half-played animations, damage taken, running timers. Clone from clean templates, not from objects in use.
-- **Expensive clones.** Instantiating complex prefabs causes hitches. Combine prototypes with an [Object Pool](./object-pool).
+- **Runtime prototypes in the scene.** A template object left active in the scene takes part in the game (it moves, it counts as an enemy). Deactivate it or keep it out of the scene tree, and keep it outside the scene's gameplay registries.
+- **Cloning unwanted state.** Cloning a live object copies its *current* state: half-played animations, damage taken, running timers. Clone from clean templates, not from objects in use.
+- **Expensive clones.** Instantiating complex templates causes hitches. Combine prototypes with an [Object Pool](./object-pool).
 - **Deep variant chains.** Variant of variant of variant becomes hard to reason about ("where does this value come from?"). Keep chains shallow.
 
 ## Related
 
-- [Type Object](./type-object) — defines kinds as data, and often references a prototype prefab.
+- [Type Object](./type-object) — defines kinds as data, and often references a prototype prefab, scene or Blueprint.
 - [Factory](./factory) — decides *which* prototype to clone, and does the setup around it.
 - [Object Pool](./object-pool) — reuses clones instead of creating new ones.
 - [Memento](./memento) — a copy of state for restoring, rather than for creating new objects.

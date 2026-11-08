@@ -271,7 +271,7 @@ Each agent receives the actual time since its last update, so timers and movemen
 
 ## When not to use
 
-- Work that fits comfortably in the frame budget. Measure in the Profiler first; slicing adds state, latency and bugs.
+- Work that fits comfortably in the frame budget. Measure in a profiler first; slicing adds state, latency and bugs.
 - Results that must be ready this frame, such as hit detection or player input.
 - Heavy work that can run in parallel. The [Job System](./job-system) or a background thread is usually better than spreading it across main-thread frames.
 
@@ -280,7 +280,7 @@ Each agent receives the actual time since its last update, so timers and movemen
 - **One job bigger than the budget.** A single 40 ms job still causes a 40 ms frame. Split large tasks into incremental steps, or move them to worker threads with the [Job System](./job-system).
 - **Unbounded queues.** If work arrives faster than the budget processes it, latency grows without limit. Monitor the queue length, merge duplicate requests, and drop stale ones.
 - **Stale results.** A path computed for a unit that has since died, or for a goal that has moved, is wasted or wrong. Check that results are still relevant when they arrive.
-- **Wrong `dt`.** Agents updated every 4th frame must use their own elapsed time, not `Time.deltaTime`, or they move four times too slowly.
+- **Wrong `dt`.** Agents updated every 4th frame must use their own elapsed time, not the frame delta, or they move four times too slowly.
 - **Synchronised spikes.** If every agent's "expensive check every 2 seconds" starts on the same frame, they all run together. Stagger start times, as round-robin does.
 
 ## Related

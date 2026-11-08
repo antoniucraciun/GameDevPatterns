@@ -210,7 +210,7 @@ public class DepthTable : ScriptableObject
 - **Iterating unordered collections.** Looping over a `HashSet` or `Dictionary` while consuming random numbers makes generation non-reproducible, even with seeds. Iterate in a fixed order (sorted lists, grid order).
 - **Erosion breaking connectivity.** Cellular automata can seal a corridor or split a room. Protect key cells, and always recompute reachability after roughening.
 - **Spawning before the navmesh exists.** Agents spawned before the bake fail to find the navmesh, and stand still or log errors. Bake first, then spawn, all behind the loading screen.
-- **Unity's physics and navmesh are not seed-deterministic.** The *layout* is reproducible, but runtime behaviour (AI paths, physics) can differ slightly between runs. For daily-challenge leaderboards, that is usually acceptable. For replays, see [Determinism](../patterns/determinism).
+- **Engine physics and navigation are not seed-deterministic.** The *layout* is reproducible, but runtime behaviour (AI paths, physics) can differ slightly between runs. For daily-challenge leaderboards, that is usually acceptable. For replays, see [Determinism](../patterns/determinism).
 - **Generation time.** Large dungeons with several CA passes and a navmesh bake can take hundreds of milliseconds. Do it during a loading screen, or spread it across frames ([Time Slicing](../patterns/time-slicing)).
 
 ## Variations

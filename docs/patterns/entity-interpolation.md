@@ -316,7 +316,7 @@ void UInterpolationComponent::TickComponent(float DeltaTime, ELevelTick TickType
 - **Wrong delay.** Too short, and every jittery packet causes a stall or extrapolation. Too long, and the game feels laggy. Adapt the delay to measured jitter, or make it at least 2× the snapshot interval.
 - **Teleports get smoothed.** A respawn or teleport interpolates across the map. Mark snapshots with a "teleported" flag, and snap instead of interpolating across it.
 - **Extrapolation overshoots.** Guessing forward when packets stop makes entities run through walls, then snap back. Keep extrapolation short and capped.
-- **Using `Time.time`.** Interpolation needs a clock that does not stop or scale. Use real time, synchronised with the server's clock.
+- **Using game time.** Interpolation needs a clock that does not stop or scale. Use real time, synchronised with the server's clock.
 
 ## Related
 

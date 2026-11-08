@@ -543,7 +543,7 @@ In the Unity and Godot tabs, objectives subscribe their own handlers, so one obj
 ## Pitfalls
 
 - **Progress made before the quest starts.** Herbs collected before accepting "collect 10 herbs" do not count with pure event listening. Decide per objective: count from acceptance, or initialise from current state (count the herbs already in the inventory).
-- **Shared objective instances.** `[SerializeReference]` objects live in the asset and are shared, so the same objective subscribed twice gets confused. Keep runtime state out of definitions.
+- **Shared objective instances.** Objectives defined inside a quest asset (Unity `[SerializeReference]` objects, Godot sub-resources, Unreal instanced objects) live in the asset and are shared, so the same objective subscribed twice gets confused. Keep runtime state out of definitions.
 - **Leaked subscriptions.** Objectives must unsubscribe when their stage completes, the quest is abandoned, or a save is loaded. Otherwise old quests keep counting.
 - **Saving references.** Save quest IDs and integers, never `QuestDefinition` references.
 - **Order of rewards and unlocks.** A follow-up quest that starts *before* the rewards are granted may check for an item that has not been given yet. Grant first, then unlock.

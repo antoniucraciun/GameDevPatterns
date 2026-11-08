@@ -6,7 +6,7 @@
 
 ## Problem
 
-The sword script checks `if (other.GetComponent<Enemy>()) ... else if (other.GetComponent<Player>()) ... else if (other.GetComponent<Crate>())`. Every new destructible type means editing every weapon. The player can die twice in one frame, playing the death animation twice and awarding two game-overs. Hits on a child collider (the head) do not find the health on the root object. Enemies keep taking damage while their death animation plays, and nobody can tell *who* dealt the killing blow.
+The sword script checks what it hit: `if (other is Enemy) ... else if (other is Player) ... else if (other is Crate)`. Every new destructible type means editing every weapon. The player can die twice in one frame, playing the death animation twice and awarding two game-overs. Hits on a child collision shape (the head) do not find the health on the root object. Enemies keep taking damage while their death animation plays, and nobody can tell *who* dealt the killing blow.
 
 ## Solution
 

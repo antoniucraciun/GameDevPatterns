@@ -240,8 +240,8 @@ For fighting or action games, generalise this to a queue of recent `(action, tim
 
 - **A window that is too long** makes actions fire when the player has changed their mind. Keep it short and tune it per action.
 - **Not consuming** the buffered input makes it trigger repeatedly.
-- **Buffering in `FixedUpdate`.** Record presses in `Update`, where `GetButtonDown` is reliable. See [Fixed Timestep](./fixed-timestep).
-- **Using `Time.time` while paused or slowed.** Decide whether the buffer should use scaled or unscaled time.
+- **Buffering in the fixed step.** Record presses per frame or from input events, where one-frame checks are reliable. See [Fixed Timestep](./fixed-timestep).
+- **Using game time while paused or slowed.** Decide whether the buffer should use scaled or unscaled time.
 
 ## Related
 

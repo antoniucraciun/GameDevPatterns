@@ -2,11 +2,11 @@
 
 > Entities are IDs, components are plain data, systems hold all the logic.
 
-**Also known as:** ECS, DOTS · **Category:** Architecture & Structure
+**Also known as:** ECS, DOTS (Unity), Mass (Unreal) · **Category:** Architecture & Structure
 
 ## Problem
 
-The [Component](./component) pattern with MonoBehaviours works well for hundreds of objects, and struggles with tens of thousands. Each GameObject is a heap object with a Transform. Each component has its own `Update` called through the engine, with its data scattered across memory. Logic and data are mixed in the same class, so a "move everything" pass jumps between unrelated objects and misses the CPU cache constantly. Spreading the work across CPU cores safely is close to impossible.
+The [Component](./component) pattern with engine objects (GameObjects, nodes, actors) works well for hundreds of objects, and struggles with tens of thousands. Each object is a heap object with its own transform. Each component has its own per-frame update called through the engine, with its data scattered across memory. Logic and data are mixed in the same class, so a "move everything" pass jumps between unrelated objects and misses the CPU cache constantly. Spreading the work across CPU cores safely is close to impossible.
 
 ## Solution
 
@@ -258,12 +258,12 @@ Tens of thousands of projectiles move and expire with no per-object update call,
 ## When to use
 
 - Very large numbers of similar things: projectiles, crowds, units, boids, particles with gameplay, simulation-heavy games.
-- Simulation where performance and multi-core scaling matter more than the convenience of GameObjects.
-- Deterministic or networked simulations. Netcode for Entities and Unity Physics are built on it.
+- Simulation where performance and multi-core scaling matter more than the convenience of engine objects.
+- Deterministic or networked simulations, where plain data is easy to copy, hash and roll back.
 
 ## When not to use
 
-- Games with a few hundred interesting objects. GameObjects and [Component](./component) are simpler, better supported by tools and fast enough.
+- Games with a few hundred interesting objects. Engine objects with [Component](./component) are simpler, better supported by tools and fast enough.
 - Gameplay that is mostly unique, hand-authored objects (a puzzle game, a narrative adventure) rather than many similar ones.
 - Teams new to data-oriented design on a deadline. Try [Data Locality](./data-locality) or the [Job System](./job-system) on the hot path first.
 
@@ -271,9 +271,9 @@ Tens of thousands of projectiles move and expire with no per-object update call,
 
 - **Different mental model.** No inheritance, no methods on data, no references between objects (entities refer to each other by `Entity` IDs). The learning curve is real.
 - **Structural changes are expensive.** Adding or removing components moves an entity to another archetype's chunk. Doing that for thousands of entities per frame is slow. Use enableable components, or batch the changes in command buffers.
-- **Tooling and ecosystem.** Animation, UI, audio and many asset-store packages are GameObject-based. Most real projects are **hybrid**, with ECS for the heavy simulation and GameObjects for the rest.
-- **Overkill for small games.** For a few hundred objects, MonoBehaviours with good habits (pooling, fewer `Update` calls) are simpler and fast enough.
-- **Managed data.** Strings, lists and class references do not fit in unmanaged components or Burst. Use `FixedString`, `DynamicBuffer` and blob assets.
+- **Tooling and ecosystem.** Animation, UI, audio and most plugins are built on the engine's regular objects. Most real projects are **hybrid**, with ECS for the heavy simulation and regular objects for the rest: Unity's Entities alongside GameObjects, Unreal's Mass alongside actors, Godot's server APIs alongside nodes.
+- **Overkill for small games.** For a few hundred objects, regular engine objects with good habits (pooling, fewer per-object updates) are simpler and fast enough.
+- **Managed data (Unity).** Strings, lists and class references do not fit in unmanaged components or Burst. Use `FixedString`, `DynamicBuffer` and blob assets.
 
 ## Related
 

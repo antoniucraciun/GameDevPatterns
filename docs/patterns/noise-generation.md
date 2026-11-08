@@ -6,7 +6,7 @@
 
 ## Problem
 
-Generating terrain with `Random.value` per tile gives static: every tile unrelated to its neighbours, with no hills, valleys or coastlines. Hand-authoring a large world is not feasible. You need randomness that is **smooth** (neighbours are similar), **structured** (big shapes with small details on top), **controllable** (designers can tune "more mountains") and **reproducible** (the same seed gives the same world).
+Generating terrain with an independent random value per tile gives static: every tile unrelated to its neighbours, with no hills, valleys or coastlines. Hand-authoring a large world is not feasible. You need randomness that is **smooth** (neighbours are similar), **structured** (big shapes with small details on top), **controllable** (designers can tune "more mountains") and **reproducible** (the same seed gives the same world).
 
 ## Solution
 
@@ -423,7 +423,7 @@ void AWorldPreview::BeginPlay()
 ## Pitfalls
 
 - **Sampling at integer coordinates.** Perlin noise returns the same value at every integer lattice point, so `PerlinNoise(x, y)` on integer tile coordinates gives a perfectly flat map. Always divide by a scale.
-- **Negative coordinates and huge offsets.** `Mathf.PerlinNoise` repeats over large ranges and loses precision with very large inputs. Keep offsets moderate (± 100,000), as above.
+- **Negative coordinates and huge offsets.** Float-based noise loses precision with very large inputs, and some implementations (such as Unity's `Mathf.PerlinNoise`) repeat over large ranges. Keep offsets moderate (± 100,000), as above.
 - **Everything looks the same.** Pure fBm terrain is recognisably generic. Shape it (curves, masks, ridges, terraces) and layer authored features on top: rivers, roads, landmarks.
 - **Chunk seams.** Generating chunks independently with per-chunk offsets breaks continuity at the borders. Always sample in *world* coordinates.
 - **Cross-platform determinism.** Floating-point noise can differ slightly between platforms. That is fine for visuals, but risky if gameplay (resource placement in multiplayer) must match exactly. See [Determinism](./determinism).

@@ -7,9 +7,20 @@ import { recipeGroups, recipes } from './recipes'
 const docsDir = fileURLToPath(new URL('../', import.meta.url))
 const hasPage = (section: string, slug: string) => existsSync(`${docsDir}${section}/${slug}.md`)
 
-// Sidebar: Overview, one collapsible group per pattern category, then Recipes last
-// (with one nested, collapsible group per recipe group).
+// Sidebar: Overview, then Patterns (one nested, collapsible group per category),
+// then Recipes (one nested, collapsible group per recipe group).
 // Only written pages are listed; planned ones live on the index pages.
+// Collapsed groups start closed; VitePress auto-expands the ones containing the current page.
+const patternItems = categories
+  .map((c) => ({
+    text: c.title,
+    collapsed: true,
+    items: patterns
+      .filter((p) => p.category === c.id && hasPage('patterns', p.slug))
+      .map((p) => ({ text: p.name, link: `/patterns/${p.slug}` })),
+  }))
+  .filter((group) => group.items.length > 0)
+
 const recipeItems = recipeGroups
   .map((g) => ({
     text: g.title,
@@ -30,16 +41,7 @@ const sidebar = [
       { text: 'Contributing', link: '/contributing' },
     ],
   },
-  ...categories
-    .map((c) => ({
-      text: c.title,
-      // Start collapsed; VitePress auto-expands the group containing the current page.
-      collapsed: true,
-      items: patterns
-        .filter((p) => p.category === c.id && hasPage('patterns', p.slug))
-        .map((p) => ({ text: p.name, link: `/patterns/${p.slug}` })),
-    }))
-    .filter((group) => group.items.length > 0),
+  ...(patternItems.length ? [{ text: 'Patterns', collapsed: true, items: patternItems }] : []),
   ...(recipeItems.length ? [{ text: 'Recipes', collapsed: true, items: recipeItems }] : []),
 ]
 

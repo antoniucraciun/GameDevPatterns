@@ -18,7 +18,7 @@ Represent each conversation as **data**: a graph of **nodes**.
 - **Effects** change game state: start or complete a quest, give items, set a flag, change relationship.
 - A **dialogue runner** walks the graph, evaluates conditions, runs effects, and tells the UI what to show. The UI never decides anything.
 
-Conditions and effects are small data objects, so writers combine them in the editor. Dedicated tools such as **Ink** and **Yarn Spinner** implement this pattern with a scripting language and Unity integration, and are worth considering before building your own.
+Conditions and effects are small data objects, so writers combine them in the editor. Dedicated tools such as **Ink** and **Yarn Spinner** implement this pattern with a scripting language and integrations for Unity, Godot and Unreal (official or community-made), and are worth considering before building your own.
 
 ## Example
 

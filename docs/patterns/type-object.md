@@ -12,7 +12,7 @@ The game has goblins, orcs and trolls, so you write `Goblin : Enemy`, `Orc : Ene
 
 Split one class into two:
 
-- A **type object** (`EnemyType`) describes a *kind*: its name, health, speed, attacks, loot and prefab. Each kind is an **instance** of this class, created as data such as an asset or a row in a spreadsheet.
+- A **type object** (`EnemyType`) describes a *kind*: its name, health, speed, attacks, loot and visual template (prefab, scene or Blueprint). Each kind is an **instance** of this class, created as data such as an asset or a row in a spreadsheet.
 - The **typed object** (`Enemy`) is an individual in the world. It holds a reference to its type plus its own state: current health and position.
 
 New kinds become new data, not new code. Type objects can also **inherit from other type objects**. An "Elite Orc" names "Orc" as its parent and overrides only what differs, so values flow down without a class hierarchy.
@@ -231,7 +231,7 @@ Behaviour can be data too. Give the type a reference to a behaviour asset (a beh
 ## When not to use
 
 - A few kinds that differ in behaviour, not data. Use subclasses or [Strategy](./strategy).
-- Two or three kinds that never change. A serialized field on the prefab is enough.
+- Two or three kinds that never change. An editor field on the template is enough.
 - Kinds that need truly unique logic for each type. Data can't express it, so you end up with a scripting system; consider [Subclass Sandbox](./subclass-sandbox) instead.
 
 ## Pitfalls
@@ -244,6 +244,6 @@ Behaviour can be data too. Give the type a reference to a behaviour asset (a beh
 ## Related
 
 - [Flyweight](./flyweight) — type objects are typically shared flyweights.
-- [Prototype](./prototype) — create kinds by cloning configured examples, as Unity prefab variants do.
+- [Prototype](./prototype) — create kinds by cloning configured examples, as prefab variants, inherited scenes and child Blueprints do.
 - [Ability System](./ability-system) and [Status Effects](./status-effects) — both define their kinds with this pattern.
 - [Weighted Random & Loot Tables](./weighted-random) — referenced by types for drops.

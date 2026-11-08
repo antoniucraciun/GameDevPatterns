@@ -6,7 +6,7 @@
 
 ## Problem
 
-Services initialise themselves in their own `Awake` methods: the audio manager, the save system, analytics, input, the platform SDK. Their order depends on Unity's script execution order, so it differs between scenes and between editor and build. The save system reads settings before they are loaded. Analytics fires before the SDK is ready. Pressing Play in the level scene skips the menu scene that normally creates the managers, so half the game throws `NullReferenceException`. Developers end up always starting from scene 0, which slows down iteration.
+Services initialise themselves in their own startup callbacks (`Awake`, `_ready`, `BeginPlay`): the audio manager, the save system, analytics, input, the platform SDK. Their order depends on the order in which the engine creates objects, so it differs between scenes and between editor and build. The save system reads settings before they are loaded. Analytics fires before the SDK is ready. Starting the game from the level scene in the editor skips the menu scene that normally creates the managers, so half the game throws `NullReferenceException`. Developers end up always starting from scene 0, which slows down iteration.
 
 ## Solution
 
@@ -14,7 +14,7 @@ Have **one place** that runs first and initialises everything the game needs, in
 
 - **Run first, from any scene.** `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` runs before the first scene loads, whichever scene you press Play in. Alternatively, keep a dedicated *Boot* scene at build index 0, plus an editor hook that loads it first.
 - **Ordered, possibly asynchronous steps.** Load settings, then the platform SDK, then sign in, then analytics, then the save data. Each step can await, for example on a network call, and the order is written down in code.
-- **Persistent services.** Create services under one `DontDestroyOnLoad` root, or in a persistent scene, and register them with the [Service Locator](./service-locator) or DI container. This is the composition root from [Dependency Injection](./dependency-injection).
+- **Persistent services.** Create services under one root that survives level loads (a `DontDestroyOnLoad` root or persistent scene in Unity, an autoload in Godot, `GameInstance` subsystems in Unreal), and register them with the [Service Locator](./service-locator) or DI container. This is the composition root from [Dependency Injection](./dependency-injection).
 - **A "ready" signal.** Gameplay waits for the bootstrapper to finish, instead of each system checking whether its dependencies happen to exist.
 
 ## Example
@@ -270,9 +270,9 @@ void ALevelStart::BeginPlay()
 
 ## Pitfalls
 
-- **Hidden dependencies on boot.** Code that reads services in `Awake` can run before boot finishes, because boot steps are asynchronous. Await `WaitUntilReady`, or start gameplay from the bootstrapper's `Ready` event.
-- **Resources folder abuse.** One prefab in `Resources` is fine. Putting all content there bloats builds and startup. Use Addressables for content (see [Asset References & Addressing](./asset-reference)).
-- **Domain reload disabled.** With *Enter Play Mode Options*, statics survive between sessions. Reset them (`IsReady`, event subscribers) in a `SubsystemRegistration` method, or boot can see stale state.
+- **Hidden dependencies on boot.** Code that reads services in its startup callback can run before boot finishes, because boot steps are asynchronous. Await `WaitUntilReady`, or start gameplay from the bootstrapper's `Ready` event.
+- **Hard-referencing all content from boot.** A boot object that directly references every level, enemy and item (or Unity's `Resources` folder used for all content) loads all of it at startup and bloats builds. Use soft references for content (see [Asset References & Addressing](./asset-reference)).
+- **Statics surviving editor play sessions.** Unity with Domain Reload disabled (*Enter Play Mode Options*) and Unreal's Play In Editor run the game inside the editor process, so statics keep their values between sessions. Reset them (`IsReady`, event subscribers) when play starts (a `SubsystemRegistration` method in Unity), or keep state in objects the engine recreates, such as Unreal subsystems; otherwise boot can see stale state. Godot runs the game in a separate process, so it starts clean.
 - **Boot doing too much.** Loading every asset at boot makes the first screen slow. Boot only what is needed globally, and let levels load their own content.
 - **Failure handling.** If sign-in fails, should the game run offline, retry, or stop? Decide per step, and show the player something useful rather than hanging on a black screen.
 

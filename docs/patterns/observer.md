@@ -200,7 +200,7 @@ void UHealthBarWidget::HandleHealthChanged(int32 Current, int32 Max)
 
 ## Pitfalls
 
-- **Forgetting to unsubscribe.** The subject keeps the observer alive (a memory leak), or calls into a destroyed object and throws `MissingReferenceException`. Pair `OnEnable` with `OnDisable`.
+- **Forgetting to unsubscribe.** The subject keeps the observer alive (a memory leak), or calls into a destroyed object and throws. Pair subscribing and unsubscribing in matching lifecycle callbacks (`OnEnable`/`OnDisable`, `_enter_tree`/`_exit_tree`, `BeginPlay`/`EndPlay`). Godot disconnects signals automatically when either object is freed, but not plain callable lists of your own.
 - **Hard-to-follow control flow.** "Who reacts to this?" requires a search. Keep event names explicit and the number of hops low.
 - **Re-entrancy.** An observer that triggers the same event, or unsubscribes during notification, can cause surprises. Keep handlers small.
 - **Order of observers is not guaranteed.** Do not rely on it.

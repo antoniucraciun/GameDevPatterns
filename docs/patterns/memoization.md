@@ -6,7 +6,7 @@
 
 ## Problem
 
-The same expensive question is asked again and again with the same inputs. The pathfinder computes the route from the barracks to the gold mine every time a worker is sent, 200 times per game, and it is the same route each time. The damage formula evaluates a curve with `Mathf.Pow` for every hit. A procedural generator re-samples identical noise for chunks it generated a minute ago. A UI formats `"1,250 G"` from the same number every frame. The work is correct, just repeated.
+The same expensive question is asked again and again with the same inputs. The pathfinder computes the route from the barracks to the gold mine every time a worker is sent, 200 times per game, and it is the same route each time. The damage formula evaluates a curve with a power function for every hit. A procedural generator re-samples identical noise for chunks it generated a minute ago. A UI formats `"1,250 G"` from the same number every frame. The work is correct, just repeated.
 
 ## Solution
 
@@ -311,7 +311,7 @@ private:
 - **Float keys.** `0.1f + 0.2f` and `0.3f` are different keys. Quantise floats (round to a grid) before using them as keys, or use integer coordinates.
 - **Mutable cached results.** Returning a cached array that the caller then modifies corrupts the cache for everyone. Return read-only views or copies, or document that results are shared and must not be changed.
 - **Caching cheap work.** A dictionary lookup costs something too. If computing is cheaper than hashing the key, the cache makes things slower. Measure.
-- **Stale caches after reload.** Static caches survive scene loads, and Domain Reload being disabled. Clear them when the data they depend on changes.
+- **Stale caches after reload.** Static caches survive level loads, and editor play sessions in Unity with Domain Reload disabled or in Unreal's Play In Editor. Clear them when the data they depend on changes.
 
 ## Related
 
