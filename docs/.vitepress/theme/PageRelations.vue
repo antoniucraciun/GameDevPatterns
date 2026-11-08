@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Rendered at the bottom of every doc page:
+// - on both:           its runnable sample / playable demo per engine ("See it in action")
 // - on a pattern page: the recipes that use this pattern
-// - on a recipe page:  its Unity sample / playable demo, and the patterns it combines
+// - on a recipe page:  the patterns it combines
 import { computed } from 'vue'
 import { useData, withBase } from 'vitepress'
 import { data } from '../../patterns/catalog.data'
@@ -31,19 +32,23 @@ const links = computed(() => {
 
 const title = computed(() => (current.value?.kind === 'patterns' ? 'Used in recipes' : 'Patterns in this recipe'))
 
-const sample = computed(() => {
+// One row per engine that has a sample folder or playable demo (see samples.ts).
+const samples = computed(() => {
   const c = current.value
-  const r = c?.kind === 'recipes' ? recipeBySlug.get(c.slug) : undefined
-  return r && (r.sampleUrl || r.demo) ? { code: r.sampleUrl, demo: r.demo ?? null } : null
+  if (!c) return []
+  const entry = c.kind === 'patterns' ? patternBySlug.get(c.slug) : recipeBySlug.get(c.slug)
+  return entry?.sampleLinks ?? []
 })
 </script>
 
 <template>
-  <aside v-if="sample" class="relations sample">
+  <aside v-if="samples.length" class="relations sample">
     <h2>See it in action</h2>
     <div class="actions">
-      <a v-if="sample.demo" :href="sample.demo" class="action action-primary" target="_blank" rel="noopener">▶ Play the demo</a>
-      <a v-if="sample.code" :href="sample.code" class="action" target="_blank" rel="noopener">Open the Unity sample</a>
+      <template v-for="s in samples" :key="s.engine">
+        <a v-if="s.demo" :href="s.demo" class="action action-primary" target="_blank" rel="noopener">▶ Play the {{ s.name }} demo</a>
+        <a v-if="s.code" :href="s.code" class="action" target="_blank" rel="noopener">Open the {{ s.name }} sample</a>
+      </template>
     </div>
   </aside>
   <aside v-if="links.length" class="relations">

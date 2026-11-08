@@ -39,13 +39,15 @@ A recipe is a feature built by combining several patterns, such as a platformer 
 
 2. **Write it.** Copy `templates/recipe.md` to `docs/recipes/my-recipe.md` and fill it in. Link written patterns as `../patterns/<slug>`, and name planned ones in plain text.
 
-3. **Link a sample (optional).** Runnable Unity samples live in a separate repo, [GameDevPatterns-Samples](https://github.com/antoniucraciun/GameDevPatterns-Samples), with one folder and scene per recipe. Add the recipe's folder, and a playable build if there is one, to its entry:
+3. **Link a sample (optional).** Runnable samples live in one repo per engine: [GameDevPatterns-Samples-Unity](https://github.com/antoniucraciun/GameDevPatterns-Samples-Unity) for now, with GameDevPatterns-Samples-Godot and GameDevPatterns-Samples-Unreal to follow. Each mirrors the site, with `Assets/Recipes/<Group>/<Recipe>/` and `Assets/Patterns/<Category>/<Pattern>/` folders that hold `WithPattern(s)` and `WithoutPattern(s)` subfolders. Add the recipe's folder, and a playable build if there is one, per engine to its entry:
 
    ```ts
-   { slug: 'my-recipe', /* … */ sample: 'Assets/Recipes/MyRecipe', demo: 'https://…/my-recipe/' },
+   { slug: 'my-recipe', /* … */ samples: { unity: { folder: 'Assets/Recipes/Systems/MyRecipe', demo: 'https://…/my-recipe/' } } },
    ```
 
-   The recipe page and its card on the recipes page then show **See it in action** links. Folder links point at `samplesRepo.ref` in `recipes.ts`; set it to a release tag of the samples repo so links stay stable.
+   Engine ids are `unity`, `godot` and `unreal`, and each entry needs a `folder`, a `demo`, or both. The recipe page and its card on the recipes page then show **See it in action** links for each engine listed. Pattern entries in `catalog.ts` take the same `samples` field (e.g. `folder: 'Assets/Patterns/Behavioral/State'`), shown on the pattern page.
+
+   The repos are configured in `samplesRepos` in `docs/.vitepress/samples.ts`. The build fails if a page links an engine that has no repo there, so uncomment an engine's entry once its repo exists. Folder links point at that engine's `ref`; set it to a release tag of the samples repo so links stay stable.
 
 Every pattern a recipe uses automatically shows a **Used in recipes** link back to it at the bottom of its page.
 

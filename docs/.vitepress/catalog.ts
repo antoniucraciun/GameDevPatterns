@@ -2,6 +2,11 @@
 // - Add an entry here to list a pattern in the catalog.
 // - Create docs/patterns/<slug>.md to give it a full page; it then
 //   appears in the sidebar and becomes a link in the catalog automatically.
+// - `samples` (optional) links a runnable sample folder and/or playable demo per engine:
+//     samples: { unity: { folder: 'Assets/Patterns/Behavioral/State' } }
+//   The repos per engine, and the rules, are in samples.ts.
+
+import type { Samples } from './samples'
 
 export interface Category {
   id: string
@@ -15,6 +20,7 @@ export interface Pattern {
   category: string
   summary: string
   aka?: string[]
+  samples?: Samples
 }
 
 export const categories: Category[] = [

@@ -4,9 +4,11 @@
 //   becomes a link, and every pattern it uses shows a "Used in recipes" link back.
 // - `patterns` are slugs from catalog.ts; `group` is an id from recipeGroups.
 //   The build fails on unknown pattern slugs or groups.
-// - `sample` (optional) is the recipe's folder in the Unity samples repo below,
-//   e.g. 'Assets/Recipes/BossFight'. `demo` (optional) is the URL of a playable
-//   build. Either one adds "See it in action" links to the recipe.
+// - `samples` (optional) links a runnable sample folder and/or playable demo per engine:
+//     samples: { unity: { folder: 'Assets/Recipes/Combat/BossFight', demo: 'https://…/boss-fight/' } }
+//   The repos per engine, and the rules, are in samples.ts.
+
+import type { Samples } from './samples'
 
 export interface RecipeGroup {
   id: string
@@ -20,16 +22,7 @@ export interface Recipe {
   group: string
   summary: string
   patterns: string[]
-  sample?: string
-  demo?: string
-}
-
-// The Unity project holding a runnable sample for each recipe.
-// Pin `ref` to a release tag once one exists, so reorganising the samples
-// repo's default branch never breaks links from these docs.
-export const samplesRepo = {
-  url: 'https://github.com/antoniucraciun/GameDevPatterns-Samples',
-  ref: 'main',
+  samples?: Samples
 }
 
 export const recipeGroups: RecipeGroup[] = [
