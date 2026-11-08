@@ -26,7 +26,9 @@ const project = process.env.UNITY_PROJECT ?? 'G:/GameDev/UnityProjects/SurvivalG
 
 // Pages whose Unity tab needs packages that aren't reliably available to this check.
 // entity-component-system: needs Entities + matching source generators (check it inside a DOTS project).
-const SKIP = new Set(['entity-component-system'])
+// asset-reference: needs Addressables (com.unity.addressables), which UNITY_PROJECT doesn't include.
+// localization-tables: needs Localization (com.unity.localization), which UNITY_PROJECT doesn't include.
+const SKIP = new Set(['entity-component-system', 'asset-reference', 'localization-tables'])
 
 const engineDir = join(editor, 'Editor/Data/Managed/UnityEngine')
 if (!existsSync(engineDir)) throw new Error(`Unity assemblies not found in ${engineDir}. Set UNITY_EDITOR.`)

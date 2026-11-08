@@ -23,9 +23,15 @@ Tuning the fill percentage, the thresholds and the iteration count changes the c
 
 <CellularAutomataViz />
 
-## Example (Unity C#)
+## Example
 
-```csharp
+Cave generation with the 4-5 rule. The **core** fills the grid from a seed, smooths it, and keeps only the largest cave, so the same seed always gives the same cave. The **engine wiring** paints the walls into a tilemap or instanced meshes.
+
+### Core
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -111,11 +117,322 @@ public static class CaveGenerator
         return regions;
     }
 }
-
-// var cave = CaveGenerator.Generate(80, 50, seed: 1234);
-// Paint walls into a Tilemap (Rule Tiles pick the right edge sprites automatically),
-// or build a mesh with marching squares for smooth outlines.
 ```
+
+```gdscript [Godot (GDScript)]
+# cave_generator.gd
+class_name CaveGenerator
+extends RefCounted
+
+const NEIGHBOURS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+
+
+## Row-major grid (index y * width + x): 1 = wall, 0 = floor.
+static func generate(width: int, height: int, world_seed: int,
+		fill_chance := 0.45, iterations := 5, min_region_size := 30) -> PackedByteArray:
+	for attempt in 100:  # a cave that's too small retries with the next seed
+		var rng := RandomNumberGenerator.new()
+		rng.seed = world_seed + attempt
+		var map := PackedByteArray()
+		map.resize(width * height)
+
+		# 1. Random fill, with solid borders.
+		for x in width:
+			for y in height:
+				map[y * width + x] = 1 if _is_border(x, y, width, height) or rng.randf() < fill_chance else 0
+
+		# 2-3. Smooth with the 4-5 rule, double buffered.
+		var next := PackedByteArray()
+		next.resize(width * height)
+		for i in iterations:
+			for x in width:
+				for y in height:
+					var index := y * width + x
+					if _is_border(x, y, width, height):
+						next[index] = 1
+						continue
+					var walls := _wall_neighbours(map, width, x, y)
+					next[index] = 1 if walls >= 5 or (walls > 3 and map[index] == 1) else 0
+			var swap := map  # packed arrays are copy-on-write values, so swapping is safe
+			map = next
+			next = swap
+
+		# 4. Keep only the largest cave: fill every smaller floor region with wall.
+		var regions := _floor_regions(map, width, height)
+		var largest := -1
+		for r in regions.size():
+			if largest == -1 or regions[r].size() > regions[largest].size():
+				largest = r
+		for r in regions.size():
+			if r != largest:
+				for c: Vector2i in regions[r]:
+					map[c.y * width + c.x] = 1
+
+		if largest != -1 and regions[largest].size() >= min_region_size:
+			return map
+	push_error("No cave of %d cells after 100 seeds" % min_region_size)
+	return PackedByteArray()
+
+
+static func _is_border(x: int, y: int, w: int, h: int) -> bool:
+	return x == 0 or y == 0 or x == w - 1 or y == h - 1
+
+
+static func _wall_neighbours(map: PackedByteArray, width: int, cx: int, cy: int) -> int:
+	var count := 0
+	for x in range(cx - 1, cx + 2):
+		for y in range(cy - 1, cy + 2):
+			if (x != cx or y != cy) and map[y * width + x] == 1:
+				count += 1
+	return count
+
+
+# Flood fill every connected floor region (4-connected). Returns an Array of Array[Vector2i].
+static func _floor_regions(map: PackedByteArray, width: int, height: int) -> Array:
+	var seen := PackedByteArray()
+	seen.resize(map.size())
+	var regions := []
+	for sx in width:
+		for sy in height:
+			var start := sy * width + sx
+			if map[start] == 1 or seen[start] == 1:
+				continue
+			var region: Array[Vector2i] = [Vector2i(sx, sy)]
+			seen[start] = 1
+			var head := 0
+			while head < region.size():  # the region doubles as the flood-fill queue
+				var c := region[head]
+				head += 1
+				for d: Vector2i in NEIGHBOURS:
+					var n := c + d
+					if n.x < 0 or n.y < 0 or n.x >= width or n.y >= height:
+						continue
+					var ni := n.y * width + n.x
+					if map[ni] == 1 or seen[ni] == 1:
+						continue
+					seen[ni] = 1
+					region.append(n)
+			regions.append(region)
+	return regions
+```
+
+```cpp [Unreal (C++)]
+// CaveGenerator.h: plain C++, no UObject.
+#pragma once
+
+#include "CoreMinimal.h"
+
+class FCaveGenerator
+{
+public:
+	// Row-major grid (index Y * Width + X): true = wall, false = floor.
+	static TArray<bool> Generate(int32 Width, int32 Height, int32 Seed,
+	                             float FillChance = 0.45f, int32 Iterations = 5, int32 MinRegionSize = 30);
+
+private:
+	static bool IsBorder(int32 X, int32 Y, int32 W, int32 H) { return X == 0 || Y == 0 || X == W - 1 || Y == H - 1; }
+	static int32 WallNeighbours(const TArray<bool>& Map, int32 Width, int32 CX, int32 CY);
+	static TArray<TArray<FIntPoint>> FloorRegions(const TArray<bool>& Map, int32 Width, int32 Height);
+};
+
+// CaveGenerator.cpp
+#include "CaveGenerator.h"
+
+TArray<bool> FCaveGenerator::Generate(int32 Width, int32 Height, int32 Seed,
+                                      float FillChance, int32 Iterations, int32 MinRegionSize)
+{
+	for (int32 Attempt = 0; Attempt < 100; ++Attempt)   // a cave that's too small retries with the next seed
+	{
+		FRandomStream Rng(Seed + Attempt);
+		TArray<bool> Map;
+		Map.SetNumUninitialized(Width * Height);
+
+		// 1. Random fill, with solid borders.
+		for (int32 X = 0; X < Width; ++X)
+			for (int32 Y = 0; Y < Height; ++Y)
+				Map[Y * Width + X] = IsBorder(X, Y, Width, Height) || Rng.FRand() < FillChance;
+
+		// 2-3. Smooth with the 4-5 rule, double buffered.
+		TArray<bool> Next;
+		Next.SetNumUninitialized(Width * Height);
+		for (int32 I = 0; I < Iterations; ++I)
+		{
+			for (int32 X = 0; X < Width; ++X)
+				for (int32 Y = 0; Y < Height; ++Y)
+				{
+					const int32 Index = Y * Width + X;
+					if (IsBorder(X, Y, Width, Height)) { Next[Index] = true; continue; }
+					const int32 Walls = WallNeighbours(Map, Width, X, Y);
+					Next[Index] = Walls >= 5 || (Walls > 3 && Map[Index]);
+				}
+			Swap(Map, Next);
+		}
+
+		// 4. Keep only the largest cave: fill every smaller floor region with wall.
+		TArray<TArray<FIntPoint>> Regions = FloorRegions(Map, Width, Height);
+		int32 Largest = INDEX_NONE;
+		for (int32 R = 0; R < Regions.Num(); ++R)
+			if (Largest == INDEX_NONE || Regions[R].Num() > Regions[Largest].Num()) Largest = R;
+		for (int32 R = 0; R < Regions.Num(); ++R)
+			if (R != Largest)
+				for (const FIntPoint& C : Regions[R]) Map[C.Y * Width + C.X] = true;
+
+		if (Largest != INDEX_NONE && Regions[Largest].Num() >= MinRegionSize) return Map;
+	}
+	UE_LOG(LogTemp, Error, TEXT("No cave of %d cells after 100 seeds"), MinRegionSize);
+	return {};
+}
+
+int32 FCaveGenerator::WallNeighbours(const TArray<bool>& Map, int32 Width, int32 CX, int32 CY)
+{
+	int32 Count = 0;
+	for (int32 X = CX - 1; X <= CX + 1; ++X)
+		for (int32 Y = CY - 1; Y <= CY + 1; ++Y)
+			if ((X != CX || Y != CY) && Map[Y * Width + X]) ++Count;
+	return Count;
+}
+
+TArray<TArray<FIntPoint>> FCaveGenerator::FloorRegions(const TArray<bool>& Map, int32 Width, int32 Height)
+{
+	static const FIntPoint Neighbours[] = {{0, 1}, {0, -1}, {-1, 0}, {1, 0}};
+	TArray<bool> Seen;
+	Seen.Init(false, Map.Num());
+	TArray<TArray<FIntPoint>> Regions;
+
+	for (int32 SX = 0; SX < Width; ++SX)
+		for (int32 SY = 0; SY < Height; ++SY)
+		{
+			if (Map[SY * Width + SX] || Seen[SY * Width + SX]) continue;
+			TArray<FIntPoint>& Region = Regions.AddDefaulted_GetRef();
+			Region.Add({SX, SY});
+			Seen[SY * Width + SX] = true;
+			for (int32 Head = 0; Head < Region.Num(); ++Head)   // the region doubles as the flood-fill queue
+				for (const FIntPoint& D : Neighbours)
+				{
+					const FIntPoint N = Region[Head] + D;
+					if (N.X < 0 || N.Y < 0 || N.X >= Width || N.Y >= Height) continue;
+					const int32 NI = N.Y * Width + N.X;
+					if (Map[NI] || Seen[NI]) continue;
+					Seen[NI] = true;
+					Region.Add(N);
+				}
+		}
+	return Regions;
+}
+```
+
+:::
+
+### Engine wiring
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+using UnityEngine.Tilemaps;
+
+public class CaveTilemap : MonoBehaviour
+{
+    [SerializeField] Tilemap tilemap;
+    [SerializeField] TileBase wallTile;           // a Rule Tile picks the right edge sprites automatically
+    [SerializeField] int width = 80, height = 50, seed = 1234;
+
+    void Start()
+    {
+        var cave = CaveGenerator.Generate(width, height, seed);
+        tilemap.ClearAllTiles();
+        for (int x = 0; x < width; x++)
+        for (int y = 0; y < height; y++)
+            if (cave[x, y]) tilemap.SetTile(new Vector3Int(x, y, 0), wallTile);
+    }
+}
+```
+
+```gdscript [Godot (GDScript)]
+# cave_map.gd: writes the walls into a TileMapLayer (Godot 4.3+) using terrain autotiling.
+extends TileMapLayer
+
+@export var width := 80
+@export var height := 50
+@export var world_seed := 1234
+@export var terrain_set := 0
+@export var terrain := 0
+
+
+func _ready() -> void:
+	var cave := CaveGenerator.generate(width, height, world_seed)
+	var walls: Array[Vector2i] = []
+	for y in height:
+		for x in width:
+			if cave[y * width + x] == 1:
+				walls.append(Vector2i(x, y))
+	clear()
+	# Terrains are Godot's Rule Tiles: each wall gets the edge tile that matches its neighbours.
+	set_cells_terrain_connect(walls, terrain_set, terrain)
+```
+
+```cpp [Unreal (C++)]
+// CaveActor.h: one instanced static mesh for all walls (a single draw call per mesh).
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "CaveActor.generated.h"
+
+class UInstancedStaticMeshComponent;
+
+UCLASS()
+class ACaveActor : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ACaveActor();
+
+	UPROPERTY(VisibleAnywhere, Category = "Cave") TObjectPtr<UInstancedStaticMeshComponent> Walls;   // set its mesh in the editor
+	UPROPERTY(EditAnywhere, Category = "Cave") int32 Width = 80;
+	UPROPERTY(EditAnywhere, Category = "Cave") int32 Height = 50;
+	UPROPERTY(EditAnywhere, Category = "Cave") int32 Seed = 1234;
+	UPROPERTY(EditAnywhere, Category = "Cave") float CellSize = 100.f;
+
+protected:
+	virtual void BeginPlay() override;
+};
+
+// CaveActor.cpp
+#include "CaveActor.h"
+#include "CaveGenerator.h"
+#include "Components/InstancedStaticMeshComponent.h"
+
+ACaveActor::ACaveActor()
+{
+	Walls = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Walls"));
+	RootComponent = Walls;
+}
+
+void ACaveActor::BeginPlay()
+{
+	Super::BeginPlay();
+	const TArray<bool> Cave = FCaveGenerator::Generate(Width, Height, Seed);
+	Walls->ClearInstances();
+	for (int32 Y = 0; Y < Height; ++Y)
+		for (int32 X = 0; X < Width; ++X)
+			if (Cave.IsValidIndex(Y * Width + X) && Cave[Y * Width + X])
+				Walls->AddInstance(FTransform(FVector(X * CellSize, Y * CellSize, 0.f)));   // local space
+}
+```
+
+:::
+
+For smooth outlines instead of blocks, build a mesh from the grid with marching squares.
+
+**Engine notes**
+
+- **Unity:** Rule Tiles (2D Tilemap Extras package) choose edge sprites from neighbours; `Tilemap.SetTilesBlock` is faster than `SetTile` per cell for big maps. `System.Random(seed)` is repeatable on a given .NET runtime; use your own generator (see [Seeded Randomness](./seeded-randomness)) if results must match across platforms or versions.
+- **Godot:** `TileMapLayer` (4.3+; earlier versions use layers of a single `TileMap`) with **terrains** does the autotiling, and `set_cells_terrain_connect` applies it from code. `RandomNumberGenerator` with an explicit `seed` is repeatable on every platform.
+- **Unreal:** no built-in cellular automaton. Instanced or hierarchical instanced static meshes keep thousands of wall blocks cheap, and **PCG** graphs can place props in the generated cave. `FRandomStream` is repeatable on every platform.
+
+## When to use
 
 ## When to use
 
