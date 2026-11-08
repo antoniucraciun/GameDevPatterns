@@ -18,11 +18,13 @@ For each client, the server decides which entities are **relevant**, and replica
 - **Hysteresis.** Use a larger *leave* radius than *enter* radius, so entities at the boundary do not flicker in and out.
 - **Priority and frequency.** Relevant entities are not equal. Nearby enemies update every snapshot, while distant vehicles update every fourth one. This is a bandwidth budget per client.
 
-## Example (Unity C#)
+## Example
 
-A grid-based relevancy system on the server:
+The Unity tab is a grid-based relevancy system on the server, independent of any netcode package. Godot and Unreal already decide per peer what to replicate, so their tabs plug the same rules (radius, hysteresis, always relevant, owner) into the engine's own relevancy hooks.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -109,7 +111,107 @@ public class InterestManager
 //   updating far entities less often (e.g. every 4th tick beyond 60 m).
 ```
 
-The `stillRelevant` set is allocated per call for clarity. Reuse one per client in production. Netcode for GameObjects exposes this as **network visibility** (`CheckObjectVisibility` / `NetworkShow` / `NetworkHide`), and Netcode for Entities has relevancy and importance scaling built in.
+```gdscript [Godot (GDScript)]
+# relevancy.gd: a child of each replicated entity, next to its MultiplayerSynchronizer.
+# A peer gets the entity's updates only while the filter returns true; when the synchronizer
+# replicates the node a MultiplayerSpawner spawned, visibility also spawns and despawns it.
+extends Node
+
+@export var enter_radius := 50.0
+@export var leave_radius := 60.0  # larger than enter: hysteresis
+@export var always_relevant := false  # game state, scoreboard
+@export var owner_peer_id := 0
+@export var players: Node  # player bodies, named by peer id
+
+@onready var _sync: MultiplayerSynchronizer = $"../MultiplayerSynchronizer"
+@onready var _entity: Node3D = get_parent()
+
+var _known := {}  # peer id -> true while that peer can see this entity
+
+
+func _ready() -> void:
+	if not multiplayer.is_server():
+		return
+	_sync.add_visibility_filter(_is_relevant)
+	# Re-check visibility a few times per second instead of every frame.
+	_sync.visibility_update_mode = MultiplayerSynchronizer.VISIBILITY_PROCESS_NONE
+	var timer := Timer.new()
+	timer.wait_time = 0.2
+	timer.autostart = true
+	timer.timeout.connect(func() -> void: _sync.update_visibility())
+	add_child(timer)
+
+
+func _is_relevant(peer_id: int) -> bool:
+	if always_relevant or peer_id == owner_peer_id:
+		return true
+	var viewer := players.get_node_or_null(str(peer_id)) as Node3D
+	if viewer == null:
+		return false
+	var d := viewer.global_position.distance_to(_entity.global_position)
+	var relevant := d <= enter_radius or (_known.has(peer_id) and d <= leave_radius)  # hysteresis
+	if relevant:
+		_known[peer_id] = true
+	else:
+		_known.erase(peer_id)
+	return relevant
+```
+
+```cpp [Unreal (C++)]
+// TeamTrap.h: relevancy is built in. The defaults cover the distance rule, and IsNetRelevantFor
+// adds a custom one (a trap only its own team can see).
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "GenericTeamAgentInterface.h"
+#include "TeamTrap.generated.h"
+
+UCLASS()
+class ATeamTrap : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ATeamTrap();
+	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const override;
+
+	UPROPERTY(EditAnywhere)
+	uint8 TeamId = 0;
+};
+
+// TeamTrap.cpp
+#include "TeamTrap.h"
+
+ATeamTrap::ATeamTrap()
+{
+	bReplicates = true;
+	NetCullDistanceSquared = FMath::Square(5000.f);       // relevant within 50 m of the viewer
+	NetUpdateFrequency = 5.f;                             // a trap rarely changes: at most 5 updates per second
+	NetPriority = 1.f;                                    // its share of bandwidth when the connection is saturated
+	// Other built-in rules:
+	// bAlwaysRelevant = true;        // game state, scoreboard
+	// bOnlyRelevantToOwner = true;   // e.g. the owner's inventory actor
+	// bNetUseOwnerRelevancy = true;  // a weapon is relevant whenever its owner is
+}
+
+bool ATeamTrap::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const
+{
+	// RealViewer is usually the client's player controller; its team decides first.
+	if (FGenericTeamId::GetTeamIdentifier(RealViewer) != FGenericTeamId(TeamId)) return false;
+	return Super::IsNetRelevantFor(RealViewer, ViewTarget, SrcLocation);   // distance, owner, always-relevant
+}
+```
+
+:::
+
+The `stillRelevant` set in the Unity tab is allocated per call for clarity. Reuse one per client in production.
+
+**Engine notes**
+
+- **Unity:** Netcode for GameObjects exposes this as **network visibility** (`NetworkObject.CheckObjectVisibility` / `NetworkShow` / `NetworkHide`): feed it the spawn and despawn lists above. Netcode for Entities has relevancy (`GhostRelevancy`) and distance-based importance scaling built in.
+- **Godot:** `MultiplayerSynchronizer` visibility (`add_visibility_filter`, `set_visibility_for`, `public_visibility`) is the built-in interest management, and a peer that can't see a spawned node's synchronizer doesn't get the node spawned. Each filter here measures every peer's distance itself, which is fine for hundreds of entities; for thousands, keep a grid like the Unity tab's in one server node and call `set_visibility_for(peer, visible)` on the synchronizers it changes.
+- **Unreal:** Every replicated actor already has a relevancy test per connection (`IsNetRelevantFor`: always relevant, owner, then `NetCullDistanceSquared`). A connection keeps an actor that stops being relevant for a few seconds (the net driver's `RelevantTimeout`), which acts as hysteresis. At scale, the **Replication Graph** plugin replaces per-actor checks with a spatial grid (`UReplicationGraphNode_GridSpatialization2D`) and per-connection nodes; **Iris**, the newer replication system (experimental from UE 5.1), has its own filtering. In UE 5.5+ the `NetUpdateFrequency` and `NetCullDistanceSquared` fields are reached through `SetNetUpdateFrequency` / `SetNetCullDistanceSquared` instead.
 
 ## When to use
 

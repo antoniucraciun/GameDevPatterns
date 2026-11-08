@@ -17,11 +17,15 @@ Separate the **definition** of a quest from its **runtime progress**, and let ob
 - **`QuestLog`** holds the runtime state: which quests are active, the current stage, each objective's progress. It completes stages, grants rewards, and saves as plain data.
 - Gameplay code just **publishes events** (`EnemyKilled`, `ItemCollected`, `TalkedTo`, `EnteredArea`). It knows nothing about quests.
 
-## Example (Unity C#)
+## Example
+
+Gameplay only publishes facts ("an orc died", "a herb was picked up") on the [Event Bus](./event-bus); quests listen and count. The bus is the one from that page, with an `ItemCollected` event added.
 
 ### Definitions as data
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -89,9 +93,165 @@ public class CollectObjective : Objective
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# The Events autoload from the Event Bus page, with one more signal:
+#   signal item_collected(item_id: StringName, count: int)
+
+# quest_definition.gd: one .tres per quest.
+class_name QuestDefinition
+extends Resource
+
+@export var id: StringName
+@export var title := ""
+@export_multiline var description := ""
+@export var stages: Array[QuestStage] = []
+@export var reward_gold := 0
+@export var unlocks_on_complete: Array[QuestDefinition] = []
+
+
+# quest_stage.gd
+class_name QuestStage
+extends Resource
+
+@export var journal_text := ""  # "Collect healing herbs (3/10)"
+@export var objectives: Array[Objective] = []
+@export var any_objective := false  # false = all must complete; true = any one
+
+
+# objective.gd: objectives are templates. Runtime progress is stored separately, per active quest.
+class_name Objective
+extends Resource
+
+@export var required := 1
+
+
+func subscribe(_add_progress: Callable) -> void:  # call add_progress.call(n) when relevant events happen
+	pass
+
+
+func unsubscribe() -> void:
+	pass
+
+
+# kill_objective.gd
+class_name KillObjective
+extends Objective
+
+@export var enemy_type_id := 0
+
+var _handler: Callable
+
+
+func subscribe(add_progress: Callable) -> void:
+	_handler = func(type_id: int, _position: Vector3) -> void:
+		if type_id == enemy_type_id:
+			add_progress.call(1)
+	Events.enemy_killed.connect(_handler)
+
+
+func unsubscribe() -> void:
+	Events.enemy_killed.disconnect(_handler)
+
+
+# collect_objective.gd
+class_name CollectObjective
+extends Objective
+
+@export var item_id: StringName
+
+var _handler: Callable
+
+
+func subscribe(add_progress: Callable) -> void:
+	_handler = func(id: StringName, count: int) -> void:
+		if id == item_id:
+			add_progress.call(count)
+	Events.item_collected.connect(_handler)
+
+
+func unsubscribe() -> void:
+	Events.item_collected.disconnect(_handler)
+```
+
+```cpp [Unreal (C++)]
+// QuestDefinition.h: objectives are instanced sub-objects, picked from a class dropdown in the
+// details panel. They are stateless: the quest subsystem asks them how much an event counts.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameEventsSubsystem.h"                    // Event Bus page, plus:
+// struct FItemCollected { FName ItemId; int32 Count = 1; };   and   FOnItemCollected ItemCollected;
+#include "QuestDefinition.generated.h"
+
+UCLASS(Abstract, EditInlineNew, DefaultToInstanced, CollapseCategories)
+class UQuestObjective : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Objective") int32 Required = 1;
+
+	virtual int32 ProgressFrom(const FEnemyKilled& Event) const { return 0; }
+	virtual int32 ProgressFrom(const FItemCollected& Event) const { return 0; }
+};
+
+UCLASS(meta = (DisplayName = "Kill"))
+class UKillObjective : public UQuestObjective
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Objective") int32 EnemyTypeId = 0;
+	virtual int32 ProgressFrom(const FEnemyKilled& Event) const override { return Event.EnemyTypeId == EnemyTypeId ? 1 : 0; }
+};
+
+UCLASS(meta = (DisplayName = "Collect"))
+class UCollectObjective : public UQuestObjective
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Objective") FName ItemId;
+	virtual int32 ProgressFrom(const FItemCollected& Event) const override { return Event.ItemId == ItemId ? Event.Count : 0; }
+};
+
+USTRUCT()
+struct FQuestStage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Quest") FText JournalText;          // "Collect healing herbs"
+	UPROPERTY(EditAnywhere, Instanced, Category = "Quest") TArray<TObjectPtr<UQuestObjective>> Objectives;
+	UPROPERTY(EditAnywhere, Category = "Quest") bool bAnyObjective = false; // false = all must complete
+};
+
+UCLASS(BlueprintType)
+class UQuestDefinition : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "Quest") FName Id;
+	UPROPERTY(EditDefaultsOnly, Category = "Quest") FText Title;
+	UPROPERTY(EditDefaultsOnly, Category = "Quest", meta = (MultiLine = true)) FText Description;
+	UPROPERTY(EditDefaultsOnly, Category = "Quest") TArray<FQuestStage> Stages;
+	UPROPERTY(EditDefaultsOnly, Category = "Quest") int32 RewardGold = 0;
+	UPROPERTY(EditDefaultsOnly, Category = "Quest") TArray<TObjectPtr<UQuestDefinition>> UnlocksOnComplete;
+};
+```
+
+:::
+
 ### Runtime progress
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
 public class QuestLog
 {
     class ActiveQuest
@@ -166,7 +326,209 @@ public class QuestLog
 // EventBus<ItemCollected>.Publish(new ItemCollected("healing_herb", 1));
 ```
 
-Objectives here subscribe their own handlers, so one objective asset must not be active in two quests at once. If definitions are shared, create a runtime copy of each objective per active quest (or keep the handler in the quest log, keyed by quest and objective). Saving stores `{ questId, stage, progress[] }` per active quest, plus the completed IDs. Objectives resubscribe on load.
+```gdscript [Godot (GDScript)]
+# quest_log.gd: autoload named QuestLog.
+extends Node
+
+signal started(quest: QuestDefinition)
+signal updated(quest: QuestDefinition)
+signal completed(quest: QuestDefinition)
+
+
+class ActiveQuest:
+	var definition: QuestDefinition
+	var stage := 0
+	var progress: Array[int] = []  # per objective of the current stage
+
+
+var _active := {}  # StringName -> ActiveQuest
+var _completed := {}  # StringName -> true, used as a set
+
+
+func is_active(id: StringName) -> bool:
+	return _active.has(id)
+
+
+func is_completed(id: StringName) -> bool:
+	return _completed.has(id)
+
+
+func start(def: QuestDefinition) -> void:
+	if _active.has(def.id) or _completed.has(def.id):
+		return
+	var q := ActiveQuest.new()
+	q.definition = def
+	_active[def.id] = q
+	_enter_stage(q, 0)
+	started.emit(def)
+
+
+func _enter_stage(q: ActiveQuest, stage: int) -> void:
+	q.stage = stage
+	q.progress.clear()
+	var objectives := q.definition.stages[stage].objectives
+	for i in objectives.size():
+		q.progress.append(0)
+		# bind() appends q and i after the amount the objective passes in.
+		objectives[i].subscribe(_add_progress.bind(q, i))
+
+
+func _add_progress(amount: int, q: ActiveQuest, objective: int) -> void:
+	var stage := q.definition.stages[q.stage]
+	q.progress[objective] = mini(q.progress[objective] + amount, stage.objectives[objective].required)
+	updated.emit(q.definition)
+
+	var done_count := 0
+	for i in stage.objectives.size():
+		if q.progress[i] >= stage.objectives[i].required:
+			done_count += 1
+	var done := done_count > 0 if stage.any_objective else done_count == stage.objectives.size()
+	if not done:
+		return
+
+	for o in stage.objectives:
+		o.unsubscribe()
+	if q.stage + 1 < q.definition.stages.size():
+		_enter_stage(q, q.stage + 1)
+	else:
+		_complete(q)
+
+
+func _complete(q: ActiveQuest) -> void:
+	_active.erase(q.definition.id)
+	_completed[q.definition.id] = true
+	# Grant q.definition.reward_gold through the wallet/inventory...
+	completed.emit(q.definition)
+	for next in q.definition.unlocks_on_complete:
+		start(next)
+
+# Gameplay only publishes facts:
+# Events.item_collected.emit(&"healing_herb", 1)
+```
+
+```cpp [Unreal (C++)]
+// QuestSubsystem.h: lives with the game instance, so quests survive level loads.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "QuestDefinition.h"
+#include "QuestSubsystem.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQuestEvent, const UQuestDefinition*, Quest);
+
+USTRUCT()
+struct FActiveQuest
+{
+	GENERATED_BODY()
+
+	UPROPERTY() TObjectPtr<const UQuestDefinition> Definition;
+	UPROPERTY() int32 Stage = 0;
+	UPROPERTY() TArray<int32> Progress;             // per objective of the current stage
+};
+
+UCLASS()
+class UQuestSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Quests") void Start(const UQuestDefinition* Def);
+	UFUNCTION(BlueprintPure, Category = "Quests") bool IsActive(FName Id) const { return Active.Contains(Id); }
+	UFUNCTION(BlueprintPure, Category = "Quests") bool IsCompleted(FName Id) const { return Completed.Contains(Id); }
+
+	UPROPERTY(BlueprintAssignable) FOnQuestEvent OnStarted;
+	UPROPERTY(BlueprintAssignable) FOnQuestEvent OnUpdated;
+	UPROPERTY(BlueprintAssignable) FOnQuestEvent OnCompleted;
+
+private:
+	template <typename TEvent> void HandleEvent(const TEvent& Event);
+	void AddProgress(FName QuestId, int32 Objective, int32 Amount);
+	void EnterStage(FActiveQuest& Quest, int32 Stage);
+
+	UPROPERTY() TMap<FName, FActiveQuest> Active;
+	UPROPERTY() TSet<FName> Completed;
+};
+
+// QuestSubsystem.cpp
+#include "QuestSubsystem.h"
+
+void UQuestSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	UGameEventsSubsystem* Events = Collection.InitializeDependency<UGameEventsSubsystem>();
+	Events->EnemyKilled.AddUObject(this, &UQuestSubsystem::HandleEvent<FEnemyKilled>);
+	Events->ItemCollected.AddUObject(this, &UQuestSubsystem::HandleEvent<FItemCollected>);
+}
+
+void UQuestSubsystem::Start(const UQuestDefinition* Def)
+{
+	if (!Def || Active.Contains(Def->Id) || Completed.Contains(Def->Id)) return;
+	FActiveQuest& Quest = Active.Add(Def->Id);
+	Quest.Definition = Def;
+	EnterStage(Quest, 0);
+	OnStarted.Broadcast(Def);
+}
+
+void UQuestSubsystem::EnterStage(FActiveQuest& Quest, int32 Stage)
+{
+	Quest.Stage = Stage;
+	Quest.Progress.Init(0, Quest.Definition->Stages[Stage].Objectives.Num());
+}
+
+// Every event is offered to every objective of every active quest's current stage.
+template <typename TEvent>
+void UQuestSubsystem::HandleEvent(const TEvent& Event)
+{
+	TArray<TTuple<FName, int32, int32>> Hits;      // collected first: AddProgress can change Active
+	for (const TPair<FName, FActiveQuest>& Pair : Active)
+	{
+		const TArray<TObjectPtr<UQuestObjective>>& Objectives = Pair.Value.Definition->Stages[Pair.Value.Stage].Objectives;
+		for (int32 i = 0; i < Objectives.Num(); ++i)
+			if (const int32 Amount = Objectives[i]->ProgressFrom(Event)) Hits.Emplace(Pair.Key, i, Amount);
+	}
+	for (const TTuple<FName, int32, int32>& Hit : Hits) AddProgress(Hit.Get<0>(), Hit.Get<1>(), Hit.Get<2>());
+}
+
+void UQuestSubsystem::AddProgress(FName QuestId, int32 Objective, int32 Amount)
+{
+	FActiveQuest* Quest = Active.Find(QuestId);
+	if (!Quest) return;                             // completed by an earlier hit of the same event
+	const UQuestDefinition* Def = Quest->Definition;
+	const FQuestStage& Stage = Def->Stages[Quest->Stage];
+	if (!Stage.Objectives.IsValidIndex(Objective)) return;   // the stage moved on during this event
+
+	Quest->Progress[Objective] = FMath::Min(Quest->Progress[Objective] + Amount, Stage.Objectives[Objective]->Required);
+	OnUpdated.Broadcast(Def);
+
+	int32 Done = 0;
+	for (int32 i = 0; i < Stage.Objectives.Num(); ++i) Done += Quest->Progress[i] >= Stage.Objectives[i]->Required;
+	if (Stage.bAnyObjective ? Done == 0 : Done < Stage.Objectives.Num()) return;
+
+	if (Quest->Stage + 1 < Def->Stages.Num()) { EnterStage(*Quest, Quest->Stage + 1); return; }
+
+	Active.Remove(QuestId);                         // Quest is invalid from here on
+	Completed.Add(QuestId);
+	// Grant Def->RewardGold through the wallet/inventory...
+	OnCompleted.Broadcast(Def);
+	for (const UQuestDefinition* Next : Def->UnlocksOnComplete) Start(Next);
+}
+
+// Gameplay only publishes facts:
+// GetGameInstance()->GetSubsystem<UGameEventsSubsystem>()->ItemCollected.Broadcast({TEXT("healing_herb"), 1});
+```
+
+:::
+
+In the Unity and Godot tabs, objectives subscribe their own handlers, so one objective asset must not be active in two quests at once. If definitions are shared, create a runtime copy of each objective per active quest (or keep the handler in the quest log, keyed by quest and objective, which is what the Unreal tab does). Saving stores `{ questId, stage, progress[] }` per active quest, plus the completed IDs. Objectives resubscribe on load.
+
+**Engine notes**
+
+- **Unity:** `[SerializeReference]` lists have no "add element of type…" menu in the default inspector; add a small property drawer for designers.
+- **Godot:** typed `Array[Objective]` exports let designers create `KillObjective` or `CollectObjective` resources in place. Objective resources are shared between every quest that uses the same `.tres` (see the note above); `duplicate()` the quest when it starts if that can happen. `Callable.bind` appends its arguments after the ones the caller passes.
+- **Unreal:** there is no built-in quest system. `Instanced` objective arrays inside a data asset give designers a class dropdown per entry. `InitializeDependency` makes sure the event subsystem exists before the quest subsystem subscribes to it. Lyra's **Gameplay Message Router** works just as well as the event source.
 
 ## When to use
 

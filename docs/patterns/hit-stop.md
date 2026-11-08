@@ -17,11 +17,13 @@ On impact, **stop time briefly**: typically 40–150 ms, roughly 3–9 frames at
 - **Do not stack.** Ten hits in one frame should give one stop of the *longest* duration, not ten stops added together.
 - **Keep feedback alive.** Screen shake, particles and sound should play during the stop, on unscaled time. The freeze is what makes them read clearly.
 
-## Example (Unity C#)
+## Example
 
-A global hit stop built on [Time Scale](./time-scale) requests:
+A global hit stop built on [Time Scale](./time-scale) requests (`GameTime` in Unity and Godot, `UGameTimeSubsystem` in Unreal). The stop is timed in real time, because game time is frozen while it runs:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
 using UnityEngine;
 
 public class HitStop : MonoBehaviour
@@ -58,15 +60,109 @@ public class HitStop : MonoBehaviour
 // HitStop.Instance.Trigger(Mathf.Lerp(0.04f, 0.12f, damage / 50f));
 ```
 
+```gdscript [Godot (GDScript)]
+# hit_stop.gd: autoload named HitStop. A scale of 0 pauses the SceneTree through GameTime,
+# so this node must keep processing while paused.
+extends Node
+
+var _freeze: GameTime.Request
+var _resume_at := 0.0  # real time, in seconds
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+func trigger(duration: float, scale := 0.0) -> void:
+	var end := _now() + duration
+	if _freeze != null and end <= _resume_at:
+		return  # a longer stop is already running: don't stack
+	_resume_at = end
+	if _freeze == null:
+		_freeze = GameTime.push(scale, "Hit stop")  # combines with pause and slow-mo correctly
+
+
+func _process(_delta: float) -> void:
+	if _freeze != null and _now() >= _resume_at:
+		GameTime.release(_freeze)
+		_freeze = null
+
+
+static func _now() -> float:
+	return Time.get_ticks_usec() / 1_000_000.0  # not affected by time scale or pause
+
+
+# On a hit, scale duration with damage:
+# HitStop.trigger(lerpf(0.04, 0.12, damage / 50.0))
+```
+
+```cpp [Unreal (C++)]
+// HitStopSubsystem.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "GameTimeSubsystem.h"
+#include "HitStopSubsystem.generated.h"
+
+UCLASS()
+class UHitStopSubsystem : public UTickableWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	void Trigger(float Duration, float Scale = 0.f);
+
+	virtual void Tick(float DeltaTime) override;
+	virtual bool IsTickableWhenPaused() const override { return true; }   // a scale of 0 pauses the game
+	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UHitStopSubsystem, STATGROUP_Tickables); }
+
+private:
+	TSharedPtr<FTimeRequest> Freeze;
+	double ResumeAt = 0.0;                                       // real time, in seconds
+};
+
+// HitStopSubsystem.cpp
+#include "HitStopSubsystem.h"
+
+void UHitStopSubsystem::Trigger(float Duration, float Scale)
+{
+	const double End = GetWorld()->GetRealTimeSeconds() + Duration;
+	if (Freeze && End <= ResumeAt) return;                       // a longer stop is already running: don't stack
+
+	ResumeAt = End;
+	if (!Freeze) Freeze = GetWorld()->GetSubsystem<UGameTimeSubsystem>()->Push(Scale, TEXT("Hit stop"));
+}
+
+void UHitStopSubsystem::Tick(float DeltaTime)
+{
+	if (Freeze && GetWorld()->GetRealTimeSeconds() >= ResumeAt)
+	{
+		Freeze.Reset();                                          // releases the time request
+	}
+}
+
+// On a hit, scale duration with damage:
+// GetWorld()->GetSubsystem<UHitStopSubsystem>()->Trigger(FMath::Lerp(0.04f, 0.12f, Damage / 50.f));
+```
+
+:::
+
 A local hit stop that freezes only the two characters involved:
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class LocalHitStop : MonoBehaviour
 {
     [SerializeField] Animator animator;
     float resumeAt;
     float savedSpeed = 1f;
     bool frozen;
+
+    public bool Frozen => frozen;
 
     public void Freeze(float duration)
     {
@@ -87,8 +183,107 @@ public class LocalHitStop : MonoBehaviour
 }
 
 // On a hit: attacker.Freeze(0.08f); victim.Freeze(0.08f);
-// Movement code on these characters must also respect the freeze (skip it while frozen).
+// Movement code on these characters must also respect the freeze (skip it while Frozen).
 ```
+
+```gdscript [Godot (GDScript)]
+# local_hit_stop.gd: a child node of each character.
+class_name LocalHitStop
+extends Node
+
+@export var animation_player: AnimationPlayer
+
+var frozen := false  # movement code on the character skips its update while this is true
+var _remaining := 0.0
+var _saved_speed := 1.0
+
+
+func freeze(duration: float) -> void:
+	if frozen and duration <= _remaining:
+		return
+	if not frozen:
+		_saved_speed = animation_player.speed_scale
+		animation_player.speed_scale = 0.0
+		frozen = true
+	_remaining = duration
+
+
+func _process(delta: float) -> void:
+	if not frozen:
+		return
+	_remaining -= delta
+	if _remaining <= 0.0:
+		animation_player.speed_scale = _saved_speed
+		frozen = false
+
+
+# On a hit: attacker_stop.freeze(0.08); victim_stop.freeze(0.08)
+```
+
+```cpp [Unreal (C++)]
+// LocalHitStopComponent.h: CustomTimeDilation freezes the actor's own tick, animation and movement.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "LocalHitStopComponent.generated.h"
+
+UCLASS(ClassGroup = (Gameplay), meta = (BlueprintSpawnableComponent))
+class ULocalHitStopComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	void Freeze(float Duration);
+	bool IsFrozen() const { return bFrozen; }
+
+private:
+	void Resume();
+
+	FTimerHandle ResumeTimer;
+	double ResumeAt = 0.0;
+	float SavedDilation = 1.f;
+	bool bFrozen = false;
+};
+
+// LocalHitStopComponent.cpp
+#include "LocalHitStopComponent.h"
+#include "TimerManager.h"
+
+void ULocalHitStopComponent::Freeze(float Duration)
+{
+	const double End = GetWorld()->GetTimeSeconds() + Duration;
+	if (bFrozen && End <= ResumeAt) return;
+
+	if (!bFrozen)
+	{
+		SavedDilation = GetOwner()->CustomTimeDilation;
+		GetOwner()->CustomTimeDilation = 0.f;
+		bFrozen = true;
+	}
+	ResumeAt = End;
+	// World timers use global time, not the owner's dilation, so this still fires. Setting the
+	// same handle again restarts it.
+	GetWorld()->GetTimerManager().SetTimer(ResumeTimer, this, &ULocalHitStopComponent::Resume,
+		static_cast<float>(End - GetWorld()->GetTimeSeconds()), false);
+}
+
+void ULocalHitStopComponent::Resume()
+{
+	GetOwner()->CustomTimeDilation = SavedDilation;
+	bFrozen = false;
+}
+
+// On a hit: Attacker->FindComponentByClass<ULocalHitStopComponent>()->Freeze(0.08f); and the same for the victim.
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** `Animator.speed = 0` freezes only the animation. Physics and movement code keep running unless they check `Frozen`.
+- **Godot:** `Engine.time_scale` doesn't stop `_process` from running, so a global stop that must freeze scripted motion uses the tree pause (`GameTime.push(0.0, …)`), as here. Particles, sounds and shake that should play through the stop need **Process Mode: Always**. `AnimationPlayer.speed_scale` only freezes animation.
+- **Unreal:** `CustomTimeDilation = 0` freezes the actor's tick, its skeletal animation and its movement component, so the local stop needs no checks in movement code. The global stop's subsystem must tick while paused (`IsTickableWhenPaused`) or it would never release the pause. A small non-zero scale such as 0.02 gives a near-freeze through global time dilation instead of pausing the game.
 
 ## When to use
 

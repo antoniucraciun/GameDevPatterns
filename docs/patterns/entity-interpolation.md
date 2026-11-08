@@ -27,9 +27,16 @@ snapshots:    t=1.00      t=1.05      t=1.10      t=1.15 (latest)
 
 <NetSyncViz mode="interpolation" />
 
-## Example (Unity C#)
+## Example
 
-```csharp
+A snapshot buffer on each remote entity, rendered a fixed delay behind the estimated server time. Unity and Godot estimate the server clock themselves; Unreal's game state already provides one.
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections.Generic;
+using UnityEngine;
+
 public struct Snapshot
 {
     public double ServerTime;
@@ -105,7 +112,192 @@ public static class NetClock
 }
 ```
 
-Netcode for GameObjects' `NetworkTransform` and most networking libraries interpolate this way out of the box. The value of knowing the pattern is in tuning the delay and handling the edge cases.
+```gdscript [Godot (GDScript)]
+# interpolated_entity.gd: on remote entities. The server sends snapshots with
+# _receive_snapshot.rpc(NetClock.now(), global_position, quaternion) at its network rate.
+extends Node3D
+
+@export var interpolation_delay := 0.1  # seconds; ~2–3 snapshot intervals
+@export var max_extrapolation := 0.25  # how long to keep moving if packets stop
+
+
+class Snapshot:
+	var server_time: float
+	var pos: Vector3
+	var rot: Quaternion
+
+	func _init(t: float, p: Vector3, r: Quaternion) -> void:
+		server_time = t
+		pos = p
+		rot = r
+
+
+var _buffer: Array[Snapshot] = []
+
+
+@rpc("authority", "call_remote", "unreliable")
+func _receive_snapshot(server_time: float, pos: Vector3, rot: Quaternion) -> void:
+	# Packets can arrive out of order: insert sorted, ignore duplicates and stale ones.
+	if not _buffer.is_empty() and server_time <= _buffer[0].server_time:
+		return
+	var i := _buffer.size()
+	while i > 0 and _buffer[i - 1].server_time > server_time:
+		i -= 1
+	if i > 0 and _buffer[i - 1].server_time == server_time:
+		return
+	_buffer.insert(i, Snapshot.new(server_time, pos, rot))
+
+
+func _process(_delta: float) -> void:
+	if _buffer.is_empty():
+		return
+	var render_time := NetClock.estimated_server_time() - interpolation_delay
+
+	# Drop snapshots we have moved past, keeping one before render_time.
+	while _buffer.size() >= 2 and _buffer[1].server_time <= render_time:
+		_buffer.pop_front()
+
+	var a := _buffer[0]
+	if _buffer.size() >= 2 and a.server_time <= render_time:
+		# Normal case: interpolate between the two bracketing snapshots.
+		var b := _buffer[1]
+		var t := (render_time - a.server_time) / (b.server_time - a.server_time)
+		global_position = a.pos.lerp(b.pos, t)
+		quaternion = a.rot.slerp(b.rot, t)
+	else:
+		# Just connected (render_time before the oldest) or starved (one snapshot left): hold it.
+		# To extrapolate, keep a velocity and add it * minf(render_time - a.server_time, max_extrapolation).
+		global_position = a.pos
+		quaternion = a.rot
+
+
+# net_clock.gd: autoload named NetClock.
+extends Node
+
+var _offset := 0.0  # server_time - local_time, updated from time-sync messages
+
+
+func now() -> float:  # the local clock, in seconds
+	return Time.get_ticks_usec() / 1_000_000.0
+
+
+func estimated_server_time() -> float:
+	return now() + _offset
+
+
+func on_time_sync(server_time: float, round_trip_time: float) -> void:
+	var sample := server_time + round_trip_time / 2.0 - now()
+	_offset = sample if _offset == 0.0 else _offset + (sample - _offset) * 0.1  # smooth out jitter
+```
+
+```cpp [Unreal (C++)]
+// InterpolationComponent.h: replaces the actor's own movement replication (turn off Replicate Movement).
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "InterpolationComponent.generated.h"
+
+USTRUCT()
+struct FNetSnapshot
+{
+	GENERATED_BODY()
+
+	UPROPERTY() double ServerTime = 0.0;
+	UPROPERTY() FVector Position = FVector::ZeroVector;
+	UPROPERTY() FQuat Rotation = FQuat::Identity;
+};
+
+UCLASS(ClassGroup = (Game), meta = (BlueprintSpawnableComponent))
+class UInterpolationComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UInterpolationComponent();
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	UPROPERTY(EditAnywhere)
+	double InterpolationDelay = 0.1;                        // seconds; ~2–3 net updates
+
+protected:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+private:
+	UPROPERTY(ReplicatedUsing = OnRep_Snapshot)
+	FNetSnapshot Snapshot;                                  // the server writes it; each update reaches OnRep
+
+	UFUNCTION()
+	void OnRep_Snapshot();
+
+	TArray<FNetSnapshot> Buffer;
+};
+
+// InterpolationComponent.cpp
+#include "InterpolationComponent.h"
+#include "GameFramework/GameStateBase.h"
+#include "Net/UnrealNetwork.h"
+
+UInterpolationComponent::UInterpolationComponent()
+{
+	PrimaryComponentTick.bCanEverTick = true;
+	SetIsReplicatedByDefault(true);
+}
+
+void UInterpolationComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UInterpolationComponent, Snapshot);
+}
+
+void UInterpolationComponent::OnRep_Snapshot()
+{
+	// Property replication sends the latest value and can skip intermediate ones: fine for interpolation.
+	if (Buffer.IsEmpty() || Snapshot.ServerTime > Buffer.Last().ServerTime) Buffer.Add(Snapshot);
+}
+
+void UInterpolationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	AActor* Owner = GetOwner();
+	const AGameStateBase* GameState = GetWorld()->GetGameState();
+	if (!GameState) return;
+
+	// Built in: the game state keeps clients' estimate of the server's clock in sync.
+	const double ServerTime = GameState->GetServerWorldTimeSeconds();
+	if (Owner->HasAuthority())
+	{
+		Snapshot.ServerTime = ServerTime;
+		Snapshot.Position = Owner->GetActorLocation();
+		Snapshot.Rotation = Owner->GetActorQuat();
+		return;
+	}
+	if (Buffer.IsEmpty()) return;
+
+	const double RenderTime = ServerTime - InterpolationDelay;
+	while (Buffer.Num() >= 2 && Buffer[1].ServerTime <= RenderTime) Buffer.RemoveAt(0);   // moved past
+
+	const FNetSnapshot& A = Buffer[0];
+	if (Buffer.Num() >= 2 && A.ServerTime <= RenderTime)
+	{
+		const FNetSnapshot& B = Buffer[1];
+		const float T = float((RenderTime - A.ServerTime) / (B.ServerTime - A.ServerTime));
+		Owner->SetActorLocationAndRotation(FMath::Lerp(A.Position, B.Position, T), FQuat::Slerp(A.Rotation, B.Rotation, T));
+	}
+	else
+	{
+		Owner->SetActorLocationAndRotation(A.Position, A.Rotation);   // just connected, or starved
+	}
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** Netcode for GameObjects' `NetworkTransform` (with *Interpolate* on) and most networking libraries interpolate this way out of the box. The value of knowing the pattern is in tuning the delay and handling the edge cases. NGO's `NetworkManager.ServerTime` is a ready-made server clock estimate.
+- **Godot:** `MultiplayerSynchronizer` sets synchronized properties as soon as they arrive, with no timestamp and no interpolation, so remote objects stutter at the network rate unless you buffer them like this. You can also keep the synchronizer and point it at a hidden property whose setter calls the buffer. The **netfox** add-on has a tick interpolator for this.
+- **Unreal:** Remote characters (simulated proxies) are already smoothed by `UCharacterMovementComponent` (*Network Smoothing Mode*: exponential or linear). For other actors, *Replicate Movement* applies each update directly, so add a component like the one above. `AGameStateBase::GetServerWorldTimeSeconds()` is kept in sync by the engine, but only corrected periodically; a game that needs tighter timing measures its own offset from round trips, as the Unity and Godot tabs do. Set the actor's net update frequency to the snapshot rate you tuned the delay for.
 
 ## When to use
 

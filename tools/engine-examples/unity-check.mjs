@@ -26,7 +26,9 @@ const project = process.env.UNITY_PROJECT ?? 'G:/GameDev/UnityProjects/SurvivalG
 
 // Pages whose Unity tab needs packages that aren't reliably available to this check.
 // entity-component-system: needs Entities + matching source generators (check it inside a DOTS project).
-const SKIP = new Set(['entity-component-system'])
+// asset-reference: needs Addressables (com.unity.addressables), which UNITY_PROJECT doesn't include.
+// localization-tables: needs Localization (com.unity.localization), which UNITY_PROJECT doesn't include.
+const SKIP = new Set(['entity-component-system', 'asset-reference', 'localization-tables'])
 
 const engineDir = join(editor, 'Editor/Data/Managed/UnityEngine')
 if (!existsSync(engineDir)) throw new Error(`Unity assemblies not found in ${engineDir}. Set UNITY_EDITOR.`)
@@ -71,7 +73,7 @@ const refs = readdirSync(engineDir)
   .filter((f) => f.endsWith('.dll'))
   .filter((f) => !/^UnityEngine\.(Burst|Mathematics)Module\.dll$/.test(f))   // clash with the package versions
   .map((f) => [f.slice(0, -4), join(engineDir, f)])
-for (const name of ['UnityEngine.UI', 'Unity.Mathematics', 'Unity.Collections', 'Unity.Burst', 'Unity.AI.Navigation']) {
+for (const name of ['UnityEngine.UI', 'Unity.TextMeshPro', 'Unity.InputSystem', 'Unity.Mathematics', 'Unity.Collections', 'Unity.Burst', 'Unity.AI.Navigation', 'UnityEngine.TestRunner']) {
   const dll = join(project, 'Library/ScriptAssemblies', `${name}.dll`)
   if (existsSync(dll)) refs.push([name, dll])
 }

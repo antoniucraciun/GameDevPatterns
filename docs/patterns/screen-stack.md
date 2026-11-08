@@ -18,9 +18,14 @@ Keep the open screens on a **stack**:
 
 Screens get lifecycle hooks (`OnPush`, `OnPop`, `OnFocus`, `OnBlur`) for animations, pausing time and remembering the selected element.
 
-## Example (Unity C#)
+## Example
 
-```csharp
+One stack owns which screen is on top, where focus goes, and what Back does. Unreal's **CommonUI** plugin ships this as `UCommonActivatableWidgetStack`, so its tab uses it instead of a hand-written stack.
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -86,7 +91,163 @@ public class ScreenStack : MonoBehaviour
 // screenStack.Push(audioSettingsScreen);
 ```
 
-With the Input System package, bind Back to a UI "Cancel" action, so the keyboard, gamepad and Android back button all go through the same path.
+```gdscript [Godot (GDScript)]
+# ui_screen.gd: base script for every screen (a Control).
+class_name UIScreen
+extends Control
+
+@export var first_focus: Control
+@export var is_overlay := false  # keep the screen below visible, e.g. a popup over a menu
+
+var _last_focus: Control
+
+
+func on_push() -> void:
+	show()
+
+
+func on_pop() -> void:
+	hide()
+
+
+func on_focus() -> void:
+	var target := _last_focus if is_instance_valid(_last_focus) else first_focus
+	if target != null:
+		target.grab_focus()
+
+
+func on_blur() -> void:
+	_last_focus = get_viewport().gui_get_focus_owner()
+
+
+# Return false to block Back, e.g. on a mandatory confirmation.
+func on_back() -> bool:
+	return true
+
+
+# screen_stack.gd
+class_name ScreenStack
+extends Node
+
+var _stack: Array[UIScreen] = []
+
+
+func top() -> UIScreen:
+	return null if _stack.is_empty() else _stack.back()
+
+
+func push(screen: UIScreen) -> void:
+	var below := top()
+	if below != null:
+		below.on_blur()
+		if not screen.is_overlay:
+			below.hide()
+	_stack.push_back(screen)
+	screen.on_push()
+	screen.on_focus()
+
+
+func pop() -> void:
+	if _stack.is_empty():
+		return
+	_stack.pop_back().on_pop()
+	var below := top()
+	if below != null:
+		below.show()
+		below.on_focus()
+
+
+# The ONLY place that listens for Back. "ui_cancel" is a built-in action: Escape and the
+# gamepad's East button.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and top() != null:
+		get_viewport().set_input_as_handled()
+		if top().on_back():
+			pop()
+
+
+# Usage: a button on the Settings screen
+# screen_stack.push(audio_settings_screen)
+```
+
+```cpp [Unreal (C++)]
+// Needs the CommonUI plugin. A layout widget holds UCommonActivatableWidgetStacks; each screen
+// is a UCommonActivatableWidget. Pushing deactivates the screen below; deactivating the top
+// screen pops it and reactivates the one below, restoring its focus.
+
+// MenuScreen.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "CommonActivatableWidget.h"
+#include "MenuScreen.generated.h"
+
+UCLASS(Abstract)
+class UMenuScreen : public UCommonActivatableWidget
+{
+	GENERATED_BODY()
+
+public:
+	UMenuScreen(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+	{
+		bIsBackHandler = true;                    // Back pops this screen
+	}
+
+protected:
+	// Where focus goes when the screen activates (gamepad and keyboard navigation).
+	virtual UWidget* NativeGetDesiredFocusTarget() const override { return FirstFocus; }
+
+	// Return true without calling Super to block Back, e.g. on a mandatory confirmation.
+	virtual bool NativeOnHandleBackAction() override
+	{
+		return bBlockBack ? true : Super::NativeOnHandleBackAction();   // Super deactivates (pops) it
+	}
+
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<UWidget> FirstFocus;
+	UPROPERTY(EditAnywhere, Category = "Screen") bool bBlockBack = false;
+};
+
+// MenuLayout.h: the root widget, added to the viewport once.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "CommonUserWidget.h"
+#include "Widgets/CommonActivatableWidgetContainer.h"
+#include "MenuLayout.generated.h"
+
+UCLASS(Abstract)
+class UMenuLayout : public UCommonUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	UCommonActivatableWidget* Push(TSubclassOf<UCommonActivatableWidget> ScreenClass)
+	{
+		return MenuStack->AddWidget(ScreenClass);   // creates (or reuses) and activates the screen
+	}
+
+	// Overlays go on a second stack drawn above the first, so the menu below stays visible.
+	UCommonActivatableWidget* PushOverlay(TSubclassOf<UCommonActivatableWidget> ScreenClass)
+	{
+		return ModalStack->AddWidget(ScreenClass);
+	}
+
+protected:
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<UCommonActivatableWidgetStack> MenuStack;
+	UPROPERTY(meta = (BindWidget)) TObjectPtr<UCommonActivatableWidgetStack> ModalStack;
+};
+
+// Usage: a button on the Settings screen
+// Layout->Push(AudioSettingsScreenClass);      // TSubclassOf<UCommonActivatableWidget>
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** with the Input System package, bind Back to a UI "Cancel" action, so the keyboard, gamepad and Android back button all go through the same path.
+- **Godot:** `ui_cancel` is mapped to Escape and the gamepad's East button by default, and Android's back button arrives as the `NOTIFICATION_WM_GO_BACK_REQUEST` notification, which you can forward to the same Back path. Handling it in `_unhandled_input` lets a focused `LineEdit` or an open `PopupMenu` use Escape first.
+- **Unreal:** CommonUI routes Back through its input settings: set a **Default Back Action** in **Project Settings > Common Input Settings** (an input action data table row, or an Enhanced Input action in UE 5.2+). Lyra's layered stacks (Game, GameMenu, Menu, Modal) and its UI extension points are a good reference for a full setup.
 
 ## When to use
 
