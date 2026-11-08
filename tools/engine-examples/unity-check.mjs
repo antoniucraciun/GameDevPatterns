@@ -71,7 +71,7 @@ const refs = readdirSync(engineDir)
   .filter((f) => f.endsWith('.dll'))
   .filter((f) => !/^UnityEngine\.(Burst|Mathematics)Module\.dll$/.test(f))   // clash with the package versions
   .map((f) => [f.slice(0, -4), join(engineDir, f)])
-for (const name of ['UnityEngine.UI', 'Unity.TextMeshPro', 'Unity.InputSystem', 'Unity.Mathematics', 'Unity.Collections', 'Unity.Burst', 'Unity.AI.Navigation']) {
+for (const name of ['UnityEngine.UI', 'Unity.TextMeshPro', 'Unity.InputSystem', 'Unity.Mathematics', 'Unity.Collections', 'Unity.Burst', 'Unity.AI.Navigation', 'UnityEngine.TestRunner']) {
   const dll = join(project, 'Library/ScriptAssemblies', `${name}.dll`)
   if (existsSync(dll)) refs.push([name, dll])
 }

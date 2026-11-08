@@ -27,11 +27,15 @@ If prediction was correct, the replay lands exactly where the client already was
 
 <NetSyncViz mode="prediction" />
 
-## Example (Unity C#)
+## Example
 
-Shared types and simulation, as in [Client-Side Prediction](./client-side-prediction):
+Shared types and simulation, as in [Client-Side Prediction](./client-side-prediction). Sequence numbers start at 1, so 0 can mean "nothing processed yet":
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public struct InputCmd { public uint Sequence; public Vector2 Move; }
 public struct PlayerState { public Vector3 Position; }
 
@@ -46,14 +50,81 @@ public static class Movement
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# movement.gd
+class_name Movement
+
+const STEP := 1.0 / 60.0
+
+
+class InputCmd:
+	var sequence: int
+	var move: Vector2
+
+	func _init(seq: int, m: Vector2) -> void:
+		sequence = seq
+		move = m
+
+
+class PlayerState:
+	var position := Vector3.ZERO
+
+
+# Returns a new state: never modify one that a buffer or the server still holds.
+static func simulate(s: PlayerState, i: InputCmd) -> PlayerState:
+	var next := PlayerState.new()
+	next.position = s.position + Vector3(i.move.x, 0.0, -i.move.y) * (6.0 * STEP)
+	return next
+```
+
+```cpp [Unreal (C++)]
+// ReconciliationTypes.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "ReconciliationTypes.generated.h"
+
+USTRUCT()
+struct FInputCmd
+{
+	GENERATED_BODY()
+	UPROPERTY() int32 Sequence = 0;
+	UPROPERTY() FVector2D Move = FVector2D::ZeroVector;     // X = right, Y = forward
+};
+
+USTRUCT()
+struct FPredictedState
+{
+	GENERATED_BODY()
+	UPROPERTY() FVector Position = FVector::ZeroVector;
+};
+
+namespace PredictedMovement
+{
+	constexpr float Step = 1.f / 60.f;
+
+	inline FPredictedState Simulate(FPredictedState S, const FInputCmd& I)
+	{
+		S.Position += FVector(I.Move.Y, I.Move.X, 0.f) * (600.f * Step);
+		return S;
+	}
+}
+```
+
+:::
+
 **Server side:** apply queued inputs, acknowledge the last one.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections.Generic;
+
 public class ServerPlayer
 {
     readonly SortedList<uint, InputCmd> queue = new();
     PlayerState state;
-    uint lastProcessed;
+    uint lastProcessed;                         // 0 = nothing yet
 
     // Clients send their last few inputs in every packet (redundancy against packet loss),
     // so duplicates and already-processed inputs are expected and ignored here.
@@ -79,9 +150,89 @@ public class ServerPlayer
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# server_player.gd: plain logic. The player node's RPC passes the received inputs to receive(),
+# and the server calls server_tick() from _physics_process.
+class_name ServerPlayer
+extends RefCounted
+
+var state := Movement.PlayerState.new()
+var last_processed := 0  # 0 = nothing yet
+var _queue := {}  # sequence -> Movement.InputCmd
+
+
+# Clients send their last few inputs in every packet (redundancy against packet loss),
+# so duplicates and already-processed inputs are expected and ignored here.
+func receive(inputs: Array[Movement.InputCmd]) -> void:
+	for input in inputs:
+		if input.sequence > last_processed and not _queue.has(input.sequence):
+			_queue[input.sequence] = input
+
+
+func server_tick() -> void:
+	# One input per tick keeps client and server stepping at the same rate.
+	if _queue.is_empty():
+		return  # starved: the client's inputs are late (see pitfalls)
+	var sequence: int = _queue.keys().min()
+	state = Movement.simulate(state, _queue[sequence])
+	_queue.erase(sequence)
+	last_processed = sequence
+```
+
+```cpp [Unreal (C++)]
+// ServerInputQueue.h: plain C++ owned by the server's movement component. Its Server RPC passes
+// received inputs to Receive(); its server-side tick calls ServerTick() once per fixed step.
+#pragma once
+
+#include "ReconciliationTypes.h"
+
+class FServerInputQueue
+{
+public:
+	// Clients send their last few inputs in every packet (redundancy against packet loss),
+	// so duplicates and already-processed inputs are expected and ignored here.
+	void Receive(TConstArrayView<FInputCmd> Inputs)
+	{
+		for (const FInputCmd& Input : Inputs)
+		{
+			if (Input.Sequence <= LastProcessed) continue;
+			int32 Index = 0;                                  // keep Queue sorted by sequence
+			while (Index < Queue.Num() && Queue[Index].Sequence < Input.Sequence) ++Index;
+			if (Index < Queue.Num() && Queue[Index].Sequence == Input.Sequence) continue;   // duplicate
+			Queue.Insert(Input, Index);
+		}
+	}
+
+	void ServerTick()
+	{
+		// One input per tick keeps client and server stepping at the same rate.
+		if (Queue.IsEmpty()) return;                         // starved: the client's inputs are late
+		const FInputCmd Input = Queue[0];
+		Queue.RemoveAt(0);
+		State = PredictedMovement::Simulate(State, Input);
+		LastProcessed = Input.Sequence;
+	}
+
+	const FPredictedState& GetState() const { return State; }
+	int32 GetLastProcessed() const { return LastProcessed; }   // sent to the client as its ack
+
+private:
+	TArray<FInputCmd> Queue;
+	FPredictedState State;
+	int32 LastProcessed = 0;                                  // 0 = nothing yet
+};
+```
+
+:::
+
 **Client side:** rewind, replay, and smooth the visible error.
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections.Generic;
+using UnityEngine;
+
 public class ReconcilingPlayer : MonoBehaviour
 {
     readonly List<InputCmd> pending = new();
@@ -115,6 +266,114 @@ public class ReconcilingPlayer : MonoBehaviour
     }
 }
 ```
+
+```gdscript [Godot (GDScript)]
+# reconciling_player.gd: the body sits at the predicted position; only the mesh shows the smoothed error.
+extends Node3D
+
+@onready var _visual: Node3D = $Visual
+
+var _pending: Array[Movement.InputCmd] = []
+var _predicted := Movement.PlayerState.new()
+var _visual_offset := Vector3.ZERO  # shown position = predicted + offset, decays to zero
+
+
+func on_local_input(input: Movement.InputCmd) -> void:  # every physics tick, after sending the input
+	_predicted = Movement.simulate(_predicted, input)
+	_pending.append(input)
+
+
+func on_server_snapshot(server_state: Movement.PlayerState, ack: int) -> void:
+	var before := _predicted.position
+
+	_predicted = server_state                                                     # 1. rewind
+	_pending = _pending.filter(func(i: Movement.InputCmd) -> bool: return i.sequence > ack)  # 2. discard acked
+	for input in _pending:                                                        # 3. replay the rest
+		_predicted = Movement.simulate(_predicted, input)
+
+	var error := before - _predicted.position
+	if error.length_squared() > 4.0:
+		_visual_offset = Vector3.ZERO  # huge error (teleport): snap
+	else:
+		_visual_offset += error  # 4. small error: smooth it out
+
+
+func _process(delta: float) -> void:
+	_visual_offset = _visual_offset.lerp(Vector3.ZERO, 1.0 - exp(-15.0 * delta))
+	global_position = _predicted.position
+	_visual.global_position = _predicted.position + _visual_offset
+```
+
+```cpp [Unreal (C++)]
+// ReconcilingMovementComponent.h: the actor (and its collision) sits at the predicted position;
+// only the visual mesh shows the smoothed error.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "ReconciliationTypes.h"
+#include "ReconcilingMovementComponent.generated.h"
+
+UCLASS(ClassGroup = (Game), meta = (BlueprintSpawnableComponent))
+class UReconcilingMovementComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UReconcilingMovementComponent() { PrimaryComponentTick.bCanEverTick = true; }
+
+	void OnLocalInput(const FInputCmd& Input);                 // every fixed step, after sending the input
+	void OnServerSnapshot(const FPredictedState& ServerState, int32 Ack);   // from a Client RPC
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<USceneComponent> Visual;                        // the mesh, attached to the actor
+
+private:
+	TArray<FInputCmd> Pending;
+	FPredictedState Predicted;
+	FVector VisualOffset = FVector::ZeroVector;                // shown = predicted + offset, decays to zero
+};
+
+// ReconcilingMovementComponent.cpp
+#include "ReconcilingMovementComponent.h"
+
+void UReconcilingMovementComponent::OnLocalInput(const FInputCmd& Input)
+{
+	Predicted = PredictedMovement::Simulate(Predicted, Input);
+	Pending.Add(Input);
+}
+
+void UReconcilingMovementComponent::OnServerSnapshot(const FPredictedState& ServerState, int32 Ack)
+{
+	const FVector Before = Predicted.Position;
+
+	Predicted = ServerState;                                                       // 1. rewind
+	Pending.RemoveAll([Ack](const FInputCmd& I) { return I.Sequence <= Ack; });    // 2. discard acknowledged
+	for (const FInputCmd& Input : Pending)                                         // 3. replay the rest
+		Predicted = PredictedMovement::Simulate(Predicted, Input);
+
+	const FVector Error = Before - Predicted.Position;
+	if (Error.SizeSquared() > FMath::Square(200.f)) VisualOffset = FVector::ZeroVector;   // > 2 m: snap
+	else VisualOffset += Error;                                                    // 4. small error: smooth it
+}
+
+void UReconcilingMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	VisualOffset *= FMath::Exp(-15.f * DeltaTime);
+	GetOwner()->SetActorLocation(Predicted.Position);
+	if (Visual) Visual->SetWorldLocation(Predicted.Position + VisualOffset);
+}
+```
+
+:::
+
+**Engine notes**
+
+- **Unity:** **Netcode for Entities** reconciles predicted ghosts for you: it rolls back to the last server snapshot and re-runs the prediction systems each frame, and its prediction smoothing handles the visible error. With **Netcode for GameObjects** you write this yourself, sending inputs through RPCs and the authoritative state back to the owner.
+- **Godot:** Nothing built in reconciles. Send the inputs with an `unreliable_ordered` RPC (last few sequences and moves as `PackedInt32Array` / `PackedVector2Array`, since RPC arguments can't be script objects) and the snapshot back with `rpc_id(owner, ...)`. The **netfox** add-on implements this loop, including rollback of several nodes together.
+- **Unreal:** `UCharacterMovementComponent` already does all of this for characters: `ServerMove` carries the client's saved moves, the server answers with an acknowledgement or a correction (`ClientAdjustPosition`), and the client replays its unacknowledged `FSavedMove_Character`s. Mesh smoothing hides small corrections. Write your own only for non-character simulations, or use the experimental **Network Prediction** plugin.
 
 ## When to use
 

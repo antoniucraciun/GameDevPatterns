@@ -24,11 +24,15 @@ Two design decisions make this possible:
 - **Input goes through an abstraction**, so a bot can drive the player exactly as a person would. See [Input Abstraction](./input-abstraction).
 - **Tests run in CI**, in batch mode, on every change, and fail the build.
 
-## Example (Unity C#)
+## Example
 
-Unity Test Framework **Play Mode** tests. A smoke test that loads every scene and fails on any logged error:
+Each engine's own test runner: the **Unity Test Framework** (Play Mode tests), **GUT** in Godot (an add-on; GdUnit4 is similar), and Unreal's **Functional Tests**, actors placed in a test map that the Automation system finds and runs.
 
-```csharp
+A smoke test that loads each scene and runs it for a few seconds, failing on errors:
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
@@ -56,9 +60,72 @@ public class SceneSmokeTests
 }
 ```
 
-A scripted bot that drives the real player controller through the input interface:
+```gdscript [Godot (GDScript)]
+# test/test_scene_smoke.gd
+extends GutTest
 
-```csharp
+const SCENES := [
+	"res://levels/level_1.tscn",
+	"res://levels/level_2.tscn",
+	"res://ui/main_menu.tscn",
+]
+
+
+# One test run per scene path.
+func test_scene_loads_and_runs(scene_path = use_parameters(SCENES)) -> void:
+	var packed: PackedScene = load(scene_path)
+	assert_not_null(packed, "scene loads")
+	var scene := packed.instantiate()
+	add_child_autofree(scene)
+	await wait_seconds(3.0)  # run the scene for a few seconds
+	assert_true(is_instance_valid(scene) and scene.is_inside_tree(), "scene still running")
+```
+
+```cpp [Unreal (C++)]
+// SmokeTest.h: place one in each map. "Project.Functional Tests" in the Automation tab (or the
+// command line) runs every map that contains a functional test. Errors logged during a test fail it.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "FunctionalTest.h"                               // module dependency: "FunctionalTesting"
+#include "SmokeTest.generated.h"
+
+UCLASS()
+class ASmokeTest : public AFunctionalTest
+{
+	GENERATED_BODY()
+
+public:
+	ASmokeTest() { TimeLimit = 10.f; }                    // fail if it hasn't finished by then
+
+protected:
+	virtual void StartTest() override
+	{
+		Super::StartTest();
+		GetWorldTimerManager().SetTimer(RunTimer, [this]  // run the map for a few seconds
+		{
+			FinishTest(EFunctionalTestResult::Succeeded, TEXT("Ran for 3 seconds"));
+		}, 3.f, false);
+	}
+
+private:
+	FTimerHandle RunTimer;
+};
+```
+
+:::
+
+A scripted bot that drives the real player controller through its input:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
+
 public class ScriptedInput : ICharacterInput          // from the Input Abstraction page
 {
     readonly (float until, Vector2 move, bool jump)[] script;   // "until" = seconds since the script started
@@ -101,7 +168,7 @@ public class Level1Tests
     public IEnumerator BotCanReachTheFirstGoal()
     {
         yield return SceneManager.LoadSceneAsync("Level1");
-        var player = Object.FindFirstObjectByType<CharacterMotor>();
+        var player = Object.FindAnyObjectByType<CharacterMotor>();
         var goal = GameObject.Find("Goal_A").transform;
 
         player.Input = new ScriptedInput(
@@ -119,9 +186,107 @@ public class Level1Tests
 }
 ```
 
-A monkey test that mashes random inputs and fails if the game throws or the player gets stuck:
+```gdscript [Godot (GDScript)]
+# test/test_level_1.gd: presses the same input actions a player would, so the real controller runs.
+extends GutTest
 
-```csharp
+
+func after_each() -> void:
+	for action in ["move_right", "jump"]:
+		Input.action_release(action)
+
+
+func test_bot_can_reach_the_first_goal() -> void:
+	var packed: PackedScene = load("res://levels/level_1.tscn")
+	var level := packed.instantiate()
+	add_child_autofree(level)
+	var player: Node3D = level.get_node("Player")
+	var goal: Node3D = level.get_node("Goal_A")
+
+	Input.action_press("move_right")  # run right for 2 s
+	await wait_seconds(2.0)
+	Input.action_press("jump")  # jump over the gap
+	await wait_seconds(0.2)
+	Input.action_release("jump")  # and keep running
+
+	var timeout := Time.get_ticks_msec() + 6000
+	while Time.get_ticks_msec() < timeout and player.global_position.distance_to(goal.global_position) > 1.0:
+		await get_tree().physics_frame
+
+	assert_lt(player.global_position.distance_to(goal.global_position), 1.0,
+			"The bot no longer reaches the first goal: did movement, physics or level layout change?")
+```
+
+```cpp [Unreal (C++)]
+// ReachGoalTest.h: placed in Level1 next to the player start, with Goal set to the goal actor.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "FunctionalTest.h"
+#include "GameFramework/Character.h"
+#include "Kismet/GameplayStatics.h"
+#include "ReachGoalTest.generated.h"
+
+UCLASS()
+class AReachGoalTest : public AFunctionalTest
+{
+	GENERATED_BODY()
+
+public:
+	AReachGoalTest()
+	{
+		PrimaryActorTick.bCanEverTick = true;
+		TimeLimit = 8.f;                                  // running out of time fails the test
+	}
+
+	UPROPERTY(EditInstanceOnly)
+	TObjectPtr<AActor> Goal;
+
+protected:
+	virtual void StartTest() override
+	{
+		Super::StartTest();
+		StartTime = GetWorld()->GetTimeSeconds();
+	}
+
+	virtual void Tick(float DeltaSeconds) override
+	{
+		Super::Tick(DeltaSeconds);
+		ACharacter* Player = UGameplayStatics::GetPlayerCharacter(this, 0);
+		if (!IsRunning() || !Player || !Goal) return;
+
+		// The same calls the player's input handlers make, so the real movement code runs.
+		const double Elapsed = GetWorld()->GetTimeSeconds() - StartTime;
+		Player->AddMovementInput(FVector::RightVector, 1.f);   // keep running right
+		if (Elapsed >= 2.0 && !bJumped)                       // jump over the gap
+		{
+			Player->Jump();
+			bJumped = true;
+		}
+
+		if (FVector::Dist(Player->GetActorLocation(), Goal->GetActorLocation()) < 100.f)
+			FinishTest(EFunctionalTestResult::Succeeded, TEXT("Reached the first goal"));
+	}
+
+private:
+	double StartTime = 0.0;
+	bool bJumped = false;
+};
+```
+
+:::
+
+A monkey test that mashes random inputs and fails if the game throws or the player falls out of the world:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using System.Collections;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
+
 public class MonkeyTests
 {
     class RandomInput : ICharacterInput
@@ -136,7 +301,7 @@ public class MonkeyTests
     public IEnumerator TwoMinutesOfRandomInputDoesNotBreakTheGame()
     {
         yield return SceneManager.LoadSceneAsync("Level1");
-        var player = Object.FindFirstObjectByType<CharacterMotor>();
+        var player = Object.FindAnyObjectByType<CharacterMotor>();
         player.Input = new RandomInput();
 
         float end = Time.time + 120f;
@@ -149,11 +314,112 @@ public class MonkeyTests
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# test/test_monkey.gd
+extends GutTest
+
+const ACTIONS := ["move_left", "move_right", "jump", "attack"]
+
+
+func after_each() -> void:
+	for action in ACTIONS:
+		Input.action_release(action)
+
+
+func test_two_minutes_of_random_input_does_not_break_the_game() -> void:
+	var packed: PackedScene = load("res://levels/level_1.tscn")
+	var level := packed.instantiate()
+	add_child_autofree(level)
+	var player: Node3D = level.get_node("Player")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12345  # seeded: failures can be reproduced
+
+	var end := Time.get_ticks_msec() + 120_000
+	while Time.get_ticks_msec() < end:
+		for action in ACTIONS:
+			if rng.randf() < 0.1:  # toggle each action now and then
+				if Input.is_action_pressed(action):
+					Input.action_release(action)
+				else:
+					Input.action_press(action)
+		await get_tree().physics_frame
+		if player.global_position.y < -100.0:
+			fail_test("Player fell out of the world")
+			return
+	pass_test("Survived two minutes of random input")
+```
+
+```cpp [Unreal (C++)]
+// MonkeyTest.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "FunctionalTest.h"
+#include "GameFramework/Character.h"
+#include "Kismet/GameplayStatics.h"
+#include "MonkeyTest.generated.h"
+
+UCLASS()
+class AMonkeyTest : public AFunctionalTest
+{
+	GENERATED_BODY()
+
+public:
+	AMonkeyTest()
+	{
+		PrimaryActorTick.bCanEverTick = true;
+		TimeLimit = 130.f;
+	}
+
+protected:
+	virtual void StartTest() override
+	{
+		Super::StartTest();
+		Random.Initialize(12345);                         // seeded: failures can be reproduced
+		EndTime = GetWorld()->GetTimeSeconds() + 120.0;
+	}
+
+	virtual void Tick(float DeltaSeconds) override
+	{
+		Super::Tick(DeltaSeconds);
+		ACharacter* Player = UGameplayStatics::GetPlayerCharacter(this, 0);
+		if (!IsRunning() || !Player) return;
+
+		Player->AddMovementInput(FVector(Random.FRandRange(-1.f, 1.f), Random.FRandRange(-1.f, 1.f), 0.f));
+		if (Random.FRand() < 0.05f) Player->Jump();
+
+		if (Player->GetActorLocation().Z < -10000.f)
+			FinishTest(EFunctionalTestResult::Failed, TEXT("Player fell out of the world"));
+		else if (GetWorld()->GetTimeSeconds() >= EndTime)
+			FinishTest(EFunctionalTestResult::Succeeded, TEXT("Survived two minutes of random input"));
+	}
+
+private:
+	FRandomStream Random;
+	double EndTime = 0.0;
+};
+```
+
+:::
+
 Run them from the command line in CI:
 
 ```bash
+# Unity: Play Mode tests
 Unity -batchmode -projectPath . -runTests -testPlatform PlayMode -testResults results.xml
+
+# Godot: every GUT test under res://test, then quit
+godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://test -gexit
+
+# Unreal: every functional test map, without rendering
+UnrealEditor-Cmd MyGame.uproject -ExecCmds="Automation RunTests Project.Functional; Quit" -unattended -nullrhi -ReportExportPath=TestReport
 ```
+
+**Engine notes**
+
+- **Unity:** The Unity Test Framework package (`com.unity.test-framework`) provides `[UnityTest]` coroutine tests and `LogAssert`; any unexpected `Debug.LogError` or exception fails the test. The bot and monkey tests drive the controller through the `ICharacterInput` interface from [Input Abstraction](./input-abstraction). With the Input System, `InputTestFixture` can simulate real devices instead.
+- **Godot:** GUT and GdUnit4 are add-ons, installed from the Asset Library. `Input.action_press` sets action state for `Input.is_action_pressed` / `get_vector`, but sends no `InputEvent`, so code in `_input` / `_unhandled_input` doesn't see it; for that, use `Input.parse_input_event` with an `InputEventAction`. Whether `push_error` and engine errors fail a test depends on the add-on and its version, so check the run's error output in CI too.
+- **Unreal:** Functional tests need the **FunctionalTesting** module, and appear under *Project > Functional Tests* in the Session Frontend's Automation tab. For logic without a world, use `IMPLEMENT_SIMPLE_AUTOMATION_TEST` (see [Determinism](./determinism)). **Gauntlet** runs tests on packaged builds and devices, including multiplayer sessions with several clients.
 
 ## When to use
 

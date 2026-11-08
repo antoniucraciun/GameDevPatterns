@@ -20,9 +20,13 @@ Send **inputs only**, and run the **same deterministic simulation** on every mac
 
 Bandwidth no longer depends on the number of units. The trade-offs: the game runs at the speed of the **slowest connection** (everyone waits for the late player's input), every command takes the input delay to execute, and the simulation must be **bit-for-bit deterministic** ([Determinism](./determinism)).
 
-## Example (Unity C#)
+## Example
 
-```csharp
+The lockstep session is engine-free logic in every tab: it decides **when** a turn may run and **which** commands it applies. The simulation itself and its checksum are on the [Determinism](./determinism) page; the network layer only has to deliver commands reliably and in order.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -110,7 +114,229 @@ public class LockstepSession
 // Remote checksum mismatch → log both states for that turn and stop: a desync is always a bug.
 ```
 
+```gdscript [Godot (GDScript)]
+# lockstep_session.gd: plain logic. The network layer connects send_command to a reliable RPC that
+# reaches every peer (sending cmd.to_array(), since RPCs can't carry script objects) and calls
+# receive() for every command that arrives, including our own echo.
+class_name LockstepSession
+extends RefCounted
+
+signal send_command(cmd: PlayerCommand)
+signal waiting_for_players
+signal checksum_ready(turn: int, checksum: int)
+
+const INPUT_DELAY := 3  # commands execute 3 turns after they are issued
+const CHECKSUM_EVERY := 30
+
+
+class PlayerCommand:
+	var player_id := 0
+	var turn := 0  # the turn on which it executes
+	var kind := 0  # 0 = none, 1 = move, 2 = attack, ...
+	var target_id := 0
+	var x := 0  # fixed-point coordinates: integers, never floats
+	var y := 0
+
+	func to_array() -> PackedInt64Array:
+		return PackedInt64Array([player_id, turn, kind, target_id, x, y])
+
+	static func from_array(a: PackedInt64Array) -> PlayerCommand:
+		var c := PlayerCommand.new()
+		c.player_id = a[0]
+		c.turn = a[1]
+		c.kind = a[2]
+		c.target_id = a[3]
+		c.x = a[4]
+		c.y = a[5]
+		return c
+
+
+var turn := 0
+var _player_count: int
+var _local_player: int
+var _sim: Simulation  # deterministic: integer math, seeded RNG, ordered iteration
+var _inputs := {}  # turn -> Array of one PlayerCommand per player
+var _received := {}  # turn -> Array[bool]: which players' input arrived
+var _local_pending: Array[PlayerCommand] = []
+
+
+func _init(player_count: int, local_player: int, sim: Simulation) -> void:
+	_player_count = player_count
+	_local_player = local_player
+	_sim = sim
+	for t in INPUT_DELAY:  # the first turns have no input yet: fill with "none"
+		for p in player_count:
+			var none := PlayerCommand.new()
+			none.player_id = p
+			none.turn = t
+			_store(none)
+
+
+func issue_command(cmd: PlayerCommand) -> void:  # UI calls this when the player issues an order
+	_local_pending.append(cmd)
+
+
+func receive(cmd: PlayerCommand) -> void:
+	_store(cmd)
+
+
+func _store(cmd: PlayerCommand) -> void:
+	if cmd.turn < turn:
+		return  # too late or duplicate: already simulated
+	if not _inputs.has(cmd.turn):
+		var commands := []
+		commands.resize(_player_count)
+		var flags: Array[bool] = []
+		flags.resize(_player_count)
+		flags.fill(false)
+		_inputs[cmd.turn] = commands
+		_received[cmd.turn] = flags
+	var got: Array[bool] = _received[cmd.turn]
+	if got[cmd.player_id]:
+		return  # duplicate packet: keep the first
+	_inputs[cmd.turn][cmd.player_id] = cmd
+	got[cmd.player_id] = true
+
+
+# Called at a fixed rate (e.g. a Timer at 10 turns per second for an RTS).
+func try_advance() -> void:
+	# 1. Schedule this turn's local command (or "none") for turn + INPUT_DELAY, and send it.
+	var cmd: PlayerCommand = _local_pending.pop_front() if not _local_pending.is_empty() else PlayerCommand.new()
+	cmd.player_id = _local_player
+	cmd.turn = turn + INPUT_DELAY
+	_store(cmd)
+	send_command.emit(cmd)
+
+	# 2. Lock: only simulate when every player's input for this turn has arrived.
+	if not _has_all_inputs(turn):
+		waiting_for_players.emit()  # stall, don't guess
+		return
+
+	# 3. Apply inputs in a fixed order (by player id), then step the simulation.
+	for c: PlayerCommand in _inputs[turn]:
+		_sim.apply(c)
+	_sim.step()
+	_inputs.erase(turn)
+	_received.erase(turn)
+
+	# 4. Detect desyncs early.
+	if turn % CHECKSUM_EVERY == 0:
+		checksum_ready.emit(turn, _sim.checksum())
+	turn += 1
+
+
+func _has_all_inputs(t: int) -> bool:
+	return _received.has(t) and not _received[t].has(false)
+```
+
+```cpp [Unreal (C++)]
+// LockstepSession.h: plain C++. The network layer sets the callbacks (SendToAll needs a reliable,
+// ordered path to every peer) and calls Receive() for every command that arrives, including our own echo.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Containers/Queue.h"
+#include "Simulation.h"                                   // FSimulation: see the Determinism page
+
+struct FPlayerCommand
+{
+	int32 PlayerId = 0;
+	int32 Turn = 0;                                       // the turn on which it executes
+	uint8 Type = 0;                                       // 0 = none, 1 = move, 2 = attack, ...
+	int32 TargetId = 0;
+	int32 X = 0, Y = 0;                                   // fixed-point coordinates: integers, never floats
+};
+
+class FLockstepSession
+{
+public:
+	static constexpr int32 InputDelay = 3;                // commands execute 3 turns after they are issued
+	static constexpr int32 ChecksumEvery = 30;
+
+	TFunction<void(const FPlayerCommand&)> SendToAll;
+	TFunction<void()> OnWaitingForPlayers;
+	TFunction<void(int32 Turn, uint32 Checksum)> SendChecksum;
+
+	FLockstepSession(int32 InPlayerCount, int32 InLocalPlayer, FSimulation& InSim)
+		: PlayerCount(InPlayerCount), LocalPlayer(InLocalPlayer), Sim(InSim)
+	{
+		for (int32 T = 0; T < InputDelay; ++T)            // the first turns have no input yet: fill with "none"
+			for (int32 P = 0; P < PlayerCount; ++P) Store({ P, T });
+	}
+
+	int32 GetTurn() const { return Turn; }
+	void IssueCommand(const FPlayerCommand& Cmd) { LocalPending.Enqueue(Cmd); }   // UI: the player issued an order
+	void Receive(const FPlayerCommand& Cmd) { Store(Cmd); }
+
+	// Called at a fixed rate (a looping timer at e.g. 10 turns per second), never from a variable Tick.
+	void TryAdvance()
+	{
+		// 1. Schedule this turn's local command (or "none") for Turn + InputDelay, and send it.
+		FPlayerCommand Cmd;
+		LocalPending.Dequeue(Cmd);                        // leaves Cmd as "none" if nothing is pending
+		Cmd.PlayerId = LocalPlayer;
+		Cmd.Turn = Turn + InputDelay;
+		Store(Cmd);
+		if (SendToAll) SendToAll(Cmd);
+
+		// 2. Lock: only simulate when every player's input for this turn has arrived.
+		const FTurnInputs* Current = Inputs.Find(Turn);
+		if (!Current || Current->Received.Contains(false))
+		{
+			if (OnWaitingForPlayers) OnWaitingForPlayers();   // stall, don't guess
+			return;
+		}
+
+		// 3. Apply inputs in a fixed order (by player id), then step the simulation.
+		for (const FPlayerCommand& C : Current->Commands) Sim.Apply(C);
+		Sim.Step();
+		Inputs.Remove(Turn);
+
+		// 4. Detect desyncs early.
+		if (Turn % ChecksumEvery == 0 && SendChecksum) SendChecksum(Turn, Sim.Checksum());
+		++Turn;
+	}
+
+private:
+	struct FTurnInputs
+	{
+		TArray<FPlayerCommand> Commands;                  // one per player
+		TArray<bool> Received;
+	};
+
+	void Store(const FPlayerCommand& Cmd)
+	{
+		if (Cmd.Turn < Turn) return;                      // too late or duplicate: already simulated
+		FTurnInputs* TurnInputs = Inputs.Find(Cmd.Turn);
+		if (!TurnInputs)
+		{
+			TurnInputs = &Inputs.Add(Cmd.Turn);
+			TurnInputs->Commands.SetNum(PlayerCount);
+			TurnInputs->Received.Init(false, PlayerCount);
+		}
+		if (TurnInputs->Received[Cmd.PlayerId]) return;   // duplicate packet: keep the first
+		TurnInputs->Commands[Cmd.PlayerId] = Cmd;
+		TurnInputs->Received[Cmd.PlayerId] = true;
+	}
+
+	int32 PlayerCount;
+	int32 LocalPlayer;
+	FSimulation& Sim;                                     // deterministic: integer math, seeded RNG, ordered iteration
+	TMap<int32, FTurnInputs> Inputs;                      // turn -> commands
+	TQueue<FPlayerCommand> LocalPending;
+	int32 Turn = 0;
+};
+```
+
+:::
+
 Each player sends exactly one command per turn, "none" included, so `HasAllInputs` can tell "nothing happened" apart from "not received yet". Storing ignores duplicates and late packets, so a resent packet can never change a turn that has already been decided.
+
+**Engine notes**
+
+- **Unity:** None of Unity's netcode packages is lockstep; send commands over **Unity Transport** (a reliable, sequenced pipeline) or any reliable channel. Keep the simulation out of `MonoBehaviour`s and physics: built-in PhysX and Box2D aren't deterministic across machines, and float results can differ between Mono and IL2CPP, compilers and CPUs. Use fixed-point integers, or check the DOTS **Unity Physics** package's determinism guarantees (same build and platform) before relying on it.
+- **Godot:** Send `cmd.to_array()` with an `@rpc("any_peer", "call_local", "reliable")` function; ENet delivers reliable packets on a channel in order. GDScript `int` is 64-bit and `float` is 64-bit, but neither Godot Physics nor Jolt is deterministic across machines, so units must move with your own integer math. Drive `try_advance` from a `Timer` or a turn counter in `_physics_process`, not from `_process`.
+- **Unreal:** Unreal's networking is built around a server replicating state, not peers exchanging inputs. Relay commands through the server (a `Server` RPC on the player controller that the server forwards with a reliable `NetMulticast` or `Client` RPC), or use your own sockets. Chaos physics and `float` math across compilers and platforms aren't deterministic, so the simulation needs fixed-point integers and its own update loop driven by a looping `FTimerHandle`.
 
 ## When to use
 
