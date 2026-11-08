@@ -26,6 +26,42 @@ Data lives where designers can edit it, with fast feedback:
 
 Validate data **at edit time** (`OnValidate`, import checks), so mistakes show up as errors in the editor rather than bugs in a build.
 
+## Pseudocode
+
+```text
+// Data: one asset per weapon, edited by designers. No behaviour.
+WeaponData:
+    damage per pellet, pellets, falloff curve    // damage over distance
+    shots per second, spread degrees, magazine size, reload seconds
+    projectile, fire sound                       // references to other assets
+
+    damage_at(distance):
+        return damage per pellet × falloff(distance)
+
+    problems():            // shown in the editor, not discovered in a build
+        if no projectile: report "no projectile assigned"
+        if pellets > 1 and spread = 0: report "multiple pellets with no spread"
+
+// Behaviour: what a weapon can do. Every number comes from data.
+Weapon:
+    data                   // the WeaponData asset it uses
+    next shot time, ammo ← data.magazine size
+
+    try_fire(direction):
+        if now < next shot time or ammo = 0: return
+        next shot time ← now + 1 / data.shots per second
+        ammo ← ammo - 1
+        repeat data.pellets times:
+            spawn data.projectile along direction tilted by random ±data.spread
+
+// Importer: the spreadsheet is the source for the numbers it covers.
+import(csv):
+    for each row after the header:
+        asset ← the existing asset named row.id, or a new one
+        copy damage, pellets, rate, spread, magazine, reload from row into asset
+        save asset         // updated in place, so asset references survive
+```
+
 ## Example
 
 Weapons as data. A **definition asset** holds every number, curve and asset reference, with validation so designers see mistakes in the editor; the **behaviour** code reads it and contains no tuning values; an **importer** lets designers balance in a spreadsheet.
@@ -448,8 +484,6 @@ struct FWeaponTuning
 - **Unity:** ScriptableObjects are the standard container, with `[Min]`, `[Range]`, `[Header]` and `OnValidate` for editor feedback. Spreadsheet importers are always custom (or a tool such as a Google Sheets plugin); `ScriptedImporter` can turn a `.csv` into assets automatically on every change instead of a menu item.
 - **Godot:** custom `Resource`s saved as `.tres` are the equivalent, with `@export_range` and `@export_group` for the inspector. `Curve` samples over x = 0..1 on most 4.x versions (4.4 added a configurable domain), hence `falloff_range`. `FileAccess.get_csv_line()` and `JSON.parse_string()` read external data; remember that `.csv` files default to the translation importer.
 - **Unreal:** Data Assets (`UPrimaryDataAsset`) hold per-item definitions, and **Data Tables** and **Curve Tables** import CSV/JSON natively, can be reimported, and are read with `FindRow` or row handles. `IsDataValid(FDataValidationContext&)` is the Unreal 5.3+ signature (older versions take `TArray<FText>&`). Replace `MyGame` in `RowType` with your module name.
-
-## When to use
 
 ## When to use
 

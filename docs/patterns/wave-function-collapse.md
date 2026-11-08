@@ -20,6 +20,45 @@ Describe only **local rules**, meaning which tiles may sit next to which in each
 
 Choosing the lowest-entropy cell first is what makes the result coherent: the most constrained decisions are made before they become impossible.
 
+## Pseudocode
+
+```text
+Tile:
+    weight
+    sockets[up, right, down, left]   // two tiles fit if the touching sockets match
+
+// Built once from the tiles: may tile b sit in direction d of tile a?
+allowed[a, d, b] ← a.sockets[d] = b.sockets[opposite of d]
+
+generate(seed, max attempts):
+    for attempt from 0 to max attempts - 1:
+        random ← generator seeded with seed + attempt
+        if try_run() succeeds: return the one tile left in each cell
+    return failure                   // every attempt hit a contradiction
+
+try_run():
+    options[cell] ← every tile, for every cell        // superposition
+    loop:
+        if any cell has no options: return failure    // contradiction
+        cell ← the cell with fewest options above 1, random among ties
+        if there is none: return success              // every cell collapsed
+        keep one option in cell, picked at random by weight   // collapse
+        if not propagate(cell): return failure
+
+propagate(start):
+    stack ← [start]
+    while stack is not empty:
+        c ← pop stack
+        for each direction d, with neighbour n inside the grid:
+            for each option b still in n:
+                if no option a in c has allowed[a, d, b]:
+                    remove b from n
+            if n lost any option:
+                if n has no options left: return false
+                push n             // its own neighbours may lose options now
+    return true
+```
+
 ## Example
 
 A compact tiled WFC on a 2D grid, with socket-based rules and seeded randomness. The **core** has no scene types and returns the same map for the same seed every run; the **engine wiring** turns tile indices into tiles or objects.
@@ -604,8 +643,6 @@ void AWfcMapActor::BeginPlay()
 - **Unity:** no built-in WFC. `System.Random(seed)` gives the same sequence for the same seed on a given .NET runtime; for guarantees across platforms and versions, use your own generator (see [Seeded Randomness](./seeded-randomness)). For many tiles, a Tilemap with `SetTilesBlock` is much cheaper than one GameObject per cell.
 - **Godot:** no built-in WFC. Flat `PackedByteArray`s keep the solver reasonably fast in GDScript, but large grids are still slow; move the solver to C# or a GDExtension if generation time matters. Setting `RandomNumberGenerator.seed` restarts its sequence, which is what each attempt needs.
 - **Unreal:** an experimental **Wave Function Collapse** plugin ships with Unreal Engine 5 for 3D modules, and **PCG** graphs can drive placement; the hand-written solver is still useful for 2D rules and learning. `FRandomStream` is deterministic on every platform. `FName` comparison ignores case, so sockets `g` and `G` match.
-
-## When to use
 
 ## When to use
 

@@ -94,8 +94,6 @@ export default {
     if (noExample.length) throw new Error(`Pattern page(s) missing a "## Example" section: ${noExample.join(', ')}`)
 
     // Every written pattern page has a "## Pseudocode" section directly before "## Example" (see contributing.md#pseudocode).
-    // TODO: this only warns while the section is rolled out page by page. Once every page has one,
-    // replace the console.warn calls with `throw new Error(...)` like the checks above.
     const pseudocodeProblems = patterns
       .filter((p) => existsSync(`${patternsDir}${p.slug}.md`))
       .map((p) => ({ slug: p.slug, problem: pseudocodeProblem(readFileSync(`${patternsDir}${p.slug}.md`, 'utf8')) }))
@@ -103,9 +101,9 @@ export default {
     const noPseudocode = pseudocodeProblems.filter((r) => r.problem === 'missing').map((r) => r.slug)
     const misplaced = pseudocodeProblems.filter((r) => r.problem !== 'missing').map((r) => `${r.slug} (${r.problem})`)
     if (noPseudocode.length)
-      console.warn(`[warning] ${noPseudocode.length} pattern page(s) missing a "## Pseudocode" section: ${noPseudocode.join(', ')}`)
+      throw new Error(`${noPseudocode.length} pattern page(s) missing a "## Pseudocode" section: ${noPseudocode.join(', ')}`)
     if (misplaced.length)
-      console.warn(`[warning] Pattern page(s) whose "## Pseudocode" is not directly before "## Example": ${misplaced.join(', ')}`)
+      throw new Error(`Pattern page(s) whose "## Pseudocode" is not directly before "## Example": ${misplaced.join(', ')}`)
 
     const badGroups = [
       ...patterns.map((p) => ({ label: `patterns/${p.slug}`, file: `${patternsDir}${p.slug}.md` })),

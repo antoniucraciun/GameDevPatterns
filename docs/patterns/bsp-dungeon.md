@@ -21,6 +21,48 @@ The tree is also useful afterwards. Siblings are near each other, so sections of
 
 <BspDungeonViz />
 
+## Pseudocode
+
+```text
+Node:
+    area                   // the rectangle this node covers
+    left, right            // children; none for a leaf
+    room                   // leaves only
+
+generate(width, height):   // one random stream, seeded once
+    root ← Node(area = whole map)
+    split(root); create_rooms(root); connect(root)
+
+split(node):
+    can split horizontally ← node.area.height ≥ 2 × min leaf size
+    can split vertically   ← node.area.width  ≥ 2 × min leaf size
+    if neither: return     // small enough: a leaf
+    choose the longer side if both are possible (random if square)
+    cut ← random between min leaf size and that side - min leaf size
+    left, right ← the two halves of node.area on either side of cut
+    split(left); split(right)
+
+create_rooms(node):
+    if node is not a leaf: create_rooms(left); create_rooms(right); return
+    w ← random from area.width / 2  to area.width  - 2 × margin
+    h ← random from area.height / 2 to area.height - 2 × margin
+    node.room ← a w × h rectangle at a random spot inside area, margin from its edges
+    add node.room to rooms             // leaves never overlap, so rooms never do
+
+connect(node):             // returns one room from this subtree
+    if node is a leaf: return node.room
+    a ← connect(left)      // left first: a fixed order of random draws
+    b ← connect(right)
+    add a corridor from a's centre to b's centre    // one link per split
+    return a or b, at random            // vary which room links upward
+
+to_grid():
+    mark every cell of every room as floor
+    for each corridor (from, to):       // L-shaped
+        mark floor along row from.y, between from.x and to.x
+        mark floor along column to.x, between from.y and to.y
+```
+
 ## Example
 
 The **core** splits the map, places a room in each leaf and connects sibling subtrees, all from one seeded random stream, so the same seed always gives the same dungeon. The **engine wiring** paints the floor grid into a tilemap or instanced meshes.
@@ -483,8 +525,6 @@ void ADungeonActor::BeginPlay()
 - **Unity:** `RectInt` and `Vector2Int` cover the geometry. For big maps, fill a `TileBase[]` and call `Tilemap.SetTilesBlock` once instead of `SetTile` per cell, and use a Rule Tile for walls. `System.Random(seed)` is repeatable on a given .NET runtime; see [Seeded Randomness](./seeded-randomness) for a generator that is identical everywhere.
 - **Godot:** `Rect2i` has `end` (exclusive) and `get_center()` (integer, rounds down). `randi_range` includes both bounds, unlike C#'s `Random.Next`, so the `+ 1`s disappear. `TileMapLayer` is Godot 4.3+; terrains can autotile the walls.
 - **Unreal:** `FIntRect` stores `Min`/`Max` corners rather than position and size, and `FRandomStream::RandRange` includes both bounds. In C++, keep each random draw in its own statement: the order in which function arguments are evaluated is unspecified, which silently breaks seed reproducibility.
-
-## When to use
 
 ## When to use
 

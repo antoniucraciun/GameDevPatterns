@@ -23,6 +23,40 @@ Each engine implements this:
 - **Godot:** a path or `uid://` string is the soft reference, loaded with `ResourceLoader.load_threaded_request()`. Resources are reference counted, so they are freed when the last reference goes.
 - **Unreal:** `TSoftObjectPtr` and `TSoftClassPtr` properties, loaded with `FStreamableManager::RequestAsyncLoad`, which returns a handle that keeps the asset loaded.
 
+## Pseudocode
+
+```text
+// The definition holds a key, not the asset: holding it loads nothing.
+EnemyType:
+    id
+    prefab key             // a GUID, address or path
+
+// One owner per lifetime (here, a level) holds the handles.
+LevelContent:
+    enemies in this level  // list of EnemyType
+    loaded                 // map: EnemyType → handle
+
+    preload():             // behind the loading screen
+        for each type in enemies in this level not yet in loaded:
+            loaded[type] ← start loading type.prefab key    // async, returns a handle
+        wait until every handle in loaded is done
+        report any handle that failed
+
+    spawn(type, position):
+        handle ← loaded[type]
+        if there is no handle or it is not done:
+            report "type was not preloaded"; return nothing
+        return a new instance of handle.asset at position
+
+    on level end:
+        for each handle in loaded: release handle
+        clear loaded       // the system unloads assets nothing else holds
+
+// Underneath: the asset system counts handles per asset.
+load(key):   count[key] ← count[key] + 1; load key and its dependencies if count was 0
+release(key): count[key] ← count[key] - 1; unload if count is now 0
+```
+
 ## Example
 
 Loading enemy prefabs on demand, per level, and releasing them when the level ends. The enemy definition holds a **soft reference** (a path or key) instead of a hard link, so nothing loads until the level asks for it.
@@ -301,8 +335,6 @@ Instances created with `Instantiate` from a loaded prefab do not hold their own 
 - **Unity:** Addressables (`com.unity.addressables`) is the standard; `AssetReference` fields are the soft references, and every load needs a matching `Release`. `Resources.Load` works but forces everything in `Resources/` into the build. This page isn't compile-checked here, because the check's project doesn't include Addressables.
 - **Godot:** `preload()` and exported `PackedScene`/`Resource` properties are hard references; a path string plus `load()` or `ResourceLoader.load_threaded_request()` is the soft version. Resources are reference counted, so there is no explicit release: drop every reference and the resource is freed. Every resource has a `uid://` ID (Godot 4.0+) that survives moving files.
 - **Unreal:** `TObjectPtr` and `TSubclassOf` properties are hard references; `TSoftObjectPtr` and `TSoftClassPtr` are soft. Load them with `FStreamableManager::RequestAsyncLoad` (or `LoadSynchronous` when a hitch is acceptable) and keep the returned handle. The **Reference Viewer** and **Size Map** show which hard references drag assets into memory.
-
-## When to use
 
 ## When to use
 

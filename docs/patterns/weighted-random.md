@@ -22,6 +22,45 @@ A chest should drop common items often, rare items sometimes and legendaries alm
 | **Shuffle bag** | Put N tokens in a bag in the exact proportions, draw without replacement, refill when empty. | Exact distribution over a short run, such as critical hits or Tetris-style pieces. |
 | **Pseudo-random distribution** | Start with a low chance that grows each attempt, tuned so the average equals the nominal chance. | Proc chances that should be regular but not predictable. |
 
+## Pseudocode
+
+Every operation takes an explicit random stream, never the engine's global one.
+
+```text
+LootTable:
+    entries                // each: item, weight (relative, not a percentage)
+
+    roll(rng):             // one roll, compared against running weights
+        total ← sum of every entry's weight
+        if total ≤ 0: return nothing
+        r ← rng.random in [0, total)
+        for each entry:
+            if r < entry.weight: return entry.item
+            r ← r - entry.weight
+        return the last entry's item     // floating-point leftovers
+
+PityRoll:
+    base chance, increase per miss, guarantee after
+    misses ← 0
+
+    roll(rng):
+        chance ← base chance + misses × increase per miss
+        hit ← misses + 1 ≥ guarantee after, or rng.random in [0, 1) < chance
+        misses ← 0 if hit, else misses + 1
+        return hit
+
+ShuffleBag:
+    source                 // every token, repeated in the exact proportions
+    bag                    // what is left in this round
+
+    next(rng):
+        if bag is empty: bag ← copy of source        // refill
+        i ← rng.random index into bag
+        value ← bag[i]
+        bag[i] ← last of bag; remove the last        // swap-remove: O(1)
+        return value
+```
+
 ## Example
 
 A loot table rolled by weight, a pity timer and a shuffle bag. Each takes an explicit, seeded random stream rather than the engine's global one.
@@ -287,8 +326,6 @@ The example passes an explicit stream (`System.Random`, `RandomNumberGenerator`,
 - **Unity:** no built-in weighted pick. `ScriptableObject` loot tables are edited in the inspector; `[Min(0)]` keeps weights non-negative.
 - **Godot:** `RandomNumberGenerator.rand_weighted()` (Godot 4.3+) does the weighted pick; on earlier versions, use the same running-subtraction loop as the other tabs. Loot tables as `Resource`s are edited in the inspector like ScriptableObjects.
 - **Unreal:** no built-in weighted pick in C++. Loot tables are commonly Data Assets (as here) or Data Tables imported from a spreadsheet. `FRandomStream` is the seedable stream; Blueprints can take one by reference too.
-
-## When to use
 
 ## When to use
 

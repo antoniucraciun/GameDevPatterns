@@ -76,7 +76,7 @@ The **Pseudocode** section sits directly before **Example**. It gives readers th
 - **Engine-feature patterns** (ScriptableObject Architecture, Coroutines, the Job System, ECS): outline the mechanism the engine provides underneath, not its API.
 - **Sketches in Solution stay.** A formula or one-line structure in Solution (A*'s `f(n)`, the decorator chain) is an illustration; Pseudocode is the full outline.
 
-The build warns about pattern pages that have no `## Pseudocode` heading directly before `## Example`.
+The build fails if a pattern page has no `## Pseudocode` heading directly before `## Example`.
 
 ## Engine examples
 

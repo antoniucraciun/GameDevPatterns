@@ -18,6 +18,46 @@ Use **coherent noise**: a function `noise(x, y)` that returns similar values for
 4. **Multiple maps.** Separate noise maps for height, temperature and moisture. Classify biomes by combining them (hot and dry is desert, cold and wet is taiga).
 5. **Seeding.** Offset the sample coordinates by values derived from the world seed, so each seed gives a different, reproducible world.
 
+## Pseudocode
+
+```text
+// One fractal noise map: several octaves of coherent noise, seeded by offsets.
+NoiseMap:
+    scale, octaves, persistence, lacunarity
+    offsets[octaves]   // random per octave, from a generator seeded with seed
+
+    sample(x, y):      // roughly 0..1
+        value ← 0; amplitude ← 1; frequency ← 1; total ← 0
+        for each octave i:
+            p ← (x, y) / scale × frequency + offsets[i]   // never integer coordinates
+            value ← value + noise(p) × amplitude          // noise remapped to 0..1
+            total ← total + amplitude
+            amplitude ← amplitude × persistence   // each layer quieter...
+            frequency ← frequency × lacunarity    // ...and finer
+        return value / total
+
+WorldGenerator(seed, size):
+    height      ← NoiseMap(scale 120, 6 octaves, seed)
+    moisture    ← NoiseMap(scale 200, 3 octaves, seed + 1)
+    temperature ← NoiseMap(scale 300, 2 octaves, seed + 2)
+
+    height_at(x, y):
+        h ← height.sample(x, y) ^ 1.6     // flatter lowlands, sharper peaks
+        edge ← distance of (x, y) from the centre, 0 at centre, 1 at the border
+        return h × (1 - smoothstep(0.6, 1, edge))   // island mask
+
+    biome_at(x, y):
+        h ← height_at(x, y)
+        if h < 0.12: return Ocean
+        if h < 0.15: return Beach
+        if h > 0.6:  return Mountain
+        t ← temperature.sample(x, y) - h × 0.3    // higher is colder
+        m ← moisture.sample(x, y)
+        if t < 0.3:  return Tundra
+        if m < 0.35: return Desert if t > 0.55, else Grassland
+        return Forest if m > 0.6, else Grassland
+```
+
 ## Example
 
 Fractal noise with seeded offsets, an island mask and biome classification. The **core** is engine-free apart from each engine's noise function, so the same seed always gives the same world. The **engine wiring** paints the biomes into a texture as a preview.
@@ -405,8 +445,6 @@ void AWorldPreview::BeginPlay()
 - **Unity:** `Mathf.PerlinNoise` is 2D and returns values roughly in `[0, 1]` (it isn't seedable, hence the offsets). For 3D noise (caves, volumetric clouds) or noise inside Burst jobs, use `Unity.Mathematics.noise.snoise` / `cnoise` from the Mathematics package. Note that `Mathf.SmoothStep(a, b, t)` interpolates *between* `a` and `b`; it is not shader-style `smoothstep`.
 - **Godot:** `FastNoiseLite` (Godot 4.0+) covers Perlin, Simplex, cellular and value noise, fBm/ridged fractals and domain warp, with a `seed` property; `NoiseTexture2D` shows a noise resource directly in the editor, which is handy for tuning. `Image.create_empty` is Godot 4.3+; older versions use `Image.create`. Its output distribution differs from Unity's, so retune the biome thresholds.
 - **Unreal:** `FMath::PerlinNoise1D/2D/3D` return `[-1, 1]` and aren't seedable, so offsets come from an `FRandomStream`. Landscapes are usually generated offline or with **PCG** (the Procedural Content Generation framework, 5.2+), whose graphs include noise nodes.
-
-## When to use
 
 ## When to use
 
