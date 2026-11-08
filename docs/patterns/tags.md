@@ -31,15 +31,20 @@ Damage
 
 Unreal Engine's Gameplay Ability System popularised this approach. The pattern works in any engine.
 
-## Example (Unity C#)
+## Example
 
-Tags as ScriptableObject assets, so they are typo-proof, selectable in the inspector, and know their parent:
+### Tags, a counted container and requirements
 
-```csharp
+Tags are hierarchical (`Effect.Debuff.Stun` is a kind of `Effect.Debuff`), counted (two sources holding Stun keep it until both remove it), and queried with reusable requirements.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+// Tags as ScriptableObject assets, so they are typo-proof, selectable in the inspector, and know their parent.
 [CreateAssetMenu(menuName = "Tags/Gameplay Tag")]
 public class GameplayTag : ScriptableObject
 {
@@ -106,9 +111,187 @@ public class TagRequirement
 }
 ```
 
-Using tags instead of booleans:
+```gdscript [Godot (GDScript)]
+# tags.gd: tags are dotted StringNames. Keep the names in one constants script (autoload or
+# class_name) so code can't misspell them.
+class_name Tags
 
-```csharp
+const DEBUFF := &"Effect.Debuff"
+const STUN := &"Effect.Debuff.Stun"
+const FROZEN := &"State.Frozen"
+const CUTSCENE := &"State.Cutscene"
+
+
+# tag_container.gd
+class_name TagContainer
+extends RefCounted
+
+signal changed(tag: StringName, present: bool)
+
+var _counts := {}  # StringName -> int
+
+
+# True if tag is query or a descendant of it: is_a(&"Effect.Debuff.Stun", &"Effect.Debuff") == true.
+static func is_a(tag: StringName, query: StringName) -> bool:
+	return tag == query or String(tag).begins_with(String(query) + ".")
+
+
+func add(tag: StringName) -> void:
+	var c: int = _counts.get(tag, 0)
+	_counts[tag] = c + 1
+	if c == 0:
+		changed.emit(tag, true)  # only the first source raises "added"
+
+
+func remove(tag: StringName) -> void:
+	if not _counts.has(tag):
+		return
+	if _counts[tag] <= 1:
+		_counts.erase(tag)
+		changed.emit(tag, false)
+	else:
+		_counts[tag] -= 1  # another source still holds it
+
+
+# Hierarchical: has_tag(Tags.DEBUFF) is true while STUN is present.
+func has_tag(query: StringName) -> bool:
+	for tag in _counts:
+		if is_a(tag, query):
+			return true
+	return false
+
+
+func has_any(tags: Array[StringName]) -> bool:
+	return tags.any(has_tag)
+
+
+func has_all(tags: Array[StringName]) -> bool:
+	return tags.all(has_tag)
+
+
+func remove_all_under(root: StringName) -> void:  # "cleanse all debuffs"
+	for tag in _counts.keys():  # keys() is a copy, so erasing while looping is safe
+		if is_a(tag, root):
+			_counts.erase(tag)
+			changed.emit(tag, false)
+
+
+# tag_requirement.gd: a reusable requirement, editable in the inspector.
+class_name TagRequirement
+extends Resource
+
+@export var require_all: Array[StringName] = []
+@export var blocked_by_any: Array[StringName] = []
+
+
+func is_met_by(tags: TagContainer) -> bool:
+	return tags.has_all(require_all) and not tags.has_any(blocked_by_any)
+```
+
+```cpp [Unreal (C++)]
+// Gameplay Tags are built into the engine (GameplayTags module), no GAS needed. Tags are registered in
+// Project Settings → Gameplay Tags, or natively in C++ so code can't misspell them:
+// GameTags.h
+#pragma once
+
+#include "NativeGameplayTags.h"
+
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Effect_Debuff);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Effect_Debuff_Stun);
+
+// GameTags.cpp
+UE_DEFINE_GAMEPLAY_TAG(TAG_Effect_Debuff, "Effect.Debuff");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(TAG_Effect_Debuff_Stun, "Effect.Debuff.Stun", "Can't move or act");
+
+// TagComponent.h: FGameplayTagContainer already does hierarchical queries; this adds counting.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "GameplayTagContainer.h"
+#include "GameplayTagAssetInterface.h"
+#include "TagComponent.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTagChanged, FGameplayTag, Tag, bool, bPresent);
+
+UCLASS(ClassGroup = (Gameplay), meta = (BlueprintSpawnableComponent))
+class UTagComponent : public UActorComponent, public IGameplayTagAssetInterface
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Tags") void AddTag(FGameplayTag Tag);
+	UFUNCTION(BlueprintCallable, Category = "Tags") void RemoveTag(FGameplayTag Tag);
+	UFUNCTION(BlueprintCallable, Category = "Tags") void RemoveAllUnder(FGameplayTag Root);   // "cleanse all debuffs"
+
+	// The interface adds HasMatchingGameplayTag, HasAllMatchingGameplayTags and HasAnyMatchingGameplayTags.
+	virtual void GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const override { TagContainer = Tags; }
+
+	UPROPERTY(BlueprintAssignable) FOnTagChanged OnTagChanged;                               // (tag, now present)
+
+private:
+	TMap<FGameplayTag, int32> Counts;               // how many sources hold each tag
+	FGameplayTagContainer Tags;                     // tags with a count above 0, for fast hierarchical queries
+};
+
+// A reusable requirement, editable in the details panel.
+USTRUCT(BlueprintType)
+struct FTagRequirement
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Tags") FGameplayTagContainer RequireAll;
+	UPROPERTY(EditAnywhere, Category = "Tags") FGameplayTagContainer BlockedByAny;
+
+	bool IsMetBy(const IGameplayTagAssetInterface& Tags) const
+	{
+		return Tags.HasAllMatchingGameplayTags(RequireAll) && !Tags.HasAnyMatchingGameplayTags(BlockedByAny);
+	}
+};
+
+// TagComponent.cpp
+#include "TagComponent.h"
+
+void UTagComponent::AddTag(FGameplayTag Tag)
+{
+	int32& Count = Counts.FindOrAdd(Tag);
+	if (Count++ > 0) return;                        // only the first source raises "added"
+	Tags.AddTag(Tag);
+	OnTagChanged.Broadcast(Tag, true);
+}
+
+void UTagComponent::RemoveTag(FGameplayTag Tag)
+{
+	int32* Count = Counts.Find(Tag);
+	if (!Count || --*Count > 0) return;             // another source still holds it
+	Counts.Remove(Tag);
+	Tags.RemoveTag(Tag);
+	OnTagChanged.Broadcast(Tag, false);
+}
+
+void UTagComponent::RemoveAllUnder(FGameplayTag Root)
+{
+	TArray<FGameplayTag> ToRemove;
+	for (const TPair<FGameplayTag, int32>& Pair : Counts)
+		if (Pair.Key.MatchesTag(Root)) ToRemove.Add(Pair.Key);   // Effect.Debuff.Stun matches Effect.Debuff
+	for (const FGameplayTag& Tag : ToRemove)
+	{
+		Counts.Remove(Tag);
+		Tags.RemoveTag(Tag);
+		OnTagChanged.Broadcast(Tag, false);
+	}
+}
+```
+
+:::
+
+### Using tags instead of booleans
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
 public class Character : MonoBehaviour
 {
     public readonly TagContainer Tags = new();
@@ -124,7 +307,47 @@ public class Character : MonoBehaviour
 // Two overlapping stuns keep the character stunned until both expire, thanks to counting.
 ```
 
-Matching walks up the parent chain for each held tag, which is fine for a few dozen tags per object. For heavy use, cache each tag's ancestors in a set, or assign tags integer IDs and bitmasks at startup.
+```gdscript [Godot (GDScript)]
+# character.gd
+extends CharacterBody3D
+
+@export var act_requirement: TagRequirement  # e.g. blocked_by_any: Effect.Debuff.Stun, State.Frozen, State.Cutscene
+
+var tags := TagContainer.new()
+
+
+func can_act() -> bool:
+	return act_requirement.is_met_by(tags)
+
+
+func cleanse() -> void:
+	tags.remove_all_under(Tags.DEBUFF)
+
+# A status effect adds its tag on apply and removes it on expiry.
+# Two overlapping stuns keep the character stunned until both expire, thanks to counting.
+```
+
+```cpp [Unreal (C++)]
+// MyCharacter.h (excerpt)
+UPROPERTY(VisibleAnywhere, Category = "Tags") TObjectPtr<UTagComponent> Tags;
+UPROPERTY(EditAnywhere, Category = "Tags") FTagRequirement CanActRequirement;   // BlockedByAny: Effect.Debuff.Stun, State.Frozen...
+
+bool CanAct() const { return CanActRequirement.IsMetBy(*Tags); }
+void Cleanse() { Tags->RemoveAllUnder(TAG_Effect_Debuff); }
+
+// A status effect adds its tag on apply and removes it on expiry.
+// Two overlapping stuns keep the character stunned until both expire, thanks to counting.
+```
+
+:::
+
+Matching walks up the parent chain (or compares name prefixes) for each held tag, which is fine for a few dozen tags per object. For heavy use, cache each tag's ancestors in a set, or assign tags integer IDs and bitmasks at startup. Unreal's `FGameplayTagContainer` already stores parent tags for fast queries.
+
+**Engine notes**
+
+- **Unity:** the built-in `GameObject.tag` holds one flat string per object, which is why this page builds its own. Tag assets compare by reference, so renaming a tag asset never breaks data that points at it.
+- **Godot:** **groups** (`add_to_group`, `is_in_group`, `get_tree().get_nodes_in_group`) are the built-in flat tags, and node **metadata** (`set_meta` / `has_meta`) works for one-off markers. Neither is hierarchical or counted, hence the container above. Renaming a dotted tag means a find-and-replace, so keep the constants in one script.
+- **Unreal:** **Gameplay Tags** are built in: hierarchical `FGameplayTag`, `FGameplayTagContainer` with `HasTag` / `HasAll` / `HasAny`, `FGameplayTagQuery` for complex expressions, editor pickers, and redirects for renamed tags. Implementing `IGameplayTagAssetInterface` on actors lets generic code query any actor. With GAS, the Ability System Component already counts tags (loose tags and tags granted by effects), so the counting component is only needed without it.
 
 ## When to use
 

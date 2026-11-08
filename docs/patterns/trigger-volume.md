@@ -18,9 +18,13 @@ One reusable **trigger volume** component handles the mechanics, and designers w
 - **Events**: `OnFirstEnter` (empty → occupied), `OnLastExit` (occupied → empty), and per-object `OnEnter` / `OnExit`. Exposed as `UnityEvent`s so designers connect doors, lights, music and cutscenes in the inspector.
 - **Modes**: fire once (cutscene), fire every time (music zone), or with a cooldown (trap).
 
-## Example (Unity C#)
+## Example
 
-```csharp
+One reusable volume with a filter, fire-once and cooldown options, and enter/exit plus occupied/empty events. Each occupant counts once, however many colliders it has.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
@@ -114,7 +118,160 @@ public class TriggerVolume : MonoBehaviour
 }
 ```
 
-Designer wiring, no code:
+```gdscript [Godot (GDScript)]
+# trigger_volume.gd: an Area3D with a CollisionShape3D child. Its Collision Mask is the
+# layer filter. body_entered fires once per body, not per shape, so occupants need no counting.
+class_name TriggerVolume
+extends Area3D
+
+signal entered(body: Node3D)
+signal exited(body: Node3D)
+signal first_entered  # empty → occupied
+signal last_exited  # occupied → empty
+
+@export var required_group: StringName = &""  # e.g. &"player"; empty = any
+@export var fire_once := false
+@export var cooldown := 0.0
+
+var _occupants: Array[Node3D] = []
+var _fired := false
+var _ready_at := 0.0
+var _clock := 0.0  # game time: stops while paused
+
+
+func _ready() -> void:
+	body_entered.connect(_on_body_entered)
+	body_exited.connect(_on_body_exited)
+
+
+func _physics_process(delta: float) -> void:
+	_clock += delta
+
+
+func is_occupied() -> bool:
+	return not _occupants.is_empty()
+
+
+func _on_body_entered(body: Node3D) -> void:
+	if required_group != &"" and not body.is_in_group(required_group):
+		return
+	_occupants.append(body)
+
+	if fire_once and _fired:
+		return
+	if _clock < _ready_at:
+		return
+
+	entered.emit(body)
+	if _occupants.size() == 1:
+		first_entered.emit()
+	_fired = true
+	_ready_at = _clock + cooldown
+
+
+# Also sent when a body inside is freed or leaves the tree, so no clean-up pass is needed.
+func _on_body_exited(body: Node3D) -> void:
+	if not _occupants.has(body):
+		return
+	_occupants.erase(body)
+	exited.emit(body)
+	if _occupants.is_empty():
+		last_exited.emit()
+```
+
+```cpp [Unreal (C++)]
+// TriggerZone.h: Unreal ships ATriggerBox / ATriggerSphere / ATriggerVolume for level-blueprint
+// scripting; this actor adds filtering, per-actor counting, fire-once and cooldown.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Components/BoxComponent.h"
+#include "TriggerZone.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTriggerActor, AActor*, Actor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTriggerState);
+
+UCLASS()
+class ATriggerZone : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ATriggerZone();
+
+	UPROPERTY(EditAnywhere, Category = "Filter") FName RequiredTag;              // actor tag, e.g. Player; None = any
+	UPROPERTY(EditAnywhere, Category = "Behaviour") bool bFireOnce = false;
+	UPROPERTY(EditAnywhere, Category = "Behaviour") float Cooldown = 0.f;
+
+	UPROPERTY(BlueprintAssignable) FOnTriggerActor OnEnter;
+	UPROPERTY(BlueprintAssignable) FOnTriggerActor OnExit;
+	UPROPERTY(BlueprintAssignable) FOnTriggerState OnFirstEnter;                 // occupied / empty transitions
+	UPROPERTY(BlueprintAssignable) FOnTriggerState OnLastExit;
+
+	UFUNCTION(BlueprintPure, Category = "Trigger") bool IsOccupied() const { return Occupants.Num() > 0; }
+
+protected:
+	virtual void BeginPlay() override;
+
+private:
+	UFUNCTION() void HandleBeginOverlap(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp,
+		int32 BodyIndex, bool bFromSweep, const FHitResult& Sweep);
+	UFUNCTION() void HandleEndOverlap(UPrimitiveComponent* Overlapped, AActor* Other, UPrimitiveComponent* OtherComp, int32 BodyIndex);
+
+	UPROPERTY(VisibleAnywhere, Category = "Trigger") TObjectPtr<UBoxComponent> Box;
+	TMap<TWeakObjectPtr<AActor>, int32> Occupants;  // overlapping components per actor
+	bool bFired = false;
+	float ReadyAt = 0.f;
+};
+
+// TriggerZone.cpp
+#include "TriggerZone.h"
+
+ATriggerZone::ATriggerZone()
+{
+	Box = CreateDefaultSubobject<UBoxComponent>(TEXT("Box"));
+	Box->SetCollisionProfileName(TEXT("Trigger"));   // overlap only; edit its responses to filter by channel
+	Box->ShapeColor = FColor::Orange;                // how the volume is drawn in the editor
+	RootComponent = Box;
+}
+
+void ATriggerZone::BeginPlay()
+{
+	Super::BeginPlay();
+	Box->OnComponentBeginOverlap.AddDynamic(this, &ATriggerZone::HandleBeginOverlap);
+	Box->OnComponentEndOverlap.AddDynamic(this, &ATriggerZone::HandleEndOverlap);
+}
+
+void ATriggerZone::HandleBeginOverlap(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32, bool, const FHitResult&)
+{
+	if (!Other || (!RequiredTag.IsNone() && !Other->ActorHasTag(RequiredTag))) return;
+	int32& Components = Occupants.FindOrAdd(Other);
+	if (Components++ > 0) return;                   // another component of an actor already inside
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if ((bFireOnce && bFired) || Now < ReadyAt) return;
+
+	OnEnter.Broadcast(Other);
+	if (Occupants.Num() == 1) OnFirstEnter.Broadcast();
+	bFired = true;
+	ReadyAt = Now + Cooldown;
+}
+
+// Also called when an overlapping actor is destroyed, so no clean-up pass is needed.
+void ATriggerZone::HandleEndOverlap(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32)
+{
+	int32* Components = Occupants.Find(Other);
+	if (!Components || --*Components > 0) return;
+	Occupants.Remove(Other);
+	OnExit.Broadcast(Other);
+	if (Occupants.Num() == 0) OnLastExit.Broadcast();
+}
+```
+
+:::
+
+Designer wiring, no code (UnityEvents in the inspector, signals in Godot's Node dock, event bindings in a Blueprint or the Level Blueprint):
 
 | Volume | Settings | Events |
 | --- | --- | --- |
@@ -122,6 +279,12 @@ Designer wiring, no code:
 | **Pressure pad** | any rigidbody | OnFirstEnter → Door.Open · OnLastExit → Door.Close |
 | **Intro cutscene** | tag Player, fire once | OnEnter → Cutscene.Play |
 | **Spike trap** | layer Characters, cooldown 2 s | OnEnter → Trap.Fire |
+
+**Engine notes**
+
+- **Unity:** a trigger needs a Rigidbody on at least one of the two objects, and objects destroyed or disabled inside never send `OnTriggerExit`, which is what the `FixedUpdate` clean-up handles.
+- **Godot:** `Area3D` (`Area2D` in 2D) is the trigger volume: `body_entered` / `body_exited` for physics bodies and `area_entered` / `area_exited` for other areas. Turn **Monitorable** off on volumes nothing needs to detect. Group membership is the usual "tag" filter.
+- **Unreal:** the built-in trigger actors fire `OnActorBeginOverlap` / `OnActorEndOverlap`, which a Level Blueprint can bind directly. Both components need **Generate Overlap Events** enabled, and overlap events fire per component, hence the counting.
 
 ## When to use
 

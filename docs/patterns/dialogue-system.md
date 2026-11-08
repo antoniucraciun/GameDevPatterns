@@ -20,11 +20,15 @@ Represent each conversation as **data**: a graph of **nodes**.
 
 Conditions and effects are small data objects, so writers combine them in the editor. Dedicated tools such as **Ink** and **Yarn Spinner** implement this pattern with a scripting language and Unity integration, and are worth considering before building your own.
 
-## Example (Unity C#)
+## Example
 
 ### The conversation as data
 
-```csharp
+A conversation is a list of nodes with choices; conditions and effects are small objects designers pick from a list. Quests are from the [Quest System](./quest-system) page.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -103,9 +107,237 @@ public class SetFlagEffect : DialogueEffect
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# conversation.gd: one .tres per conversation; nodes, choices, conditions and effects are
+# sub-resources edited in place in the inspector.
+class_name Conversation
+extends Resource
+
+@export var start_node_id: StringName
+@export var nodes: Array[DialogueNode] = []
+
+
+func find(id: StringName) -> DialogueNode:
+	for n in nodes:
+		if n.id == id:
+			return n
+	return null
+
+
+# dialogue_node.gd
+class_name DialogueNode
+extends Resource
+
+@export var id: StringName
+@export var speaker := ""
+@export var text_key := ""  # translation key, e.g. "MIRA_GREETING"
+@export var next_id: StringName  # used when there are no choices; empty = end
+@export var choices: Array[DialogueChoice] = []
+@export var on_enter: Array[DialogueEffect] = []
+
+
+# dialogue_choice.gd
+class_name DialogueChoice
+extends Resource
+
+@export var text_key := ""
+@export var next_id: StringName
+@export var conditions: Array[DialogueCondition] = []
+@export var effects: Array[DialogueEffect] = []
+
+
+# game_state.gd: what dialogue may read and change. Autoload it as "Game":
+# an autoload can't have the same name as its script's class_name.
+class_name GameState
+extends Node
+
+var flags := {}
+
+
+func get_flag(flag: StringName) -> bool:
+	return flags.get(flag, false)
+
+
+func set_flag(flag: StringName, value: bool) -> void:
+	flags[flag] = value
+
+
+func item_count(_item_id: StringName) -> int:
+	return 0  # ask the player's inventory
+
+
+# dialogue_condition.gd: base class.
+class_name DialogueCondition
+extends Resource
+
+
+func is_met(_state: GameState) -> bool:
+	return true
+
+
+# dialogue_effect.gd: base class.
+class_name DialogueEffect
+extends Resource
+
+
+func apply(_state: GameState) -> void:
+	pass
+
+
+# quest_state_condition.gd: QuestLog is the autoload from the Quest System page.
+class_name QuestStateCondition
+extends DialogueCondition
+
+@export var quest_id: StringName
+@export var must_be_completed := false  # false = must be active
+
+
+func is_met(_state: GameState) -> bool:
+	return QuestLog.is_completed(quest_id) if must_be_completed else QuestLog.is_active(quest_id)
+
+
+# has_item_condition.gd
+class_name HasItemCondition
+extends DialogueCondition
+
+@export var item_id: StringName
+@export var count := 1
+
+
+func is_met(state: GameState) -> bool:
+	return state.item_count(item_id) >= count
+
+
+# start_quest_effect.gd
+class_name StartQuestEffect
+extends DialogueEffect
+
+@export var quest: QuestDefinition
+
+
+func apply(_state: GameState) -> void:
+	QuestLog.start(quest)
+
+
+# set_flag_effect.gd
+class_name SetFlagEffect
+extends DialogueEffect
+
+@export var flag: StringName
+@export var value := true
+
+
+func apply(state: GameState) -> void:
+	state.set_flag(flag, value)
+```
+
+```cpp [Unreal (C++)]
+// Conversation.h: text is FText, so the engine's localization tools translate it; no keys needed.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Engine/GameInstance.h"
+#include "QuestSubsystem.h"
+#include "Conversation.generated.h"
+
+// Conditions and effects are instanced sub-objects, picked from a class dropdown in the details panel.
+UCLASS(Abstract, EditInlineNew, DefaultToInstanced, CollapseCategories)
+class UDialogueCondition : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	virtual bool IsMet(const UGameInstance* Game) const { return true; }
+};
+
+UCLASS(Abstract, EditInlineNew, DefaultToInstanced, CollapseCategories)
+class UDialogueEffect : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Apply(UGameInstance* Game) const {}
+};
+
+UCLASS(meta = (DisplayName = "Quest State"))
+class UQuestStateCondition : public UDialogueCondition
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Dialogue") FName QuestId;
+	UPROPERTY(EditAnywhere, Category = "Dialogue") bool bMustBeCompleted = false;   // false = must be active
+
+	virtual bool IsMet(const UGameInstance* Game) const override
+	{
+		const UQuestSubsystem* Quests = Game->GetSubsystem<UQuestSubsystem>();
+		return bMustBeCompleted ? Quests->IsCompleted(QuestId) : Quests->IsActive(QuestId);
+	}
+};
+
+UCLASS(meta = (DisplayName = "Start Quest"))
+class UStartQuestEffect : public UDialogueEffect
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Dialogue") TObjectPtr<UQuestDefinition> Quest;
+
+	virtual void Apply(UGameInstance* Game) const override { Game->GetSubsystem<UQuestSubsystem>()->Start(Quest); }
+};
+// HasItem and SetFlag follow the same shape, reading the inventory component and a flags subsystem.
+
+USTRUCT()
+struct FDialogueChoice
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Dialogue") FText Text;
+	UPROPERTY(EditAnywhere, Category = "Dialogue") FName NextId;
+	UPROPERTY(EditAnywhere, Instanced, Category = "Dialogue") TArray<TObjectPtr<UDialogueCondition>> Conditions;
+	UPROPERTY(EditAnywhere, Instanced, Category = "Dialogue") TArray<TObjectPtr<UDialogueEffect>> Effects;
+};
+
+USTRUCT()
+struct FDialogueNode
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Dialogue") FName Id;
+	UPROPERTY(EditAnywhere, Category = "Dialogue") FText Speaker;
+	UPROPERTY(EditAnywhere, Category = "Dialogue", meta = (MultiLine = true)) FText Text;
+	UPROPERTY(EditAnywhere, Category = "Dialogue") FName NextId;               // used when there are no choices; None = end
+	UPROPERTY(EditAnywhere, Category = "Dialogue") TArray<FDialogueChoice> Choices;
+	UPROPERTY(EditAnywhere, Instanced, Category = "Dialogue") TArray<TObjectPtr<UDialogueEffect>> OnEnter;
+};
+
+UCLASS(BlueprintType)
+class UConversation : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditDefaultsOnly, Category = "Dialogue") FName StartNodeId;
+	UPROPERTY(EditDefaultsOnly, Category = "Dialogue") TArray<FDialogueNode> Nodes;
+
+	const FDialogueNode* Find(FName Id) const
+	{
+		return Nodes.FindByPredicate([Id](const FDialogueNode& N) { return N.Id == Id; });
+	}
+};
+```
+
+:::
+
 ### The runner: walks the graph, the UI only displays
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using System.Collections.Generic;
+
 public class DialogueRunner
 {
     readonly IGameState state;
@@ -157,6 +389,138 @@ public class DialogueRunner
 }
 ```
 
+```gdscript [Godot (GDScript)]
+# dialogue_runner.gd: walks the graph; the UI only displays.
+# tr() is Godot's translation lookup (CSV or PO files in Project Settings → Localization).
+class_name DialogueRunner
+extends RefCounted
+
+signal show_node(speaker: String, text: String, choices: PackedStringArray)
+signal ended
+
+var _state: GameState
+var _conversation: Conversation
+var _current: DialogueNode
+var _visible_choices: Array[DialogueChoice] = []
+
+
+func _init(state: GameState) -> void:
+	_state = state
+
+
+func start(c: Conversation) -> void:
+	_conversation = c
+	_go_to(c.start_node_id)
+
+
+# Called by the UI: index into the choices it was shown, or -1 to continue a plain line.
+func select(choice_index: int) -> void:
+	if _current == null:
+		return
+	if _visible_choices.is_empty():
+		_go_to(_current.next_id)
+		return
+	var choice := _visible_choices[choice_index]
+	for e in choice.effects:
+		e.apply(_state)
+	_go_to(choice.next_id)
+
+
+func _go_to(id: StringName) -> void:
+	_current = null if id == &"" else _conversation.find(id)
+	if _current == null:
+		ended.emit()
+		return
+
+	for e in _current.on_enter:
+		e.apply(_state)
+
+	_visible_choices.clear()
+	var texts := PackedStringArray()
+	for c in _current.choices:
+		if c.conditions.all(func(cond: DialogueCondition) -> bool: return cond.is_met(_state)):
+			_visible_choices.append(c)
+			texts.append(tr(c.text_key))
+	show_node.emit(_current.speaker, tr(_current.text_key), texts)
+
+# Usage: var runner := DialogueRunner.new(Game); runner.show_node.connect(dialogue_box.show_line)
+```
+
+```cpp [Unreal (C++)]
+// DialogueRunner.h: create it with the game instance as its outer:
+//   UDialogueRunner* Runner = NewObject<UDialogueRunner>(GetGameInstance());
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Conversation.h"
+#include "DialogueRunner.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnShowDialogueNode, FText, Speaker, FText, Text, const TArray<FText>&, Choices);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDialogueEnded);
+
+UCLASS(BlueprintType)
+class UDialogueRunner : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Dialogue") void Start(const UConversation* InConversation);
+	UFUNCTION(BlueprintCallable, Category = "Dialogue") void Select(int32 ChoiceIndex);   // -1 continues a plain line
+
+	UPROPERTY(BlueprintAssignable) FOnShowDialogueNode OnShowNode;
+	UPROPERTY(BlueprintAssignable) FOnDialogueEnded OnEnded;
+
+private:
+	void GoTo(FName Id);
+	UGameInstance* GetGame() const { return GetTypedOuter<UGameInstance>(); }
+
+	UPROPERTY() TObjectPtr<const UConversation> Conversation;
+	const FDialogueNode* Current = nullptr;          // points into the asset, which doesn't change at runtime
+	TArray<const FDialogueChoice*> VisibleChoices;
+};
+
+// DialogueRunner.cpp
+#include "DialogueRunner.h"
+#include "Algo/AllOf.h"
+
+void UDialogueRunner::Start(const UConversation* InConversation)
+{
+	Conversation = InConversation;
+	GoTo(Conversation->StartNodeId);
+}
+
+void UDialogueRunner::Select(int32 ChoiceIndex)
+{
+	if (!Current) return;
+	if (VisibleChoices.IsEmpty()) { GoTo(Current->NextId); return; }
+
+	const FDialogueChoice* Choice = VisibleChoices[ChoiceIndex];
+	for (const UDialogueEffect* Effect : Choice->Effects) Effect->Apply(GetGame());
+	GoTo(Choice->NextId);
+}
+
+void UDialogueRunner::GoTo(FName Id)
+{
+	Current = Id.IsNone() ? nullptr : Conversation->Find(Id);
+	if (!Current) { OnEnded.Broadcast(); return; }
+
+	for (const UDialogueEffect* Effect : Current->OnEnter) Effect->Apply(GetGame());
+
+	VisibleChoices.Reset();
+	TArray<FText> Texts;
+	for (const FDialogueChoice& Choice : Current->Choices)
+	{
+		const bool bVisible = Algo::AllOf(Choice.Conditions, [this](const UDialogueCondition* C) { return C->IsMet(GetGame()); });
+		if (!bVisible) continue;
+		VisibleChoices.Add(&Choice);
+		Texts.Add(Choice.Text);
+	}
+	OnShowNode.Broadcast(Current->Speaker, Current->Text, Texts);
+}
+```
+
+:::
+
 A conversation might look like this:
 
 | Node | Content |
@@ -166,6 +530,12 @@ A conversation might look like this:
 | | "I have your herbs." → `thanks` (condition: has 10 `healing_herb`; effects: complete quest, take herbs) |
 | | "Goodbye." → end |
 | `offer` | Mira: *"mira.offer"* → onEnter: **StartQuest** "Healing Herbs" → end |
+
+**Engine notes**
+
+- **Unity:** no built-in dialogue system; **Yarn Spinner** and **Ink** are widely used. With the **Localization** package, the `localise` function can be `key => LocalizationSettings.StringDatabase.GetLocalizedString("Dialogue", key)`.
+- **Godot:** **Dialogic** and **Dialogue Manager** are popular add-ons with their own editors and script formats; the runner above is the core idea in a few dozen lines. `tr()` is available on every object and uses the project's translations.
+- **Unreal:** there is no built-in branching dialogue system. `FText` fields are picked up by the **Localization Dashboard**, and **Dialogue Wave** assets cover voiced lines with subtitles. Large projects often use a marketplace dialogue plugin or a graph editor built on this kind of data.
 
 ## When to use
 

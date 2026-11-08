@@ -25,11 +25,15 @@ TryActivate(ability, target)
   └─ foreach effect: effect.Apply(context)   ── Damage, ApplyStatus, Heal, …
 ```
 
-## Example (Unity C#)
+## Example
 
 ### Definitions and effects
 
-```csharp
+An ability is data: cost, cooldown, range, targeting, the tags that block it, and a list of effects. Health is from the [Health / Damageable](./health-component) page, and status effects from [Status Effects](./status-effects).
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -87,13 +91,154 @@ public class AbilityDefinition : ScriptableObject
 }
 ```
 
-`Health` is the component from the [Component](./component) page, with a `Heal` method added. `StatusEffectDefinition` and `StatusEffectContainer` are from [Status Effects](./status-effects).
+```gdscript [Godot (GDScript)]
+# ability_effect.gd: the base class. Effects are Resources, so the inspector's "New ..." menu
+# can add any subclass to an ability's list without extra editor code.
+class_name AbilityEffect
+extends Resource
 
-`[SerializeReference]` stores a list of *different* effect classes in one asset. The default inspector shows existing entries but has no "add element of type…" menu, so add a small custom editor, or a property drawer with a type dropdown, for designers.
+
+func apply(_ctx: AbilityContext) -> void:
+	pass
+
+
+# ability_context.gd
+class_name AbilityContext
+extends RefCounted
+
+var caster: AbilityRunner
+var target: AbilityRunner
+var ability: AbilityDefinition
+
+
+# damage_effect.gd
+class_name DamageEffect
+extends AbilityEffect
+
+@export var amount := 10.0
+
+
+func apply(ctx: AbilityContext) -> void:
+	ctx.target.health.take_damage(DamageInfo.new(amount, DamageInfo.Type.PHYSICAL, ctx.caster.get_parent()))
+
+
+# heal_effect.gd
+class_name HealEffect
+extends AbilityEffect
+
+@export var amount := 10.0
+
+
+func apply(ctx: AbilityContext) -> void:
+	ctx.target.health.heal(amount)
+
+
+# apply_status_effect.gd
+class_name ApplyStatusEffect
+extends AbilityEffect
+
+@export var effect: StatusEffectDefinition
+
+
+func apply(ctx: AbilityContext) -> void:
+	ctx.target.effects.apply(effect, ctx.caster)
+
+
+# ability_definition.gd: one .tres per ability.
+class_name AbilityDefinition
+extends Resource
+
+enum Targeting { SELF, ENEMY, ALLY }
+
+@export var display_name := ""
+@export var icon: Texture2D
+@export var mana_cost := 0.0
+@export var cooldown := 1.0
+@export var ability_range := 10.0  # not "range": that's a built-in function
+@export var targeting := Targeting.ENEMY
+@export var blocked_by_tags: Array[StringName] = [&"stun", &"silence"]
+@export var effects: Array[AbilityEffect] = []
+```
+
+```cpp [Unreal (C++)]
+// The Gameplay Ability System is Unreal's built-in version of this pattern. An ability is a
+// UGameplayAbility class (usually a Blueprint subclass of a C++ base); cost and cooldown are Gameplay Effects:
+//   CostGameplayEffectClass      GE_IceBolt_Cost: Instant, Mana Add -15
+//   CooldownGameplayEffectClass  GE_IceBolt_Cooldown: Has Duration 2 s, grants tag Cooldown.IceBolt
+//   Ability Triggers             Gameplay Event Ability.IceBolt (so callers can pass a target)
+//
+// GA_IceBolt.h
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_IceBolt.generated.h"
+
+UCLASS()
+class UGA_IceBolt : public UGameplayAbility
+{
+	GENERATED_BODY()
+
+public:
+	UGA_IceBolt();
+
+	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+	UPROPERTY(EditDefaultsOnly, Category = "Ability") TArray<TSubclassOf<UGameplayEffect>> EffectsOnTarget;   // GE_Damage20, GE_Slow
+	UPROPERTY(EditDefaultsOnly, Category = "Ability") float Range = 1000.f;
+};
+
+// GA_IceBolt.cpp
+#include "GA_IceBolt.h"
+#include "AbilitySystemGlobals.h"
+#include "AbilitySystemComponent.h"
+
+UGA_IceBolt::UGA_IceBolt()
+{
+	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+	// Checked by GAS before activation, like blockedByTags.
+	ActivationBlockedTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Effect.Stun")));
+	ActivationBlockedTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Effect.Silence")));
+}
+
+void UGA_IceBolt::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	const AActor* Target = TriggerEventData ? TriggerEventData->Target : nullptr;
+	UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
+	const AActor* Avatar = GetAvatarActorFromActorInfo();
+
+	const bool bValid = TargetASC && FVector::Dist(Avatar->GetActorLocation(), Target->GetActorLocation()) <= Range;
+	if (!bValid || !CommitAbility(Handle, ActorInfo, ActivationInfo))   // Commit pays the cost and starts the cooldown
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	for (const TSubclassOf<UGameplayEffect>& Effect : EffectsOnTarget)
+	{
+		const FGameplayEffectSpecHandle Spec = MakeOutgoingGameplayEffectSpec(Effect, GetAbilityLevel());
+		GetAbilitySystemComponentFromActorInfo()->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), TargetASC);
+	}
+	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+}
+```
+
+:::
+
+`[SerializeReference]` stores a list of *different* effect classes in one Unity asset. The default inspector shows existing entries but has no "add element of type…" menu, so add a small custom editor, or a property drawer with a type dropdown, for designers.
 
 ### The runner: one validation path for players and AI
 
-```csharp
+::: code-group
+
+```csharp [Unity (C#)]
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
 public class AbilityRunner : MonoBehaviour
 {
     [SerializeField] int maxMana = 100;
@@ -159,7 +304,130 @@ public class AbilityRunner : MonoBehaviour
 //   if (result == ActivationResult.NotEnoughMana) ui.Flash("Not enough mana");
 ```
 
-An "Ice Bolt" asset is now `manaCost 15, cooldown 2, effects: [DamageEffect 20, ApplyStatusEffect Slow]`, created entirely in the editor.
+```gdscript [Godot (GDScript)]
+# ability_runner.gd: a Node3D child of the character, next to its Health and StatusEffects.
+class_name AbilityRunner
+extends Node3D
+
+signal activated(ability: AbilityDefinition, target: AbilityRunner)  # animation, VFX, audio, UI
+
+enum Result { SUCCESS, ON_COOLDOWN, NOT_ENOUGH_MANA, BLOCKED, OUT_OF_RANGE, INVALID_TARGET }
+
+@export var max_mana := 100.0
+@export var mana_regen_per_second := 5.0
+@export var team := 0
+@export var health: Health
+@export var effects: StatusEffects
+
+var mana := 0.0
+var _clock := 0.0  # game time: pauses with the tree and follows Engine.time_scale
+var _ready_at := {}  # AbilityDefinition -> _clock value
+
+
+func _ready() -> void:
+	mana = max_mana
+
+
+func _process(delta: float) -> void:
+	_clock += delta
+	mana = minf(max_mana, mana + mana_regen_per_second * delta)
+
+
+func cooldown_remaining(a: AbilityDefinition) -> float:
+	return maxf(0.0, _ready_at.get(a, 0.0) - _clock)
+
+
+func can_activate(a: AbilityDefinition, target: AbilityRunner) -> Result:
+	if cooldown_remaining(a) > 0.0:
+		return Result.ON_COOLDOWN
+	if mana < a.mana_cost:
+		return Result.NOT_ENOUGH_MANA
+	for tag in a.blocked_by_tags:
+		if effects.has_tag(tag):
+			return Result.BLOCKED
+
+	if a.targeting == AbilityDefinition.Targeting.SELF:
+		target = self
+	if target == null:
+		return Result.INVALID_TARGET
+	if a.targeting == AbilityDefinition.Targeting.ENEMY and target.team == team:
+		return Result.INVALID_TARGET
+	if a.targeting == AbilityDefinition.Targeting.ALLY and target.team != team:
+		return Result.INVALID_TARGET
+	if global_position.distance_to(target.global_position) > a.ability_range:
+		return Result.OUT_OF_RANGE
+	return Result.SUCCESS
+
+
+func try_activate(a: AbilityDefinition, target: AbilityRunner) -> Result:
+	var result := can_activate(a, target)
+	if result != Result.SUCCESS:
+		return result
+
+	if a.targeting == AbilityDefinition.Targeting.SELF:
+		target = self
+	mana -= a.mana_cost
+	_ready_at[a] = _clock + a.cooldown
+
+	var ctx := AbilityContext.new()
+	ctx.caster = self
+	ctx.target = target
+	ctx.ability = a
+	for effect in a.effects:
+		effect.apply(ctx)
+
+	activated.emit(a, target)
+	return Result.SUCCESS
+
+# Player input and AI use exactly the same entry point:
+#   if runner.try_activate(ice_bolt, current_target) == AbilityRunner.Result.NOT_ENOUGH_MANA:
+#       hud.flash("Not enough mana")
+```
+
+```cpp [Unreal (C++)]
+// HeroCharacter.cpp: the Ability System Component is the runner. Abilities are granted once (on the
+// server); players and AI then activate them through the same call, and GAS checks cooldown, cost,
+// blocking tags and CanActivateAbility before ActivateAbility runs.
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+
+void AHeroCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	if (HasAuthority())
+		for (const TSubclassOf<UGameplayAbility>& Ability : StartingAbilities)    // UPROPERTY(EditDefaultsOnly)
+			AbilitySystem->GiveAbility(FGameplayAbilitySpec(Ability, 1));
+
+	AbilitySystem->AbilityFailedCallbacks.AddUObject(this, &AHeroCharacter::OnAbilityFailed);
+}
+
+// Player input and AI use exactly the same entry point.
+void AHeroCharacter::CastAt(FGameplayTag AbilityEvent, AActor* Target)     // e.g. Ability.IceBolt
+{
+	FGameplayEventData Payload;
+	Payload.Instigator = this;
+	Payload.Target = Target;
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this, AbilityEvent, Payload);
+}
+
+// Failure reasons arrive as tags (cooldown, cost, blocked...), whose names are set in the
+// Ability System Globals settings.
+void AHeroCharacter::OnAbilityFailed(const UGameplayAbility* Ability, const FGameplayTagContainer& Reasons)
+{
+	if (Reasons.HasTag(FGameplayTag::RequestGameplayTag(TEXT("Activation.Fail.Cost"))))
+		Hud->Flash(TEXT("Not enough mana"));
+}
+```
+
+:::
+
+An "Ice Bolt" is now `mana cost 15, cooldown 2, effects: [Damage 20, Apply Status Effect: Slow]`, created entirely in the editor.
+
+**Engine notes**
+
+- **Unity:** `[SerializeReference]` needs Unity 2019.3 or later; see the note above about the missing "add element" menu.
+- **Godot:** typed `Array[AbilityEffect]` exports let the inspector create any subclass in place, which is the main reason effects are Resources rather than plain objects. Don't name a property `range` (a built-in function).
+- **Unreal:** the **Gameplay Ability System** (the GameplayAbilities plugin) handles granting, activation, costs, cooldowns, blocking and cancelling by tag, prediction and replication. It has a steep learning curve; for a small single-player game, a `UActorComponent` runner with `UPrimaryDataAsset` ability definitions, built like the Unity and Godot tabs, is lighter. The blocked tags can also be set on the ability Blueprint's **Activation Blocked Tags** field instead of in the constructor.
 
 ## When to use
 

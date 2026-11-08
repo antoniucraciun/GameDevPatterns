@@ -19,9 +19,13 @@ Two small pieces:
 
 **Hurtboxes** on child colliders forward hits to the `Health` on the root, optionally with a multiplier (head ×2, armour plate ×0.5).
 
-## Example (Unity C#)
+## Example
 
-```csharp
+A health component with i-frames and events, plus hurtboxes that scale damage by body part. Weapons only know "something damageable", never the concrete class.
+
+::: code-group
+
+```csharp [Unity (C#)]
 using System;
 using UnityEngine;
 
@@ -97,7 +101,7 @@ public class Hurtbox : MonoBehaviour, IDamageable
 
     public void TakeDamage(DamageInfo info)
     {
-        info.Amount *= multiplier;
+        info.Amount *= multiplier;                          // DamageInfo is a struct: this is our copy
         owner.TakeDamage(info);
     }
 
@@ -105,25 +109,275 @@ public class Hurtbox : MonoBehaviour, IDamageable
 }
 ```
 
-Weapons only know the interface:
+```gdscript [Godot (GDScript)]
+# damage_info.gd
+class_name DamageInfo
+extends RefCounted
 
-```csharp
-void OnTriggerEnter(Collider other)
+enum Type { PHYSICAL, FIRE, ICE, POISON, TRUE_DAMAGE }
+
+var amount: float
+var type: Type
+var source: Node  # who caused it: kill credit, aggro, thorns
+var point: Vector3  # where: hit effects, knockback direction
+var is_critical := false
+
+
+func _init(p_amount := 0.0, p_type := Type.PHYSICAL, p_source: Node = null, p_point := Vector3.ZERO) -> void:
+	amount = p_amount
+	type = p_type
+	source = p_source
+	point = p_point
+
+
+# DamageInfo is an object, shared by reference: anything that changes the amount works on a copy.
+func with_amount(new_amount: float) -> DamageInfo:
+	var copy := DamageInfo.new(new_amount, type, source, point)
+	copy.is_critical = is_critical
+	return copy
+
+
+# health.gd: a child node of anything that can be hurt.
+class_name Health
+extends Node
+
+signal damaged(info: DamageInfo)
+signal healed(amount: float)
+signal died(info: DamageInfo)  # carries the killing blow
+
+@export var max_health := 100.0  # not "max": that shadows the built-in function
+@export var invulnerable_after_hit := 0.0  # i-frames, e.g. 0.5 s for the player
+
+var current := 0.0
+var _invulnerable_left := 0.0
+
+
+func _ready() -> void:
+	current = max_health
+
+
+func _process(delta: float) -> void:
+	_invulnerable_left = maxf(0.0, _invulnerable_left - delta)  # game time: stops while paused
+
+
+func is_alive() -> bool:
+	return current > 0.0
+
+
+func take_damage(info: DamageInfo) -> void:
+	if not is_alive() or info.amount <= 0.0:
+		return  # no damage after death
+	if _invulnerable_left > 0.0:
+		return  # i-frames
+	current = maxf(0.0, current - info.amount)
+	_invulnerable_left = invulnerable_after_hit
+	damaged.emit(info)
+	if current <= 0.0:
+		died.emit(info)  # exactly once: is_alive() is false from now on
+
+
+func heal(amount: float) -> void:
+	if not is_alive() or amount <= 0.0:
+		return  # healing doesn't revive
+	var before := current
+	current = minf(max_health, current + amount)
+	if current > before:
+		healed.emit(current - before)
+
+
+func revive(fraction := 1.0) -> void:
+	current = max_health * clampf(fraction, 0.0, 1.0)
+	_invulnerable_left = 0.0
+
+
+# hurtbox.gd: an Area3D on a body part that forwards hits to the character's Health.
+class_name Hurtbox
+extends Area3D
+
+@export var health: Health  # not "owner": every Node already has an owner property
+@export var multiplier := 1.0  # head 2.0, armour plate 0.5
+
+
+func take_damage(info: DamageInfo) -> void:
+	health.take_damage(info.with_amount(info.amount * multiplier))
+```
+
+```cpp [Unreal (C++)]
+// HealthComponent.h: damage is built into AActor. UGameplayStatics::ApplyDamage calls the target's
+// TakeDamage, which broadcasts OnTakeAnyDamage; this component listens to that.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "HealthComponent.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamaged, float, Amount, AActor*, Causer);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealed, float, Amount);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDied, AActor*, Killer);    // the killing blow's causer
+
+UCLASS(ClassGroup = (Gameplay), meta = (BlueprintSpawnableComponent))
+class UHealthComponent : public UActorComponent
 {
-    // Hurtboxes on children are found first; otherwise fall back to the parent's Health.
-    if (!other.TryGetComponent(out IDamageable target))
-        target = other.GetComponentInParent<IDamageable>();
+	GENERATED_BODY()
 
-    target?.TakeDamage(new DamageInfo
-    {
-        Amount = 25f, Type = DamageType.Physical, Source = gameObject, Point = other.ClosestPoint(transform.position),
-    });
+public:
+	UPROPERTY(EditAnywhere, Category = "Health") float Max = 100.f;
+	UPROPERTY(EditAnywhere, Category = "Health") float InvulnerableAfterHit = 0.f;   // i-frames
+
+	UPROPERTY(BlueprintAssignable) FOnDamaged OnDamaged;
+	UPROPERTY(BlueprintAssignable) FOnHealed OnHealed;
+	UPROPERTY(BlueprintAssignable) FOnDied OnDied;
+
+	UFUNCTION(BlueprintPure, Category = "Health") bool IsAlive() const { return Current > 0.f; }
+	UFUNCTION(BlueprintPure, Category = "Health") float GetCurrent() const { return Current; }
+	UFUNCTION(BlueprintCallable, Category = "Health") void Heal(float Amount);
+	UFUNCTION(BlueprintCallable, Category = "Health") void Revive(float Fraction = 1.f);
+
+protected:
+	virtual void BeginPlay() override;
+
+private:
+	UFUNCTION()
+	void HandleAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
+		AController* InstigatedBy, AActor* DamageCauser);
+
+	float Current = 0.f;
+	float InvulnerableUntil = 0.f;
+};
+
+// HealthComponent.cpp
+#include "HealthComponent.h"
+
+void UHealthComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	Current = Max;
+	GetOwner()->OnTakeAnyDamage.AddDynamic(this, &UHealthComponent::HandleAnyDamage);
+}
+
+void UHealthComponent::HandleAnyDamage(AActor*, float Damage, const UDamageType*, AController*, AActor* DamageCauser)
+{
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (!IsAlive() || Damage <= 0.f || Now < InvulnerableUntil) return;
+
+	Current = FMath::Max(0.f, Current - Damage);
+	InvulnerableUntil = Now + InvulnerableAfterHit;
+	OnDamaged.Broadcast(Damage, DamageCauser);
+	if (Current <= 0.f) OnDied.Broadcast(DamageCauser);              // exactly once
+}
+
+void UHealthComponent::Heal(float Amount)
+{
+	if (!IsAlive() || Amount <= 0.f) return;                        // healing doesn't revive
+	const float Before = Current;
+	Current = FMath::Min(Max, Current + Amount);
+	if (Current > Before) OnHealed.Broadcast(Current - Before);
+}
+
+void UHealthComponent::Revive(float Fraction)
+{
+	Current = Max * FMath::Clamp(Fraction, 0.f, 1.f);
+	InvulnerableUntil = 0.f;
+}
+
+// EnemyCharacter.cpp: Unreal's "hurtbox" is the hit bone. Point damage carries the FHitResult,
+// so the actor scales it before the engine broadcasts OnTakeAnyDamage.
+float AEnemyCharacter::TakeDamage(float Damage, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
+	{
+		const FPointDamageEvent& Point = static_cast<const FPointDamageEvent&>(DamageEvent);
+		if (Point.HitInfo.BoneName == TEXT("head")) Damage *= 2.f;
+	}
+	return Super::TakeDamage(Damage, DamageEvent, EventInstigator, DamageCauser);
 }
 ```
 
-`target?.` is safe here because `target` is a C# interface reference returned this frame. The Unity destroyed-object problem only applies to stored `UnityEngine.Object` references.
+:::
 
-Everything else reacts to events: the health bar listens to `Damaged` and `Healed`, the loot dropper and score listen to `Died`, and AI uses `info.Source` to pick who to fight back against.
+Weapons only know the damage entry point:
+
+::: code-group
+
+```csharp [Unity (C#)]
+using UnityEngine;
+
+public class MeleeWeapon : MonoBehaviour
+{
+    void OnTriggerEnter(Collider other)
+    {
+        // Hurtboxes on children are found first; otherwise fall back to the parent's Health.
+        if (!other.TryGetComponent(out IDamageable target))
+            target = other.GetComponentInParent<IDamageable>();
+
+        target?.TakeDamage(new DamageInfo
+        {
+            Amount = 25f, Type = DamageType.Physical, Source = gameObject, Point = other.ClosestPoint(transform.position),
+        });
+    }
+}
+```
+
+```gdscript [Godot (GDScript)]
+# weapon_hitbox.gd: an Area3D whose collision mask includes the hurtbox layer.
+# Give enemies without location damage one Hurtbox that covers the whole body.
+extends Area3D
+
+@export var damage := 25.0
+
+
+func _ready() -> void:
+	area_entered.connect(_on_area_entered)
+
+
+func _on_area_entered(area: Area3D) -> void:
+	# GDScript has no interfaces: check the class (or duck-type with has_method).
+	var hurtbox := area as Hurtbox
+	if hurtbox:
+		# owner: the root of the scene this hitbox is saved in, i.e. the attacker.
+		hurtbox.take_damage(DamageInfo.new(damage, DamageInfo.Type.PHYSICAL, owner, area.global_position))
+```
+
+```cpp [Unreal (C++)]
+// Weapon.h (excerpt)
+UFUNCTION()
+void OnHitboxOverlap(UPrimitiveComponent* OverlappedComp, AActor* Other, UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& Sweep);
+
+// Weapon.cpp
+#include "Kismet/GameplayStatics.h"
+
+void AWeapon::BeginPlay()
+{
+	Super::BeginPlay();
+	Hitbox->OnComponentBeginOverlap.AddDynamic(this, &AWeapon::OnHitboxOverlap);   // UPROPERTY() UBoxComponent* Hitbox
+}
+
+void AWeapon::OnHitboxOverlap(UPrimitiveComponent*, AActor* Other, UPrimitiveComponent*, int32, bool bFromSweep, const FHitResult& Sweep)
+{
+	if (!Other || Other == GetOwner()) return;
+	AController* By = GetInstigatorController();                   // kill credit and aggro
+	if (bFromSweep)                                                // the sweep has the bone: allows headshots
+	{
+		const FVector Direction = (Other->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+		UGameplayStatics::ApplyPointDamage(Other, 25.f, Direction, Sweep, By, this, UDamageType::StaticClass());
+	}
+	else
+	{
+		UGameplayStatics::ApplyDamage(Other, 25.f, By, this, UDamageType::StaticClass());
+	}
+}
+```
+
+:::
+
+Everything else reacts to events: the health bar listens to the damaged and healed events, the loot dropper and score listen to died, and AI uses the damage source to pick who to fight back against.
+
+**Engine notes**
+
+- **Unity:** `target?.` is safe in the weapon because `target` is a C# interface reference returned this frame. The destroyed-object problem only applies to stored `UnityEngine.Object` references. `GetComponentInParent<IDamageable>()` works with interfaces.
+- **Godot:** there are no interfaces, so duck typing (`has_method`) or a shared base class does the job. Don't name an exported reference `owner` (every node already has one) or a variable `max` (a built-in function). `DamageInfo` is a reference type, so `with_amount` copies it before a hurtbox scales it.
+- **Unreal:** damage is built in: `ApplyDamage`, `ApplyPointDamage` and `ApplyRadialDamage` call `AActor::TakeDamage`, which fires `OnTakeAnyDamage` (and `OnTakePointDamage` / `OnTakeRadialDamage`). Damage types are `UDamageType` subclasses. The actor must have **Can Be Damaged** enabled (the default). In a GAS project, health is usually an attribute and damage a Gameplay Effect instead (see [Damage Pipeline](./damage-pipeline)).
 
 ## When to use
 
