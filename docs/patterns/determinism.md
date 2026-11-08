@@ -31,6 +31,42 @@ Every source of variation that is not an input must be removed or made explicit.
 
 Then **verify** it. Compute a checksum of the simulation state every N steps, and compare it between runs or between peers. A mismatch pinpoints the first step where the runs diverged.
 
+## Pseudocode
+
+```text
+// The simulation: integer state, an owned seeded generator, an ordered list.
+Simulation:
+    step ← 0
+    rng ← new random generator(seed)    // never the shared global one
+    units ← ordered list                // never a hash set
+
+    spawn(x, y): add Unit(id = number of units, x, y, health = 100) to units
+
+    advance(input):                     // one constant step: no frame time
+        for each unit u in units, in list order:
+            u.x ← u.x + input.move_x × 50    // fixed point: integer maths only
+            u.y ← u.y + input.move_y × 50
+            if input.fire and rng.integer(0..99) < 25:
+                u.health ← u.health - 1
+        step ← step + 1
+
+    checksum():                         // FNV-1a over all state that matters
+        hash ← 2166136261
+        mix(v): hash ← ((hash xor v) × 16777619) mod 2³²
+        mix(step)
+        for each unit u: mix(u.id); mix(u.x); mix(u.y); mix(u.health)
+        return hash
+
+// Desync test: run the same seed and inputs twice, compare every step.
+find_first_desync(seed, inputs):
+    a ← Simulation(seed); b ← Simulation(seed)
+    a.spawn(0, 0); b.spawn(0, 0)
+    for each step i, with input inputs[i]:
+        a.advance(inputs[i]); b.advance(inputs[i])
+        if a.checksum() ≠ b.checksum(): return i
+    return none                         // deterministic, at least on this machine
+```
+
 ## Example
 
 Keep the simulation free of the engine's frame-dependent APIs, and verify it with a checksum. This is engine-free logic in every tab: integer (fixed-point) state, an owned seeded random number generator, and a defined iteration order.

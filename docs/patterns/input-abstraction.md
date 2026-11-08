@@ -17,6 +17,46 @@ Put a layer between devices and gameplay:
 - **Action maps** group actions by context (*Gameplay*, *UI*, *Vehicle*). Only the active map's actions fire, so opening a menu disables gameplay actions instead of every script checking "is a menu open?".
 - An **interface** in front of gameplay (`ICharacterInput`) lets the player, the AI or a replay drive the same character.
 
+## Pseudocode
+
+```text
+// What gameplay sees: intents, never keys.
+CharacterInput:
+    move()              // a direction
+    jump_pressed()      // true for one frame
+    attack_held()
+
+// Bindings are data: each action lists the device inputs that trigger it.
+Gameplay map:
+    Move   ← W/A/S/D, left stick
+    Jump   ← Space, gamepad South button
+    Attack ← left mouse button, right trigger
+
+PlayerInputSource is a CharacterInput:
+    move():          return the value of Move
+    jump_pressed():  return whether Jump was pressed this frame
+    attack_held():   return whether Attack is down
+
+    set_gameplay_enabled(on):   // a menu turns the whole map off
+        enable or disable the gameplay map
+
+    rebind(action):
+        disable action
+        wait for the next button press b
+        replace action's keyboard binding with b
+        save all binding overrides; enable action
+
+ChaseAiInput is a CharacterInput:   // an AI drives the same character
+    move():          return the flat direction from self to target, normalised
+    jump_pressed():  return false
+    attack_held():   return distance to target < 2
+
+CharacterMotor, every frame:
+    if no input is assigned: do nothing
+    move by input.move() × speed × frame time
+    if input.jump_pressed(): jump
+```
+
 ## Example
 
 Each engine ships an input-action system, so the example uses it rather than reading devices directly: Unity's **Input System** package, Godot's **Input Map**, and Unreal's **Enhanced Input**. The first group defines the actions, switches context and rebinds; the second shows gameplay that reads only intents, so an AI can drive the same character.

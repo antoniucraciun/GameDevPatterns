@@ -23,6 +23,41 @@ Treat the camera as a small system with several deliberate behaviours:
 
 Run the camera after all movement for the frame has finished: in `LateUpdate` in Unity, with a higher `process_priority` than the target in Godot, and in a late tick group (or the camera manager) in Unreal. For physics-driven targets, enable interpolation where the engine offers it (Unity's Rigidbody interpolation, Godot 4.3+ physics interpolation), so the camera follows a smooth position.
 
+## Pseudocode
+
+```text
+focus            // the point the camera centres on
+grounded_y       // the height the camera follows
+look_ahead
+
+every frame, after everything else has moved:
+    t ← target position + offset
+
+    // 1. Dead zone: move the focus only when the target pushes past its edges.
+    if t.x > focus.x + dead_zone.x: focus.x ← t.x - dead_zone.x
+    if t.x < focus.x - dead_zone.x: focus.x ← t.x + dead_zone.x
+
+    // 2. Vertical: follow the ground height; in the air, only big drops or rises.
+    if target is grounded: grounded_y ← t.y
+    else if t.y is far below or far above grounded_y: grounded_y ← t.y
+    focus.y ← grounded_y
+
+    // 3. Look-ahead: lead in the direction of motion, smoothed slowly.
+    if |target velocity x| > threshold:
+        desired ← sign(target velocity x) × look_ahead_distance
+    else:
+        desired ← look_ahead      // keep it: don't flip on small moves
+    look_ahead ← smooth look_ahead toward desired
+
+    // 4. Damping, per axis, frame-rate independent.
+    camera.x ← smooth camera.x toward focus.x + look_ahead (horizontal time)
+    camera.y ← smooth camera.y toward focus.y (vertical time)
+
+    // 5. Bounds: keep the whole view inside the level.
+    clamp camera.x to [level left + half view width, level right - half view width]
+    clamp camera.y to [level bottom + half view height, level top - half view height]
+```
+
 ## Example
 
 A 2D platformer camera with a dead zone, look-ahead, grounded vertical snapping and level bounds. Godot's `Camera2D` and Unreal's `USpringArmComponent` already provide part of this, so those tabs configure the built-in features and add only the rest:

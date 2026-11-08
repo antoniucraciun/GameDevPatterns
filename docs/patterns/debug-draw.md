@@ -29,6 +29,32 @@ Every engine has built-in debug drawing. Godot draws in 2D with `draw_line` and 
 | `UnityEditor.Handles` | Scene view. Editor only. | Labels, arcs, discs, editable handles |
 | **Your own runtime debug draw** | Game view, **in development builds on device** | Debugging on phones and consoles, or shown to QA |
 
+## Pseudocode
+
+The runtime debug draw from the Example:
+
+```text
+// Immediate mode: callers queue shapes; nothing to create or destroy.
+lines ← empty list of (a, b, colour, until)
+
+line(a, b, colour, duration = 0):     // call sites removed from release builds
+    add (a, b, colour, real now + duration) to lines
+
+sphere(centre, radius, colour, duration = 0):
+    for each of the three axis planes:
+        for each of 24 segments of a circle in that plane:
+            line(segment start, segment end, colour, duration)
+
+each frame, after the scene renders:
+    if lines is empty: return
+    draw every line on top of geometry (no depth test)
+    remove every line whose until has passed   // duration 0: drawn once
+
+// Anywhere in gameplay code:
+if the sight ray hits something: line(eye, hit point, red, 1 second)
+sphere(last_known_position, 0.4, yellow)       // one frame
+```
+
 ## Example
 
 Editor-time visualisation of a component's settings, drawn only when selected (or, in Godot, only in the editor) so the scene does not become noise:
@@ -205,7 +231,7 @@ public static class DebugDraw
         GL.PopMatrix();
 
         float now = Time.unscaledTime;
-        lines.RemoveAll(l => l.Until < now);   // one-frame lines (duration 0) expire after drawing once
+        lines.RemoveAll(l => l.Until <= now);  // one-frame lines (duration 0) expire after drawing once
     }
 #endif
 }

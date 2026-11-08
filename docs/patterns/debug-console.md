@@ -18,6 +18,42 @@ Build one **console**: a text box that opens with a key (often the backtick), wh
 - **Output.** Commands return or log text, and the console also mirrors the engine's log so errors are visible on device.
 - **Stripped from release.** The whole system compiles only in the editor and development builds.
 
+## Pseudocode
+
+```text
+commands ← map from name to (function, help, argument types)
+
+// Features register their own commands, next to the code they affect.
+register(name, function, help, argument types):
+    commands[lowercase name] ← (function, help, argument types)
+
+when the toggle key (`) is pressed: show or hide the console
+when Up is pressed while it is open: put the previous history line in the field
+mirror the engine's log into the output, errors in red
+
+execute(line):
+    parts ← line split on spaces, empty parts dropped
+    if parts is empty: return
+    add line to history; print "> " + line
+
+    name ← lowercase parts[0]
+    if name is "help":
+        for each command, sorted by name: print its name and help
+        return
+    if name is not in commands:
+        print "Unknown command. Try 'help'."; return
+
+    cmd ← commands[name]
+    for each parameter i of cmd:
+        args[i] ← parts[i + 1] converted to parameter i's type,
+                  or parameter i's default value if it was not typed
+    result ← call cmd.function(args)     // print an error instead of crashing
+    if there is a result: print it
+
+// A cheat, in the player's own code, in development builds only:
+register("gold", add amount (default 1000) to the wallet, "Add gold", [integer])
+```
+
 ## Example
 
 The console itself. Unity and Godot need one; Unreal has one built in, so its tab registers commands and variables with it:
