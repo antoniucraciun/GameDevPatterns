@@ -24,6 +24,33 @@ The key decision is how the loop measures and spends time:
 | Variable step | Update by the real elapsed time (`deltaTime`) | Simple, but physics becomes non-deterministic and unstable on long frames |
 | Fixed update, variable render | Accumulate real time; run as many fixed updates as fit; render once | Stable and reproducible. Rendering may need interpolation. See [Fixed Timestep](./fixed-timestep). |
 
+## Pseudocode
+
+What one frame does, and where your own systems plug in. The engines run this loop for you; a custom engine writes it out.
+
+```text
+step        = the fixed physics step, e.g. 1/50 s
+max_elapsed = the longest frame worth simulating, e.g. 0.25 s
+systems     = your own per-frame systems, registered once at startup
+
+register(system):              // at game start, no scene object needed
+    add system to systems
+
+run():
+    previous ← clock now
+    while running:
+        current ← clock now
+        elapsed ← min(current - previous, max_elapsed)   // clamp: no spiral of death
+        previous ← current
+
+        process_input()        // read what has arrived, never wait for it
+        run as many fixed steps of size step as elapsed time allows
+                               // zero or more; see Fixed Timestep
+        for each system in systems:
+            system.update(elapsed)     // per-frame work
+        render()
+```
+
 ## Example
 
 Every engine owns the loop. What you control is **where your code runs in it**. Each engine polls input, runs physics zero or more times at a fixed step, runs per-frame updates, then renders. You can add your own systems to that loop without attaching them to an object in the scene:

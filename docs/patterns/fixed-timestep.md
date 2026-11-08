@@ -24,6 +24,32 @@ render(lerp(previous, current, alpha))
 
 <FixedTimestepViz />
 
+## Pseudocode
+
+```text
+step        = constant simulation step, e.g. 1/50 s
+max_frame   = longest frame time accepted, e.g. 0.25 s
+accumulator ← 0          // real time not simulated yet
+thrust_held ← false      // input latched for the fixed steps
+
+every rendered frame, with frame_time:
+    thrust_held ← is the thrust key down     // sample input every frame
+    alpha ← advance(frame_time)
+    render, blending the last two states by alpha
+
+advance(frame_time):
+    accumulator ← accumulator + min(frame_time, max_frame)
+                         // clamp after a hitch: no spiral of death
+    while accumulator ≥ step:
+        simulate(step)   // always the same size, so results are reproducible
+        accumulator ← accumulator - step
+    return accumulator / step     // how far we are into the next step
+
+simulate(step):
+    if thrust_held:
+        apply the upward force to the body for one step
+```
+
 ## Example
 
 Each engine already runs physics at a fixed step. Apply forces there, and sample input every rendered frame:

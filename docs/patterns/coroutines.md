@@ -27,6 +27,43 @@ In **Godot**, any function that uses `await` is a coroutine: `await get_tree().p
 
 **Unreal** C++ has no built-in coroutines. Sequences use timers (`FTimerManager`), Blueprint latent nodes such as `Delay`, or **Timelines**; plugins such as UE5Coro add C++20 `co_await`.
 
+## Pseudocode
+
+Underneath, the engine keeps every paused routine with what it is waiting for, and resumes it when that happens.
+
+```text
+Routine:
+    resume point and local variables   // kept alive between pauses
+    waiting_for       // the next frame, a time, a signal, or another routine
+    owner             // the object it runs on
+
+Scheduler, every frame:
+    for each routine r:
+        if r.owner is gone or disabled: drop r        // stops with its owner
+        else if r.waiting_for has happened:
+            run r from its resume point to its next yield, or to its end
+
+// The door, written as one routine.
+trigger():
+    stop the running sequence, if there is one   // restarting cancels it
+    running ← start open_wait_close()
+
+open_wait_close():
+    move(closed_position + open_offset)    // waits until this nested routine ends
+    play the sound
+    wait stay_open_seconds
+    move(closed_position)
+
+move(target):
+    start_position ← panel position
+    t ← 0
+    while t < 1:
+        panel position ← smooth blend from start_position to target at t
+        yield until the next frame
+        t ← t + frame time / move_seconds
+    panel position ← target
+```
+
 ## Example
 
 A door that opens, waits, plays a sound and closes, written as one readable sequence. Triggering it again restarts the sequence.

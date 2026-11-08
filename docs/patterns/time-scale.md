@@ -19,6 +19,42 @@ Treat time scaling as **requests that combine**, not as a value anyone can overw
    - *Audio*: paused explicitly with the game, pitch-adjusted for slow-mo if desired.
 3. **Local time scales.** An entity can multiply the global scale by its own factor (frozen enemy ×0, hasted player ×1.5), by using its own delta time instead of the global one.
 
+## Pseudocode
+
+```text
+Request:                    // the handle a requester keeps
+    factor                  // 0 = pause, 0.2 = slow motion, 2 = fast-forward
+    reason                  // for debug tools: "why is the game slow?"
+
+GameTime:                   // the only code that writes the engine's time scale
+    requests ← empty
+
+    push(factor, reason):
+        r ← new Request(factor, reason)
+        add r to requests
+        apply()
+        return r
+
+    release(r):             // removes this request and no other
+        if r is in requests:
+            remove r from requests
+            apply()
+
+    apply():
+        scale ← product of every request's factor     // 1 when there are none
+        if scale is 0: pause the game                 // menus on real time keep running
+        else: unpause, and set the engine's time scale to scale
+        // optional: shorten the physics step and slow the audio to match
+
+// Requesters can't undo each other.
+pause ← push(0, "Pause menu")
+slow  ← push(0.2, "Finisher slow-mo")
+release(slow)               // the product is still 0: the game stays paused
+
+// A local time scale for one entity.
+enemy_dt ← frame dt × enemy.time_scale    // 0 = frozen, 0.5 = half speed
+```
+
 ## Example
 
 One owner of the global time scale. Systems **request** a factor and get a handle back; the actual scale is the product of all active requests, so the pause menu and a slow-motion finisher can't undo each other.

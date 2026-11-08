@@ -19,6 +19,41 @@ Make the data **observable**, and **bind** UI elements to it once:
 
 Code that changes data no longer knows that UI exists, and UI no longer polls.
 
+## Pseudocode
+
+```text
+Observable:
+    value
+    changed                         // event that passes the new value
+
+    set(new_value):
+        if new_value equals value: return     // no change, no event
+        value ← new_value
+        raise changed(new_value)
+
+bind(source, apply):                // one property → one UI element
+    listen to source.changed with apply
+    apply(source.value)             // show the current value straight away
+    return a binding whose dispose() stops listening
+
+two_way(source, slider):
+    bind(source, set the slider's value without raising its own event)
+    when the player moves the slider: source.set(slider value)
+    // the silent set and the equality check stop a feedback loop
+
+// The HUD binds once, through converters...
+bindings ← [
+    bind(gold,            gold label text ← gold formatted as "1,250 G"),
+    bind(health_fraction, health bar fill ← health_fraction),
+    bind(has_quest,       quest tracker visible ← has_quest),
+    two_way(music_volume, music slider) ]
+
+// ...gameplay only changes data, and the label updates itself.
+gold.set(gold.value + 10)
+
+when the HUD is destroyed: dispose every binding in bindings
+```
+
 ## Example
 
 Game data exposes values that announce their changes, and UI binds to them once. Unity has no general observable type for uGUI, so the Unity tab builds a small one. Godot uses property setters with signals, and Unreal uses the **UMG Viewmodel** plugin, whose bindings are set up in the widget designer.

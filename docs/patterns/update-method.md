@@ -12,6 +12,33 @@ A world holds dozens of independent things: a patrolling guard, a spinning picku
 
 Give every active object an `Update(dt)` method that advances it by one frame. The game keeps a collection of active objects and calls `Update` on each of them once per frame. Each object keeps whatever state it needs between calls, such as the patrol waypoint index or how far the door has closed.
 
+## Pseudocode
+
+```text
+// Each object keeps its own state between frames and advances itself.
+Patrol:
+    waypoints, speed
+    index ← 0                    // the waypoint it is heading for
+
+    update(dt):
+        target ← waypoints[index]
+        move position toward target by at most speed × dt
+        if position has reached target:
+            index ← (index + 1) mod number of waypoints
+
+// The loop only knows that objects can be updated.
+TickManager:
+    objects                      // everything that wants an update
+
+    register(obj):   add obj to objects
+    unregister(obj): remove obj from objects
+
+    every frame, with frame time dt:
+        // Backwards, so an object can unregister itself during its update.
+        for i from the last index of objects down to 0:
+            objects[i].update(dt)
+```
+
 ## Example
 
 Every engine has this pattern built in: you override one method and the engine calls it every frame.
