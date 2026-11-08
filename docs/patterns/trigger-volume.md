@@ -18,6 +18,44 @@ One reusable **trigger volume** component handles the mechanics, and designers w
 - **Events**: `OnFirstEnter` (empty → occupied), `OnLastExit` (occupied → empty), and per-object `OnEnter` / `OnExit`. Exposed as events designers can wire in the editor (`UnityEvent`s, Godot signals, Blueprint-assignable delegates) to connect doors, lights, music and cutscenes.
 - **Modes**: fire once (cutscene), fire every time (music zone), or with a cooldown (trap).
 
+## Pseudocode
+
+```text
+TriggerVolume:
+    filter                  // layers, a required tag or group
+    fire_once, cooldown
+    occupants[object]       // colliders inside, per object
+    fired ← false
+    ready_at ← 0
+
+    on collider entered(c):
+        object ← the object c belongs to    // its rigidbody, actor or body
+        if object fails the filter: return
+        occupants[object] ← occupants[object] + 1
+        if that count was already above 0: return   // a second collider of one object
+        if fire_once and fired: return
+        if now < ready_at: return                   // still cooling down
+        announce entered(object)
+        if object is the only occupant: announce first entered   // empty → occupied
+        fired ← true
+        ready_at ← now + cooldown
+
+    on collider exited(c):
+        object ← the object c belongs to
+        if object is not an occupant: return
+        occupants[object] ← occupants[object] - 1
+        if it is still above 0: return      // other colliders still inside
+        remove_occupant(object)
+
+    regularly, if the engine sends no exit for removed objects:
+        for each occupant destroyed or disabled inside: remove_occupant(it)
+
+    remove_occupant(object):
+        forget object
+        announce exited(object)
+        if there are no occupants left: announce last exited   // occupied → empty
+```
+
 ## Example
 
 One reusable volume with a filter, fire-once and cooldown options, and enter/exit plus occupied/empty events. Each occupant counts once, however many colliders it has.

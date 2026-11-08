@@ -20,6 +20,46 @@ Use three clearly separated layers:
 
 The container's operations return results, not just `true` or `false`. `TryAdd` returns the **remainder** that did not fit, so picking up 30 arrows into a bag with room for 12 leaves 18 on the ground. Containers raise a `Changed` event for the UI ([Observer](./observer)), and save as plain data: definition IDs, counts and instance data.
 
+## Pseudocode
+
+```text
+ItemDefinition:             // shared, read-only: one per kind of item
+    id, max_stack           // max_stack 1 = does not stack
+
+ItemStack:                  // what one slot holds
+    definition, count, durability
+
+Container:
+    slots[size]             // each holds a stack or is empty
+
+    try_add(definition, count):     // returns how many did NOT fit
+        if definition.max_stack > 1:
+            for each slot holding a stack s of definition:
+                moved ← min(count, max_stack - s.count)    // top up first
+                s.count += moved; count -= moved
+        for each empty slot, while count > 0:
+            moved ← min(count, max_stack)
+            put a new stack of moved × definition in the slot
+            count -= moved
+        announce changed
+        return count        // 30 arrows into room for 12 → 18 stay behind
+
+    try_remove(definition, count):
+        if total of definition across slots < count: return false   // all or nothing
+        walking from the last slot back, take from stacks of definition
+            until count are taken; empty any slot that reaches 0
+        announce changed; return true
+
+    move(from, from_slot, to, to_slot, amount):    // drag and drop
+        source ← from_slot's stack; target ← to_slot's stack
+        if target is empty:     put amount there (split if less than all)
+        else if same definition and stackable:
+                                move as much as fits on top of target
+        else if amount is the whole stack:
+                                swap the two stacks
+        announce changed on both containers
+```
+
 ## Example
 
 ### Item data

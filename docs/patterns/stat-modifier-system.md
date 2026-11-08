@@ -18,6 +18,44 @@ Never mutate the stat. Store a **base value** and a list of **modifiers**. Each 
 
 Removing a modifier is just removing it from the list. Removing everything from one source, when an item is unequipped or a buff expires, is a single call. Because the result is always recalculated from scratch, the order in which modifiers were added and removed cannot change it.
 
+## Pseudocode
+
+```text
+Modifier:
+    value         // 15 for +15, 0.10 for +10%, -0.5 for ×0.5
+    type          // flat, percent add or percent mult
+    source        // the item, buff or talent that applied it
+
+Stat:
+    base_value
+    modifiers ← empty list
+    cached
+    dirty ← true  // recalculate on the next read
+
+    add(modifier):
+        add modifier to modifiers
+        dirty ← true; notify listeners that it changed
+
+    remove_all_from(source):
+        if any modifier in modifiers came from source:
+            remove those modifiers
+            dirty ← true; notify listeners that it changed
+
+    value():
+        if dirty:
+            flat ← sum of values of the flat modifiers
+            percent_add ← sum of values of the percent add modifiers
+            mult ← 1
+            for each percent mult modifier m:
+                mult ← mult × (1 + m.value)     // each one applies on its own
+            cached ← (base_value + flat) × (1 + percent_add) × mult
+            dirty ← false
+        return cached
+
+// Equipping adds one modifier per bonus, with the item as source;
+// unequipping calls remove_all_from(item) on every stat.
+```
+
 ## Example
 
 The **core** is a stat with a base value, a list of sourced modifiers and a cached result. It needs no engine types, so it can be unit tested on its own. The **engine wiring** turns equipment into modifiers and removes them again by source.

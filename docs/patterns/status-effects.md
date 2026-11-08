@@ -26,6 +26,45 @@ Make the **stacking policy** an explicit choice per definition:
 | **Independent** | Creates a separate instance, one per source | DoTs from different players |
 | **Ignore** | Does nothing | Immunity windows, unique effects |
 
+## Pseudocode
+
+```text
+StatusEffectDefinition:     // shared data: poison, slow, stun…
+    duration, tick_interval, damage_per_tick, move_speed_percent
+    stacking, max_stacks, tags
+
+ActiveEffect:               // one application on one target
+    definition, source, remaining, stacks ← 1, next_tick
+
+StatusEffectContainer:      // on each target
+    active ← empty list
+
+    apply(definition, source):
+        existing ← the active effect with this definition
+                   (and this source, if stacking is independent)
+        if there is none:
+            add a new ActiveEffect to active; add its modifiers
+        else by definition.stacking:
+            refresh, independent: existing.remaining ← definition.duration
+            extend:               existing.remaining += definition.duration
+            stack intensity:      existing.stacks ← min(stacks + 1, max_stacks)
+                                  existing.remaining ← definition.duration
+                                  replace its modifiers (they scale with stacks)
+            ignore:               do nothing
+
+    every frame (dt), for each effect e in active:
+        e.next_tick ← e.next_tick - dt
+        while e.next_tick ≤ 0:              // catch up after a long frame
+            deal damage_per_tick × e.stacks to the target
+            e.next_tick ← e.next_tick + tick_interval
+        e.remaining ← e.remaining - dt
+        if e.remaining ≤ 0: remove(e)
+
+    remove(e):              // expiry and cleanse both end up here
+        remove every stat modifier whose source is e
+        take e out of active
+```
+
 ## Example
 
 Effect definitions are data assets; a container on each character holds the active instances, applies the stacking policy, ticks damage and adds stat modifiers that it removes again when the effect ends. Health is from the [Health / Damageable](./health-component) page, and the stats from the [Stat & Modifier System](./stat-modifier-system).
@@ -52,6 +91,7 @@ public class StatusEffectDefinition : ScriptableObject
 
     [Header("Per tick (multiplied by stacks)")]
     public int damagePerTick;
+    public DamageType damageType = DamageType.Poison;
 
     [Header("While active (multiplied by stacks)")]
     public float moveSpeedPercent;              // e.g. -0.3 for a 30% slow
@@ -145,7 +185,7 @@ public class StatusEffectContainer : MonoBehaviour
                 e.NextTick -= dt;
                 while (e.NextTick <= 0f && e.Remaining > 0f)    // catch up after long frames
                 {
-                    health.TakeDamage(def.damagePerTick * e.Stacks);
+                    health.TakeDamage(new DamageInfo { Amount = def.damagePerTick * e.Stacks, Type = def.damageType });
                     e.NextTick += def.tickInterval;
                 }
             }

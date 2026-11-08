@@ -25,6 +25,45 @@ When the player dies, the simplest response is reloading the scene. But that als
 
 Because both checkpoints and saves capture mementos, a checkpoint can also write a save, which makes it a save point.
 
+## Pseudocode
+
+```text
+Restorable:                 // only objects that should roll back opt in
+    capture()               // → memento: an enemy's position, health, alive
+    restore(memento)
+
+Checkpoint:
+    order                   // progression along the level
+    spawn_point
+    when the player reaches it: CheckpointSystem.activate(this checkpoint)
+
+CheckpointSystem:
+    active ← none
+    snapshot[restorable] ← memento
+    respawning ← false
+
+    activate(checkpoint):
+        if active exists and checkpoint.order ≤ active.order: return   // never go backwards
+        active ← checkpoint
+        snapshot ← empty
+        for each restorable r in the world:
+            snapshot[r] ← r.capture()
+
+    respawn():              // called when the player dies
+        if respawning or no active: return
+        respawning ← true
+        fade to black
+        for each (r, memento) in snapshot:
+            if r still exists: r.restore(memento)   // disabled, not destroyed, enemies return
+        move the player to active.spawn_point
+        revive the player
+        announce respawned  // camera, music, hit stop, input reset themselves
+        wait 0.3 s; fade back in
+        respawning ← false
+
+// A collected key is not Restorable, so it stays collected after death.
+```
+
 ## Example
 
 ### The checkpoint system

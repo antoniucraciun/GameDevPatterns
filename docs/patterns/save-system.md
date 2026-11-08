@@ -18,6 +18,39 @@ Distribute the work, and make the format robust:
 - **A versioned envelope.** The file records a format version. On load, **migrations** upgrade old data step by step to the current version.
 - **Safe writes.** Write to a temporary file, then replace the old save in one step, keeping a backup. A crash can never leave a half-written save.
 
+## Pseudocode
+
+```text
+Saveable:                   // anything with persistent state, e.g. a chest
+    id                      // assigned once in the editor, never by name
+    capture_state()         // → plain data: { opened, item_ids }
+    restore_state(data)     // and update visuals from it
+
+CURRENT_VERSION ← 2
+
+save(slot):
+    file ← { version: CURRENT_VERSION, saved_at: now, entries: {} }
+    for each saveable s in the world:
+        file.entries[s.id] ← s.capture_state()
+    write file to "slot.tmp"                // a crash here leaves the old save intact
+    keep the old "slot" as "slot.bak"
+    rename "slot.tmp" to "slot"             // the swap is one step
+
+load(slot):
+    if "slot" is missing: fall back to "slot.bak"
+    file ← read and parse it
+    migrate(file)
+    for each saveable s in the world:
+        if file.entries has s.id:
+            s.restore_state(file.entries[s.id])
+
+migrate(file):              // one version at a time, oldest first
+    if file.version > CURRENT_VERSION: refuse (saved by a newer game)
+    if file.version < 2:
+        in every entry, replace item id "item:sword" with "iron_sword"
+    file.version ← CURRENT_VERSION
+```
+
 ## Example
 
 ### Saveable objects with stable IDs

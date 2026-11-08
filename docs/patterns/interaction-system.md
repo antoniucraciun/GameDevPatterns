@@ -18,6 +18,41 @@ Split the work between **the things you can interact with** and **the one thing 
 
 New interactables need no changes to the player.
 
+## Pseudocode
+
+```text
+Interactable:               // doors, NPCs, items, levers
+    prompt                  // "Open", "Talk to Mira"
+    priority, hold_seconds  // hold_seconds 0 = press
+    blocked_reason(who)     // "Locked", "Inventory full", or none
+    interact(who)
+    set_focused(on)         // highlight
+
+Interactor:                 // on the player; the only reader of the button
+    focused, blocked_reason, hold_progress
+
+    scan():                 // every 0.1 s
+        best ← nothing
+        for each interactable c within range of the eyes:
+            if a wall is between the eyes and c: skip it
+            facing ← how centred c is in view    // 1 = dead centre
+            if facing < 0.3: skip it             // outside a ~70° cone
+            score ← facing × 2 - distance / range + c.priority × 0.5
+            if score beats best's: best ← c; blocked_reason ← c.blocked_reason(player)
+        if best is not focused:
+            unhighlight focused; focused ← best; highlight it
+            hold_progress ← 0; announce focus changed   // UI shows the prompt
+
+    every frame:
+        if no focused, or blocked_reason: hold_progress ← 0; stop
+        if focused.hold_seconds is 0:
+            if interact was just pressed: focused.interact(player)
+        else if interact is held:
+            hold_progress += dt / focused.hold_seconds
+            if hold_progress ≥ 1: hold_progress ← 0; focused.interact(player)
+        else: hold_progress ← 0
+```
+
 ## Example
 
 ### The interactor
@@ -380,7 +415,7 @@ using UnityEngine;
 
 public class Door : MonoBehaviour, IInteractable
 {
-    [SerializeField] string keyItemId;                  // empty = unlocked
+    [SerializeField] ItemDefinition key;                // null = unlocked; PlayerInventory is from the Inventory page
     [SerializeField] Renderer outline;
     bool open;
 
@@ -392,8 +427,8 @@ public class Door : MonoBehaviour, IInteractable
     public bool CanInteract(Interactor who, out string reason)
     {
         reason = null;
-        if (string.IsNullOrEmpty(keyItemId) || open) return true;
-        if (who.GetComponent<PlayerInventory>().Has(keyItemId)) return true;
+        if (key == null || open) return true;
+        if (who.TryGetComponent(out PlayerInventory inventory) && inventory.Bag.CountOf(key) > 0) return true;
         reason = "Locked";
         return false;
     }

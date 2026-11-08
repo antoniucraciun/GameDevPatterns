@@ -31,6 +31,42 @@ Damage
 
 Unreal Engine's Gameplay Ability System popularised this approach. The pattern works in any engine.
 
+## Pseudocode
+
+```text
+is_a(tag, query):           // Effect.Debuff.Stun is a kind of Effect.Debuff
+    return tag is query, or query is one of tag's ancestors
+
+TagContainer:
+    counts[tag]             // how many sources hold each tag
+
+    add(tag):
+        counts[tag] ← counts[tag] + 1
+        if it was 0: announce changed(tag, present)  // only the first source
+
+    remove(tag):
+        if tag is not held: return
+        counts[tag] ← counts[tag] - 1
+        if it reaches 0:    // no other source still holds it
+            forget tag; announce changed(tag, absent)
+
+    has(query):             // hierarchical: has(Effect.Debuff) while Stun is held
+        return any held tag t with is_a(t, query)
+    has_any(queries): return has(q) for at least one q
+    has_all(queries): return has(q) for every q
+
+    remove_all_under(root): // "cleanse all debuffs": ignores counts
+        for each held tag t with is_a(t, root):
+            forget t; announce changed(t, absent)
+
+TagRequirement:             // reusable, set up by designers
+    require_all, blocked_by_any
+    is_met_by(tags): return tags.has_all(require_all)
+                            and not tags.has_any(blocked_by_any)
+
+// can_act ← requirement(blocked by: Stun, Frozen, Cutscene).is_met_by(tags)
+```
+
 ## Example
 
 ### Tags, a counted container and requirements

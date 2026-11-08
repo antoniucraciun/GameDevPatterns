@@ -20,6 +20,42 @@ Represent each conversation as **data**: a graph of **nodes**.
 
 Conditions and effects are small data objects, so writers combine them in the editor. Dedicated tools such as **Ink** and **Yarn Spinner** implement this pattern with a scripting language and integrations for Unity, Godot and Unreal (official or community-made), and are worth considering before building your own.
 
+## Pseudocode
+
+```text
+Conversation:               // data, written in the editor
+    start_node_id
+    nodes                   // found by id
+DialogueNode:
+    id, speaker, text_key   // "mira.greeting", not the text itself
+    next_id                 // used when there are no choices; empty = end
+    choices, on_enter       // on_enter: effects run when the node is shown
+DialogueChoice:
+    text_key, next_id
+    conditions              // all must hold for the choice to appear
+    effects                 // run when it is picked: start quest, set flag…
+
+DialogueRunner:             // decides everything; the UI only displays
+    current, visible_choices
+
+    start(conversation): go_to(conversation.start_node_id)
+
+    go_to(id):
+        current ← the node with that id, or nothing if id is empty
+        if there is no current: announce ended; return
+        run each effect in current.on_enter
+        visible_choices ← the choices whose conditions are all met
+        announce show(current.speaker, translate(current.text_key),
+                      translate each visible choice's text_key)
+
+    select(index):          // called by the UI
+        if visible_choices is empty: go_to(current.next_id)   // a plain line
+        else:
+            choice ← visible_choices[index]
+            run each effect in choice.effects
+            go_to(choice.next_id)
+```
+
 ## Example
 
 ### The conversation as data
