@@ -4,9 +4,13 @@
 
 **Also known as:** Fixed Update, Accumulator · **Category:** Game Loop & Timing
 
+## Overview
+
+Physics and other simulations give different results when each frame advances them by a different amount of time. A fixed timestep advances the simulation in equal steps, as many as the real time allows, so it behaves the same at any frame rate. This page covers the accumulator loop, interpolating between steps for smooth rendering, and how Unity, Godot and Unreal already run physics this way.
+
 ## Problem
 
-When the simulation advances by a variable `deltaTime`, results depend on the frame rate. A jump reaches a different height at 30 FPS than at 144 FPS. A long frame can let a fast bullet tunnel through a wall, and stiff springs can explode. Replays and lockstep networking become impossible because two machines never take the same steps.
+Scaling movement by a variable `deltaTime` gives [frame rate independence](./game-loop) for simple motion, but anything integrated over time still depends on the frame rate. Most hand-written simulations use **semi-implicit Euler** (update the velocity from the acceleration, then the position from the new velocity), and its result depends on the step size. A jump reaches a different height at 30 FPS than at 144 FPS. A long frame can let a fast bullet tunnel through a wall, and stiff springs can explode. Replays and lockstep networking become impossible because two machines never take the same steps.
 
 ## Solution
 
@@ -18,9 +22,11 @@ while accumulator >= step:
     previous = current
     current  = simulate(current, step)
     accumulator -= step
-alpha = accumulator / step
+alpha = accumulator / step      // the interpolation alpha: 0 to 1 into the next step
 render(lerp(previous, current, alpha))
 ```
+
+A fixed step doesn't make the simulation more *accurate*: a 1/50 s step still misses the exact answer. It makes it **deterministic**, landing on the same answer every time on every machine, which is what replays, lockstep and rollback need.
 
 <FixedTimestepViz />
 
@@ -160,19 +166,22 @@ using System;
 public class FixedStepRunner
 {
     readonly double step;
+    readonly double maxFrameTime;
     readonly Action<double> simulate;
     double accumulator;
 
-    public FixedStepRunner(double stepSeconds, Action<double> simulate)
+    // maxFrameTime: the longest frame accepted, so a hitch can't demand hundreds of catch-up steps.
+    public FixedStepRunner(double stepSeconds, Action<double> simulate, double maxFrameTime = 0.25)
     {
         step = stepSeconds;
         this.simulate = simulate;
+        this.maxFrameTime = maxFrameTime;
     }
 
     // Returns the interpolation alpha for rendering between the last two states.
     public double Advance(double frameTime)
     {
-        accumulator += Math.Min(frameTime, 0.25);   // clamp after a hitch to avoid a spiral of death
+        accumulator += Math.Min(frameTime, maxFrameTime);   // clamp: no spiral of death
         while (accumulator >= step)
         {
             simulate(step);
@@ -189,18 +198,21 @@ class_name FixedStepRunner
 extends RefCounted
 
 var _step: float
+var _max_frame_time: float
 var _simulate: Callable
 var _accumulator := 0.0
 
 
-func _init(step_seconds: float, simulate: Callable) -> void:
+# max_frame_time: the longest frame accepted, so a hitch can't demand hundreds of catch-up steps.
+func _init(step_seconds: float, simulate: Callable, max_frame_time := 0.25) -> void:
 	_step = step_seconds
 	_simulate = simulate
+	_max_frame_time = max_frame_time
 
 
 # Returns the interpolation alpha for rendering between the last two states.
 func advance(frame_time: float) -> float:
-	_accumulator += minf(frame_time, 0.25)  # clamp after a hitch to avoid a spiral of death
+	_accumulator += minf(frame_time, _max_frame_time)  # clamp: no spiral of death
 	while _accumulator >= _step:
 		_simulate.call(_step)
 		_accumulator -= _step
@@ -216,13 +228,14 @@ func advance(frame_time: float) -> float:
 class FFixedStepRunner
 {
 public:
-	FFixedStepRunner(double InStep, TFunction<void(double)> InSimulate)
-		: Step(InStep), Simulate(MoveTemp(InSimulate)) {}
+	// InMaxFrameTime: the longest frame accepted, so a hitch can't demand hundreds of catch-up steps.
+	FFixedStepRunner(double InStep, TFunction<void(double)> InSimulate, double InMaxFrameTime = 0.25)
+		: Step(InStep), MaxFrameTime(InMaxFrameTime), Simulate(MoveTemp(InSimulate)) {}
 
 	// Returns the interpolation alpha for rendering between the last two states.
 	double Advance(double FrameTime)
 	{
-		Accumulator += FMath::Min(FrameTime, 0.25);   // clamp after a hitch to avoid a spiral of death
+		Accumulator += FMath::Min(FrameTime, MaxFrameTime);   // clamp: no spiral of death
 		while (Accumulator >= Step)
 		{
 			Simulate(Step);
@@ -233,6 +246,7 @@ public:
 
 private:
 	double Step;
+	double MaxFrameTime;
 	TFunction<void(double)> Simulate;
 	double Accumulator = 0.0;
 };
@@ -240,11 +254,13 @@ private:
 
 :::
 
+To render with the returned alpha, the caller keeps two copies of its state, as in the Solution sketch: the simulate callback first sets `previous = current`, then advances `current` by one step, and each frame draws `lerp(previous, current, alpha)`.
+
 **Engine notes**
 
-- **Unity:** set **Interpolate** on the Rigidbody so rendering blends between physics steps and motion looks smooth at any display rate.
-- **Godot:** turn on **physics interpolation** (Project Settings → Physics → Common; 2D since 4.3, 3D since 4.4) for the same smoothing.
-- **Unreal:** by default physics steps with the frame (optionally **substepping**). The async physics tick gives a true fixed step; mark state shared with the game thread as thread-safe, as the `std::atomic` above does.
+- **Unity:** set **Interpolate** on the Rigidbody so rendering blends between physics steps and motion looks smooth at any display rate. The runnable Unity sample uses both examples above as written, and adds a `Jumper`: a hand-simulated jump advanced by `FixedStepRunner` at 1/50 s and drawn with interpolation, to show the runner in use. Its peak height is the same on every jump at 30 and about 120 FPS, while the same jump integrated with `deltaTime` peaks lower at 30 FPS than at 120. Docs: [MonoBehaviour.FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html), [Time.fixedDeltaTime](https://docs.unity3d.com/ScriptReference/Time-fixedDeltaTime.html), [Time settings](https://docs.unity3d.com/Manual/class-TimeManager.html) (Fixed Timestep, Maximum Allowed Timestep), [Fixed updates](https://docs.unity3d.com/Manual/fixed-updates.html), [Time handling variations](https://docs.unity3d.com/Manual/time-handling-variations.html), [Rigidbody.AddForce](https://docs.unity3d.com/ScriptReference/Rigidbody.AddForce.html), [Rigidbody.interpolation](https://docs.unity3d.com/ScriptReference/Rigidbody-interpolation.html), [Rigidbody interpolation](https://docs.unity3d.com/Manual/rigidbody-interpolation.html).
+- **Godot:** turn on **physics interpolation** (Project Settings → Physics → Common; 2D since 4.3, 3D since 4.4) for the same smoothing. Docs: [Idle and physics processing](https://docs.godotengine.org/en/stable/tutorials/scripting/idle_and_physics_processing.html), [Physics interpolation](https://docs.godotengine.org/en/stable/tutorials/physics/interpolation/physics_interpolation_introduction.html), [RigidBody3D](https://docs.godotengine.org/en/stable/classes/class_rigidbody3d.html) (`apply_central_force`), [ProjectSettings](https://docs.godotengine.org/en/stable/classes/class_projectsettings.html) (`physics/common/physics_ticks_per_second`, `max_physics_steps_per_frame`).
+- **Unreal:** by default physics steps with the frame (optionally **substepping**). The async physics tick gives a true fixed step; mark state shared with the game thread as thread-safe, as the `std::atomic` above does. Docs: [Physics Sub-Stepping](https://dev.epicgames.com/documentation/en-us/unreal-engine/physics-sub-stepping-in-unreal-engine).
 
 ## When to use
 
@@ -260,6 +276,7 @@ private:
 ## Pitfalls
 
 - **One-frame inputs lost or doubled.** Unity's `GetKeyDown` checked in `FixedUpdate` can miss a press (zero steps this frame) or fire twice (two steps). Latch inputs in the per-frame update and consume them in the fixed step. Godot's `is_action_just_pressed()` tracks physics frames and is safe in `_physics_process`; Unreal's input events fire per frame, so latch them the same way for any fixed-step logic of your own.
+- **Forces applied in `Update`.** Unity sums every `AddForce` between two physics steps, so pushing from `Update` pushes harder at higher frame rates. Apply forces in `FixedUpdate` (`_physics_process` in Godot), as the example does.
 - **Spiral of death.** Clamp frame time (Unity's *Maximum Allowed Timestep*, Godot's *Max Physics Steps per Frame*, Unreal's *Max Substeps*) so a hitch does not demand hundreds of catch-up steps.
 - **Visible stutter without interpolation** when the display rate is not a multiple of the step rate.
 - A fixed step alone does not make floating-point math deterministic across platforms. See [Determinism](./determinism).
