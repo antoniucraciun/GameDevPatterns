@@ -4,6 +4,10 @@
 
 **Category:** Game Loop & Timing
 
+## Overview
+
+Every engine already calls an update method on each object once per frame: `Update` in Unity, `_process` in Godot, `Tick` in Unreal. This page covers when giving each object its own update is the right structure, when events or timers are better, and the manager variant that pays off once you have thousands of objects.
+
 ## Problem
 
 A world holds dozens of independent things: a patrolling guard, a spinning pickup, a door that slowly closes. Hard-coding all of their behaviour into one giant loop body does not scale, and adding a new kind of object would mean editing that loop.
@@ -11,6 +15,12 @@ A world holds dozens of independent things: a patrolling guard, a spinning picku
 ## Solution
 
 Give every active object an `Update(dt)` method that advances it by one frame. The game keeps a collection of active objects and calls `Update` on each of them once per frame. Each object keeps whatever state it needs between calls, such as the patrol waypoint index or how far the door has closed.
+
+Each object scales its movement by the frame time it is given (speed × `dt`), so it moves at the same speed whatever the frame rate. This is **frame rate independence**, explained on the [Game Loop](./game-loop) page.
+
+The engine calls the objects one at a time, in an order you don't control. That order matters as soon as one object reads another's state:
+
+<UpdateOrderViz />
 
 ## Pseudocode
 
@@ -58,6 +68,8 @@ public class Patrol : MonoBehaviour
     {
         Vector3 target = waypoints[index].position;
         transform.position = Vector3.MoveTowards(transform.position, target, speed * Time.deltaTime);
+        // Exact enough: MoveTowards lands exactly on the target, and Vector3 == allows about 1e-5.
+        // A looser distance check would turn the guard before it arrives.
         if (transform.position == target)
             index = (index + 1) % waypoints.Length;
     }
@@ -133,6 +145,10 @@ public class TickManager : MonoBehaviour
     public static void Register(ITickable t) => tickables.Add(t);
     public static void Unregister(ITickable t) => tickables.Remove(t);
 
+    // The list is static: empty it at startup in case it survived the last Play session.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetList() => tickables.Clear();
+
     void Update()
     {
         float dt = Time.deltaTime;
@@ -140,6 +156,17 @@ public class TickManager : MonoBehaviour
         for (int i = tickables.Count - 1; i >= 0; i--)
             tickables[i].Tick(dt);
     }
+}
+
+// A ticked object: in the list only while it is enabled.
+public class Spinner : MonoBehaviour, ITickable
+{
+    [SerializeField] float degreesPerSecond = 90f;
+
+    void OnEnable() => TickManager.Register(this);
+    void OnDisable() => TickManager.Unregister(this);
+
+    public void Tick(float dt) => transform.Rotate(0f, degreesPerSecond * dt, 0f);
 }
 ```
 
@@ -208,11 +235,13 @@ private:
 
 :::
 
+Objects join the list when they become active and leave it before they go away: `OnEnable` / `OnDisable` in Unity (as `Spinner` does), `_enter_tree` / `_exit_tree` or the owner's setup and teardown in Godot, `BeginPlay` / `EndPlay` in Unreal.
+
 **Engine notes**
 
-- **Unity:** `Update`, `FixedUpdate` and `LateUpdate` are all update methods. The engine-to-script call per `MonoBehaviour` is the overhead the manager avoids.
-- **Godot:** `_process` and `_physics_process` run only while processing is enabled; `set_process(false)` turns an idle node off for free.
-- **Unreal:** actors and components only tick if `bCanEverTick` is set. Lower `PrimaryActorTick.TickInterval` for things that don't need every frame, and turn ticking off with `SetActorTickEnabled(false)` when idle.
+- **Unity:** `Update`, `FixedUpdate` and `LateUpdate` are all update methods. The engine-to-script call per `MonoBehaviour` is the overhead the manager avoids. The runnable Unity sample adds `Spinner` and `SlidingDoor` next to `Patrol` so its scene matches the Problem section, and leaves out the `TickManager` variant, which only pays off when the Profiler shows the per-object calls cost too much. Docs: [MonoBehaviour.Update](https://docs.unity3d.com/ScriptReference/MonoBehaviour.Update.html), [MonoBehaviour.LateUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.LateUpdate.html), [Vector3.MoveTowards](https://docs.unity3d.com/ScriptReference/Vector3.MoveTowards.html), [Event function execution order](https://docs.unity3d.com/Manual/execution-order.html), [Domain reloading](https://docs.unity3d.com/Manual/domain-reloading.html).
+- **Godot:** `_process` and `_physics_process` run only while processing is enabled; `set_process(false)` turns an idle node off for free. Docs: [Idle and physics processing](https://docs.godotengine.org/en/stable/tutorials/scripting/idle_and_physics_processing.html), [Node](https://docs.godotengine.org/en/stable/classes/class_node.html) (`_process`, `set_process`, `process_priority`).
+- **Unreal:** actors and components only tick if `bCanEverTick` is set. Lower `PrimaryActorTick.TickInterval` for things that don't need every frame, and turn ticking off with `SetActorTickEnabled(false)` when idle. Docs: [Actor Ticking](https://dev.epicgames.com/documentation/en-us/unreal-engine/actor-ticking-in-unreal-engine) (tick groups, tick intervals, enabling and disabling ticks).
 
 ## When to use
 
@@ -231,6 +260,7 @@ private:
 - **Modifying the collection while iterating it**, for example spawning or destroying objects during `Update`. Defer the changes, or iterate a copy or backwards.
 - **Empty `Update` methods still cost a call.** Disable components that have nothing to do, or switch to events.
 - **Polling things that rarely change.** Prefer [Observer](./observer) when something only matters at the moment it changes.
+- **A static tick list can outlive the Play session in Unity.** With [Domain Reload](https://docs.unity3d.com/Manual/domain-reloading.html) disabled (Enter Play Mode Options), static fields keep their values between Play sessions, so the list may still hold objects destroyed when the last session ended and the next `Tick` can throw `MissingReferenceException`. Clear the list in a `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` method, as `TickManager` does.
 
 ## Related
 

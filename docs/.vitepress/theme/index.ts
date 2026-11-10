@@ -18,6 +18,7 @@ import NetSyncViz from './viz/NetSyncViz.vue'
 import SteeringViz from './viz/SteeringViz.vue'
 import DoubleBufferViz from './viz/DoubleBufferViz.vue'
 import GameLoopViz from './viz/GameLoopViz.vue'
+import UpdateOrderViz from './viz/UpdateOrderViz.vue'
 import './custom.css'
 
 export default {
@@ -44,5 +45,6 @@ export default {
     app.component('SteeringViz', SteeringViz)
     app.component('DoubleBufferViz', DoubleBufferViz)
     app.component('GameLoopViz', GameLoopViz)
+    app.component('UpdateOrderViz', UpdateOrderViz)
   },
 } satisfies Theme
